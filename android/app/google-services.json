@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "407188672000",
+    "project_id": "cuponera-5f06a",
+    "storage_bucket": "cuponera-5f06a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:407188672000:android:dd8b4f60eba26871d8d2e5",
+        "android_client_info": {
+          "package_name": "com.pixelsmart.cuponera_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDnfwU06qTLEAnXM4GTxKXhCUQMbO8I1VQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
