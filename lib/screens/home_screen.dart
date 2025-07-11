@@ -1,54 +1,61 @@
 import 'package:cuponera_app/screens/cupones_screen.dart';
 import 'package:cuponera_app/screens/estadisticas_screen.dart';
-import 'package:cuponera_app/services/color_generator_service.dart';
+import 'package:cuponera_app/services/auth_service.dart';
+import 'package:cuponera_app/services/historico_cupon_service.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'dart:math';
+import 'package:go_router/go_router.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final authService = AuthService();
+  final historicoService = HistoricoCuponService();
+
+  List<Map<String, dynamic>> cupones = [];
+
+  bool cargando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    cargarCupones();
+  }
+
+  Future<void> cargarCupones() async {
+    try {
+      final data = await historicoService.obtenerHistorialCompleto();
+      setState(() {
+        cupones = data.cast<Map<String, dynamic>>();
+        cargando = false;
+      });
+    } catch (e) {
+      setState(() {
+        cargando = false;
+      });
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text('Error'),
+          content: Text('No se pudo obtener el historial de cupones.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cerrar'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Simulación de datos (luego los puedes obtener del backend o estado global)
-    final cupones = [
-      {
-        'numero': 1,
 
-        'fechaInicio': '2025-07-01',
-        'fechaFin': '2025-07-31',
-        'usuario': 'Jonathan Parra',
-        'fechaEscaneo': '2025-07-01 14:30',
-      },
-      {
-        'numero': 2,
-        'fechaInicio': '2025-07-02',
-        'fechaFin': '2025-07-15',
-        'usuario': 'Jonathan Parra',
-        'fechaEscaneo': '2025-07-02 10:15',
-      },
-      {
-        'numero': 3,
-        'fechaInicio': '2025-07-01',
-        'fechaFin': '2025-07-01',
-        'usuario': 'Jonathan Parra',
-        'fechaEscaneo': '2025-07-01 09:00',
-      },
-    ];
-
-    final estadisticas = [
-      {'fecha': '2025-06-25', 'cupones': 5},
-      {'fecha': '2025-06-26', 'cupones': 8},
-      {'fecha': '2025-06-27', 'cupones': 4},
-      {'fecha': '2025-06-28', 'cupones': 10},
-      {'fecha': '2025-06-29', 'cupones': 7},
-      {'fecha': '2025-06-30', 'cupones': 12},
-      {'fecha': '2025-07-01', 'cupones': 6},
-      {'fecha': '2025-06-25', 'cupones': 5},
-      {'fecha': '2025-06-26', 'cupones': 8},
-      {'fecha': '2025-06-27', 'cupones': 4},
-    ];
 
     return DefaultTabController(
       length: 2,
@@ -62,6 +69,48 @@ class HomeScreen extends StatelessWidget {
               fontSize: 20,
             ),
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Color(0xFF398AE5)),
+              tooltip: 'Actualizar',
+              onPressed: () {
+                setState(() {
+                  cargando = true;
+                }); 
+                cargarCupones();
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout, color: Color(0xFF398AE5)),
+              tooltip: 'Cerrar sesión',
+              onPressed: () async {
+                final confirmar = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: Text('¿Cerrar sesión?'),
+                    content: Text(
+                      '¿Estás seguro de que deseas salir de la aplicación?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text('Cancelar'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: Text('Cerrar sesión'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirmar == true) {
+                  await authService.logout();
+                  if (context.mounted) context.go('/login');
+                }
+              },
+            ),
+          ],
           bottom: const TabBar(
             indicatorColor: Color(0xFF398AE5),
             labelColor: Color(0xFF398AE5),
@@ -72,12 +121,14 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            CuponesScreen(cupones: cupones),
-            EstadisticasScreen(datosPorDia: estadisticas),
-          ],
-        ),
+        body: cargando
+            ? Center(child: CircularProgressIndicator())
+            : TabBarView(
+                children: [
+                  CuponesScreen(cupones: cupones),
+                  EstadisticasScreen(),
+                ],
+              ),
       ),
     );
   }

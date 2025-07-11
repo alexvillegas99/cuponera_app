@@ -1,3 +1,4 @@
+import 'package:cuponera_app/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cuponera_app/utilities/constants.dart';
@@ -9,7 +10,16 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  bool _rememberMe = false;
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Widget _buildEmailTF() {
     return Column(
@@ -21,6 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
           decoration: kBoxDecorationStyle,
           height: 60.0,
           child: TextField(
+            controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             style: TextStyle(color: Colors.white, fontFamily: 'OpenSans'),
             decoration: InputDecoration(
@@ -46,6 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
           decoration: kBoxDecorationStyle,
           height: 60.0,
           child: TextField(
+            controller: _passwordController,
             obscureText: true,
             style: TextStyle(color: Colors.white, fontFamily: 'OpenSans'),
             decoration: InputDecoration(
@@ -93,10 +105,58 @@ class _LoginScreenState extends State<LoginScreen> {
           shadowColor: Colors.black45,
           elevation: 5.0,
         ),
-        onPressed: () {
-          context.go('/home'); // Redirigir al home después del login
-          print('Botón Iniciar sesión presionado');
+        onPressed: () async {
+          final email = _emailController.text.trim();
+          final password = _passwordController.text;
+
+          if (email.isEmpty || password.isEmpty) {
+            showDialog(
+              context: context,
+              builder: (_) => AlertDialog(
+                title: Text('Campos requeridos'),
+                content: Text('Por favor ingresa tu correo y contraseña.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('OK'),
+                  ),
+                ],
+              ),
+            );
+            return;
+          }
+
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => Center(child: CircularProgressIndicator()),
+          );
+
+          try {
+            await _authService.login(email, password, context);
+            if (context.mounted)
+              Navigator.pop(context); // Cierra loader si va bien
+          } catch (e) {
+            if (context.mounted) {
+              Navigator.pop(context); // Cierra loader
+
+              showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: Text('Error de inicio de sesión'),
+                  content: Text("Usuario o contraseña incorrecta, por favor verifica tus datos y vuelve a intentar."),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text('Cerrar'),
+                    ),
+                  ],
+                ),
+              );
+            }
+          }
         },
+
         child: Text(
           'INICIAR SESIÓN',
           style: TextStyle(
@@ -176,7 +236,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: <Widget>[
-                       SizedBox(height: 110.0),
+                      SizedBox(height: 110.0),
                       Text(
                         'INICIAR SESIÓN',
                         style: TextStyle(
@@ -194,7 +254,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       _buildForgotPasswordBtn(),
                       _buildLoginBtn(),
                       SizedBox(height: 15.0),
-                     
                     ],
                   ),
                 ),

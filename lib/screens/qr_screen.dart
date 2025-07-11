@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:cuponera_app/services/historico_cupon_service.dart';
+import 'package:cuponera_app/services/auth_service.dart';
 
 class QrScanScreen extends StatefulWidget {
   const QrScanScreen({super.key});
@@ -13,42 +17,69 @@ class _QrScanScreenState extends State<QrScanScreen> {
   bool isProcessing = false;
   bool canScan = true;
 
-  void _handleQrDetected(String data) async {
+  final historicoService = HistoricoCuponService();
+  final authService = AuthService();
+
+void _handleQrDetected(String data) async {
   if (!canScan || isProcessing) return;
+
   setState(() {
     isProcessing = true;
     canScan = false;
   });
 
-  await Future.delayed(const Duration(milliseconds: 500)); // simula procesamiento
+  try {
+    // Espera un JSON en el QR con al menos el campo "id"
+ 
+    final String cuponId = data.trim();
 
-  if (!mounted) return;
+    // Obtener el usuario actual
+    final usuario = await authService.getUser();
+    final usuarioId = usuario?['_id'];
 
-  // 🔄 Simular parseo del contenido del QR
-  final qrData = {
-    'numero': 1,
-    'fechaInicio': '2025-07-01',
-    'fechaFin': '2025-07-31',
-    'usuario': 'Jonathan Parra',
-    'fechaEscaneo': DateTime.now().toString().substring(0, 16),
-  };
+    if (usuarioId == null) {
+      throw Exception('No se pudo obtener el usuario autenticado');
+    }
 
-  if (mounted) {
-    context.push(
-      '/qr-result',
-      extra: qrData, // Pasa los datos del QR al siguiente screen
+    // Validar el cupón
+    final Map<String, dynamic> validacion =
+        await historicoService.validarCuponPorId(
+      id: cuponId,
+      usuarioId: usuarioId,
     );
 
-    setState(() {
-      isProcessing = false;
-    });
+    if (!mounted) return;
 
-    await Future.delayed(const Duration(seconds: 2));
+
+    // Navegar al resultado
+    context.push(
+      '/qr-result',
+      extra: validacion,
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Error al validar cupón'),
+        content: Text(e.toString()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Aceptar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  if (mounted) {
+    setState(() => isProcessing = false);
+    await Future.delayed(const Duration(seconds: 1));
     if (mounted) setState(() => canScan = true);
   }
 }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +139,11 @@ class _QrScanScreenState extends State<QrScanScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFFF4F1DE), size: 28),
+            icon: const Icon(
+              Icons.arrow_back,
+              color: Color(0xFFF4F1DE),
+              size: 28,
+            ),
             onPressed: () => Navigator.pop(context),
           ),
           const SizedBox(width: 8),
@@ -137,5 +172,4 @@ class _QrScanScreenState extends State<QrScanScreen> {
       ),
     );
   }
-
 }

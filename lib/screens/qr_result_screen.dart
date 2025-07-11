@@ -1,20 +1,25 @@
+import 'package:cuponera_app/services/auth_service.dart';
+import 'package:cuponera_app/services/historico_cupon_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 class QrResultScreen extends StatelessWidget {
   final Map<String, dynamic> qrData;
 
   const QrResultScreen({super.key, required this.qrData});
 
-  bool get esValido {
-    final hoy = DateTime.now();
-    final fechaFin = DateTime.tryParse(qrData['fechaFin'] ?? '');
-    if (fechaFin == null) return false;
-    return hoy.isBefore(fechaFin.add(const Duration(days: 1)));
-  }
-
   @override
   Widget build(BuildContext context) {
+    final bool valido = qrData['valido'] == true;
+    final fechaInicio = _formatearFecha(qrData['fechaActivacion']);
+    final fechaFin = _formatearFecha(qrData['fechaVencimiento']);
+    final numero = qrData['secuencial'] ?? '—';
+    final version = qrData['version']?['nombre'] ?? '—';
+    final activador = qrData['usuarioActivador']?['nombre'] ?? '—';
+    final estado = qrData['valido'] == true ? 'activo' : 'inactivo';
+    final esActivo = qrData['valido'];
+
     return Scaffold(
       backgroundColor: const Color(0xFF0D1B2A),
       appBar: AppBar(
@@ -48,7 +53,7 @@ class QrResultScreen extends StatelessWidget {
                 const Icon(Icons.qr_code_2, size: 60, color: Color(0xFF398AE5)),
                 const SizedBox(height: 12),
                 Text(
-                  'Cupón Nº ${qrData['numero']}',
+                  'Cupón Nº $numero',
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -56,32 +61,39 @@ class QrResultScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
-                _infoTile(Icons.date_range, 'Inicio', qrData['fechaInicio']),
-                _infoTile(Icons.event, 'Fin', qrData['fechaFin']),
+                _infoTile(Icons.date_range, 'Inicio', fechaInicio),
+                _infoTile(Icons.event, 'Fin', fechaFin),
+                _infoTile(Icons.verified, 'Estado', estado),
+
+                _infoTile(Icons.bookmark, 'Versión', version),
                 const SizedBox(height: 12),
 
-                // Estado
+                // Estado visual
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 16,
+                  ),
                   decoration: BoxDecoration(
-                    color: esValido ? Colors.green[50] : Colors.red[50],
+                    color: valido ? Colors.green[50] : Colors.red[50],
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: esValido ? Colors.green : Colors.red,
+                      color: valido ? Colors.green : Colors.red,
                     ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        esValido ? Icons.check_circle : Icons.cancel,
-                        color: esValido ? Colors.green : Colors.red,
+                        valido ? Icons.check_circle : Icons.cancel,
+                        color: valido ? Colors.green : Colors.red,
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        esValido ? 'Cupón válido' : 'Cupón vencido',
+                        qrData['message'] ??
+                            (valido ? 'Cupón válido' : 'Cupón no válido'),
                         style: TextStyle(
-                          color: esValido ? Colors.green[800] : Colors.red[800],
+                          color: valido ? Colors.green[800] : Colors.red[800],
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
@@ -96,30 +108,64 @@ class QrResultScreen extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      // TODO: lógica para invalidar cupón
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Cupón invalidado'),
-                          backgroundColor: Colors.redAccent,
-                        ),
-                      );
-                      context.go('/home');
+                    onPressed: () async {
+                      if (esActivo) {
+                        try {
+                          final historicoService = HistoricoCuponService();
+                          final authService = AuthService();
+                          final usuario = await authService.getUser();
+
+                          final cuponId = qrData['_id'];
+                          final usuarioId = usuario?['_id'];
+
+                          await historicoService.registrarEscaneo({
+                            'cupon': cuponId,
+                            'usuario': usuarioId,
+                          });
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Cupón registrado correctamente'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                            context.go('/home');
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error al registrar cupón: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      } else {
+                        context.go('/home');
+                      }
                     },
+
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red[700],
+                      backgroundColor: esActivo
+                          ? Colors.green[700]
+                          : Colors.red[700],
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    icon: const Icon(Icons.cancel, color: Colors.white),
-                    label: const Text(
-                      'Invalidar cupón',
-                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    icon: Icon(
+                      esActivo ? Icons.check_circle : Icons.arrow_back,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      esActivo ? 'Registrar cupón' : 'Regresar',
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                   ),
-                )
+                ),
               ],
             ),
           ),
@@ -130,8 +176,9 @@ class QrResultScreen extends StatelessWidget {
 
   Widget _infoTile(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: const Color(0xFF398AE5), size: 20),
           const SizedBox(width: 10),
@@ -149,10 +196,21 @@ class QrResultScreen extends StatelessWidget {
               value,
               style: const TextStyle(fontSize: 16, color: Colors.black87),
               overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+              softWrap: true,
             ),
           ),
         ],
       ),
     );
+  }
+
+  String _formatearFecha(String? iso) {
+    if (iso == null) return '—';
+    try {
+      return DateFormat('dd/MM/yyyy').format(DateTime.parse(iso));
+    } catch (_) {
+      return iso;
+    }
   }
 }

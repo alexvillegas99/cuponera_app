@@ -11,54 +11,41 @@ class AuthService {
   final url = dotenv.env['API_URL'] ?? ''; // Reemplaza con tu URL
 
   // Función para iniciar sesión
-  Future<void> login(
-    String email,
-    String password,
-    BuildContext context,
-  ) async {
-    final url = Uri.parse('${this.url}/auth/login'); // Reemplaza con tu URL
-    print('URL de inicio de sesión: $url');
-    print('Email: $email');
-    print('Contraseña: $password');
+Future<void> login(
+  String email,
+  String password,
+  BuildContext context,
+) async {
+  final url = Uri.parse('${this.url}/auth/login');
 
-    try {
-      final response = await http.post(
-        url,
-        body: {'correo': email, 'clave': password},
-      );
-      print('Respuesta del servidor: ${response.body}');
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        final accessToken = responseData['accessToken'];
-        final user = responseData['user'];
-        final role = user['rol'] ?? 'user'; // 🔥 Obtener el rol del usuario
+  try {
+    final response = await http.post(
+      url,
+      body: {'correo': email, 'clave': password},
+    );
+    print('Respuesta del servidor: ${response.body}');
 
-        // Guardar en Secure Storage
-        await saveUserData(accessToken, user);
-        await MyFirebaseMessagingService().subscribeToTopicNuevo(user['_id']);
-        // Redirigir según el rol
-        if (context.mounted) {
-          if (role == 'staff') {
-            context.go('/home_staff'); // Redirige al home del staff
-          } else {
-            context.go('/home'); // Redirige al home normal
-          }
-        }
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Error en el inicio de sesión')),
-          );
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Error de conexión')));
-      }
+    if (response.statusCode == 200) {
+      final responseData = json.decode(response.body);
+      final accessToken = responseData['accessToken'];
+      final user = responseData['user'];
+      final role = user['rol'] ?? 'user';
+
+      await saveUserData(accessToken, user);
+      await MyFirebaseMessagingService().subscribeToTopicNuevo(user['_id']);
+
+     
+          context.go('/home');
+        
+      
+    } else {
+      throw Exception('Correo o contraseña incorrectos');
     }
+  } catch (e) {
+    print('Error al iniciar sesión: $e');
+    throw Exception('Error de conexión o datos inválidos');
   }
+}
 
   // Guardar el token y los datos del usuario
   Future<void> saveUserData(

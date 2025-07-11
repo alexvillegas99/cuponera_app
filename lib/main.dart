@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:intl/date_symbol_data_local.dart';
 class MyHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
@@ -27,7 +27,7 @@ void main() async {
 
   // 🔥 Inicializar servicio de notificaciones
   await MyFirebaseMessagingService().initNotifications();
-
+  await initializeDateFormatting('es', null); // Inicializa soporte para español
   runApp(MyApp(router: router));
 }
 
