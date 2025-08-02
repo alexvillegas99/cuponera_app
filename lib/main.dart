@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
+
 class MyHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
@@ -20,13 +21,14 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
 
-  String initialRoute = await getInitialRoute(); // Espera la carga de la ruta guardada
-  final router = buildRouter(initialRoute); 
+  String initialRoute =
+      await getInitialRoute(); // Espera la carga de la ruta guardada
+  final router = buildRouter(initialRoute);
 
-  await Firebase.initializeApp();
+  // await Firebase.initializeApp();
 
   // 🔥 Inicializar servicio de notificaciones
-  await MyFirebaseMessagingService().initNotifications();
+  // await MyFirebaseMessagingService().initNotifications();
   await initializeDateFormatting('es', null); // Inicializa soporte para español
   runApp(MyApp(router: router));
 }
