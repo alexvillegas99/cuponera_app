@@ -235,8 +235,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    //agregar imagen de logo
+
+                    
                     children: <Widget>[
-                      SizedBox(height: 110.0),
+                      SizedBox(height: 50.0),
+                      Image.asset(
+                        'assets/img/logo.png',
+                        height: 100.0,
+                      ),
+                       
                       Text(
                         'INICIAR SESIÓN',
                         style: TextStyle(
