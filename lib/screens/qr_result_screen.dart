@@ -1,5 +1,5 @@
-import 'package:cuponera_app/services/auth_service.dart';
-import 'package:cuponera_app/services/historico_cupon_service.dart';
+import 'package:enjoy/services/auth_service.dart';
+import 'package:enjoy/services/historico_cupon_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';

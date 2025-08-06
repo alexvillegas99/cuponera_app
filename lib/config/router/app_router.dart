@@ -1,8 +1,8 @@
-import 'package:cuponera_app/screens/home_screen.dart';
-import 'package:cuponera_app/screens/login_screen.dart';
-import 'package:cuponera_app/screens/qr_result_screen.dart';
-import 'package:cuponera_app/screens/qr_screen.dart';
-import 'package:cuponera_app/services/auth_service.dart';
+import 'package:enjoy/screens/home_screen.dart';
+import 'package:enjoy/screens/login_screen.dart';
+import 'package:enjoy/screens/qr_result_screen.dart';
+import 'package:enjoy/screens/qr_screen.dart';
+import 'package:enjoy/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 

@@ -22,7 +22,7 @@ class AppTheme {
     scaffoldBackgroundColor: Color(0xFFE3F2FD), // Fondo general claro
 
     appBarTheme: const AppBarTheme(
-      backgroundColor: Color(0xFF398AE5), // Azul fuerte del login
+      backgroundColor: Color.fromRGBO(57, 138, 229, 1), // Azul fuerte del login
       elevation: 0,
       iconTheme: IconThemeData(color: Colors.white),
       titleTextStyle: TextStyle(

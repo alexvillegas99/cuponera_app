@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'package:cuponera_app/services/auth_service.dart';
-import 'package:cuponera_app/services/color_generator_service.dart';
-import 'package:cuponera_app/services/historico_cupon_service.dart';
+import 'package:enjoy/services/auth_service.dart';
+import 'package:enjoy/services/color_generator_service.dart';
+import 'package:enjoy/services/historico_cupon_service.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';

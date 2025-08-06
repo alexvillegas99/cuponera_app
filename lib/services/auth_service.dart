@@ -1,4 +1,4 @@
-import 'package:cuponera_app/services/my_firebase_messaging_service.dart';
+import 'package:enjoy/services/my_firebase_messaging_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';

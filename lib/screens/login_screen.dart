@@ -1,7 +1,7 @@
-import 'package:cuponera_app/services/auth_service.dart';
+import 'package:enjoy/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cuponera_app/utilities/constants.dart';
+import 'package:enjoy/utilities/constants.dart';
 import 'package:go_router/go_router.dart';
 
 class LoginScreen extends StatefulWidget {

@@ -1,7 +1,7 @@
-import 'package:cuponera_app/screens/cupones_screen.dart';
-import 'package:cuponera_app/screens/estadisticas_screen.dart';
-import 'package:cuponera_app/services/auth_service.dart';
-import 'package:cuponera_app/services/historico_cupon_service.dart';
+import 'package:enjoy/screens/cupones_screen.dart';
+import 'package:enjoy/screens/estadisticas_screen.dart';
+import 'package:enjoy/services/auth_service.dart';
+import 'package:enjoy/services/historico_cupon_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
