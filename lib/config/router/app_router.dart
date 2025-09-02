@@ -2,6 +2,7 @@ import 'package:enjoy/screens/home_screen.dart';
 import 'package:enjoy/screens/login_screen.dart';
 import 'package:enjoy/screens/qr_result_screen.dart';
 import 'package:enjoy/screens/qr_screen.dart';
+import 'package:enjoy/screens/usuarios/home_user_screen.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -14,7 +15,7 @@ Future<String> getInitialRoute() async {
     return '/login'; // Usuario no autenticado
   }
 
-  return '/home';
+  return '/home_user';
 }
 
 GoRouter buildRouter(String initialRoute) {
@@ -85,6 +86,24 @@ GoRouter buildRouter(String initialRoute) {
           },
         ),
       ),
+       GoRoute(
+        path: '/home_user',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: PromotionsHomeScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(1, 0), // Aparece desde la derecha
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            );
+          },
+        ),
+      ),
     ],
   );
+
+  
 }

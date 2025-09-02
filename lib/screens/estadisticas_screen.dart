@@ -150,7 +150,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
               children: [
                 ElevatedButton.icon(
                   onPressed: seleccionarFechaRango,
-                  icon: const Icon(Icons.date_range),
+                  icon: const Icon(Icons.date_range), 
                   label: Text(
                     '${DateFormat('dd/MM').format(fechaInicio)} - ${DateFormat('dd/MM').format(fechaFin)}',
                   ),
