@@ -7,6 +7,7 @@ class SearchScreenLight extends StatefulWidget {
   final List<Promotion> all;
   final bool Function(Promotion) isFavorite;
   final void Function(Promotion) onFavorite;
+
   const SearchScreenLight({
     super.key,
     required this.all,
@@ -23,11 +24,19 @@ class _SearchScreenLightState extends State<SearchScreenLight> {
 
   @override
   Widget build(BuildContext context) {
-    final results = q.trim().isEmpty
+    final query = q.trim().toLowerCase();
+
+    final List<Promotion> results = query.isEmpty
         ? <Promotion>[]
         : widget.all.where((p) {
-            final haystack = '${p.title} ${p.placeName} ${p.description} ${p.category} ${p.tags.join(" ")}'.toLowerCase();
-            return haystack.contains(q.toLowerCase());
+            final haystack = (
+              '${p.title} '
+              '${p.placeName} '
+              '${p.description} '
+              '${p.categories.join(" ")} ' // 👈 antes: p.category
+              '${p.tags.join(" ")}'
+            ).toLowerCase();
+            return haystack.contains(query);
           }).toList();
 
     return Column(
@@ -41,14 +50,25 @@ class _SearchScreenLightState extends State<SearchScreenLight> {
               prefixIcon: const Icon(Icons.search),
               filled: true,
               fillColor: Palette.kField,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Palette.kBorder)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Palette.kAccent)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Palette.kBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Palette.kAccent),
+              ),
             ),
           ),
         ),
         Expanded(
           child: results.isEmpty
-              ? const Center(child: Text('Busca por nombre, categoría o tag', style: TextStyle(color: Palette.kMuted)))
+              ? const Center(
+                  child: Text(
+                    'Busca por nombre, categoría o tag',
+                    style: TextStyle(color: Palette.kMuted),
+                  ),
+                )
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(12, 6, 12, 90),
                   itemCount: results.length,

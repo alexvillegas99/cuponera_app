@@ -1,5 +1,5 @@
-import 'package:enjoy/screens/cupones_screen.dart';
-import 'package:enjoy/screens/estadisticas_screen.dart';
+import 'package:enjoy/screens/usuarios/cupones_screen.dart';
+import 'package:enjoy/screens/usuarios/estadisticas_screen.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/historico_cupon_service.dart';
 import 'package:flutter/material.dart';
@@ -28,7 +28,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> cargarCupones() async {
     try {
-      final data = await historicoService.obtenerHistorialCompleto();
+       final usuario = await authService.getUser();
+      final data = await historicoService.obtenerPorUsuario( usuario?['_id']);
       setState(() {
         cupones = data.cast<Map<String, dynamic>>();
         cargando = false;

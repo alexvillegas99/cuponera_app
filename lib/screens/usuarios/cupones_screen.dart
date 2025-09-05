@@ -8,11 +8,16 @@ class CuponesScreen extends StatelessWidget {
 
   const CuponesScreen({super.key, required this.cupones});
 
-  String formatearFecha(String fechaIso) {
-    final fecha = DateTime.tryParse(fechaIso);
-    if (fecha == null) return 'Fecha inválida';
-    return DateFormat('dd/MM/yyyy hh:mm a', 'es').format(fecha);
-  }
+String formatearFecha(String fechaIso) {
+  final fecha = DateTime.tryParse(fechaIso);
+  if (fecha == null) return 'Fecha inválida';
+
+  // Quito está en UTC-5
+  final fechaEcuador = fecha.toUtc().subtract(const Duration(hours: 5));
+
+  return DateFormat('dd/MM/yyyy hh:mm a', 'es').format(fechaEcuador);
+}
+
 
   @override
   Widget build(BuildContext context) {

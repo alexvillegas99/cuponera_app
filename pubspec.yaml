@@ -55,6 +55,7 @@ dependencies:
   dio: ^5.8.0+1
   flutter_svg: ^2.0.7
   fl_chart: ^1.0.0
+  share_plus: ^11.1.0
 
 dev_dependencies:
   flutter_test:
@@ -66,11 +67,11 @@ dev_dependencies:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/img/logo3.png"
+  image_path: "assets/img/logoeny.png"
 
 flutter_native_splash:
-  color: "#3986e5" # Color de fondo del launcher
-  image: "assets/img/logo2.png" # Ruta al ícono (opcional)
+  image: "assets/img/logoeny.png" # Ruta al ícono (opcional)
+  color: "#F6F9FF"  
   android: true
   ios: true
   web: false

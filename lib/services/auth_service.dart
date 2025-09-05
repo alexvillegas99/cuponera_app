@@ -1,175 +1,278 @@
-import 'package:enjoy/services/my_firebase_messaging_service.dart';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:go_router/go_router.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 
 class AuthService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
-  final url = dotenv.env['API_URL'] ?? ''; // Reemplaza con tu URL
+  final String baseUrl = dotenv.env['API_URL'] ?? '';
 
-  // Función para iniciar sesión
+  // ==========================
+  // Helpers HTTP
+  // ==========================
+  Map<String, String> get _jsonHeaders => {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+
+  // ==========================
+  // LOGIN USUARIO
+  // POST /auth/login  -> { accessToken, user }
+  // ==========================
   Future<void> login(
     String email,
     String password,
     BuildContext context,
   ) async {
-    final url = Uri.parse('${this.url}/auth/login');
+    final uri = Uri.parse('$baseUrl/auth/login');
 
     try {
-      final response = await http.post(
-        url,
-        body: {'correo': email, 'clave': password},
+      final resp = await http.post(
+        uri,
+        headers: _jsonHeaders,
+        body: jsonEncode({'correo': email, 'clave': password}),
       );
-      print('Respuesta del servidor: ${response.body}');
 
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        final accessToken = responseData['accessToken'];
-        final user = responseData['user'];
-        final role = user['rol'] ?? 'user';
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final accessToken = data['accessToken'] as String?;
+        final user = data['user'] as Map<String, dynamic>?;
 
-        await saveUserData(accessToken, user);
-        // await MyFirebaseMessagingService().subscribeToTopicNuevo(user['_id']);
+        if (accessToken == null || user == null) {
+          throw Exception('Respuesta inválida del servidor');
+        }
 
-        context.go('/home');
+        // Asegura kind en el user (para estrategia unificada en frontend)
+        user['kind'] = user['kind'] ?? 'USUARIO';
+
+        final ruta = await getTargetHomeRoute();
+        print('ruta usuario $ruta');
+        context.go(ruta);
       } else {
-        throw Exception('Correo o contraseña incorrectos');
+        final msg = _serverErrorMessage(resp);
+        throw Exception(msg);
       }
     } catch (e) {
-      print('Error al iniciar sesión: $e');
-      throw Exception('Error de conexión o datos inválidos');
+      debugPrint('Error al iniciar sesión (usuario): $e');
+      rethrow;
     }
   }
 
-  // Guardar el token y los datos del usuario
+  // ==========================
+  // LOGIN CLIENTE
+  // POST /auth/login/cliente -> { accessToken, cliente }
+  // Se guarda como 'user' para mantener compatibilidad
+  // ==========================
+  Future<void> loginCliente(
+    String emailOrCedulaOrRuc,
+    String password,
+    BuildContext context,
+  ) async {
+    final uri = Uri.parse('$baseUrl/auth/login/cliente');
+
+    try {
+      final resp = await http.post(
+        uri,
+        headers: _jsonHeaders,
+        body: jsonEncode({'correo': emailOrCedulaOrRuc, 'clave': password}),
+      );
+
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final accessToken = data['accessToken'] as String?;
+        final cliente = data['cliente'] as Map<String, dynamic>?;
+
+        if (accessToken == null || cliente == null) {
+          throw Exception('Respuesta inválida del servidor');
+        }
+
+        // Normalizamos a 'user' y seteamos kind
+        final user = {...cliente, 'kind': 'CLIENTE'};
+
+        await saveUserData(accessToken, user);
+        final ruta = await getTargetHomeRoute();
+        print('ruta cleuinte $ruta');
+        context.go(ruta);
+      } else {
+        final msg = _serverErrorMessage(resp);
+        throw Exception(msg);
+      }
+    } catch (e) {
+      debugPrint('Error al iniciar sesión (cliente): $e');
+      rethrow;
+    }
+  }
+
+  // ==========================
+  // LOGIN EMPRESA (si quieres derivarlo a /auth/login)
+  // ==========================
+  Future<void> loginEmpresa(
+    String email,
+    String password,
+    BuildContext context,
+  ) => login(email, password, context);
+
+  // ==========================
+  // STORAGE
+  // ==========================
   Future<void> saveUserData(
     String accessToken,
     Map<String, dynamic> user,
   ) async {
     await _storage.write(key: 'accessToken', value: accessToken);
-    await _storage.write(key: 'user', value: json.encode(user));
-
-    // Verificar si los datos se guardaron correctamente
-    final savedToken = await _storage.read(key: 'accessToken');
-    final savedUser = await _storage.read(key: 'user');
-
-    print('Token guardado: $savedToken');
-    print('Usuario guardado: $savedUser');
-  }
-
-  // Obtener el token guardado
-  Future<String?> getToken() async {
-    return await _storage.read(key: 'accessToken');
-  }
-
-  // Obtener los datos del usuario guardados
-  Future<Map<String, dynamic>?> getUser() async {
-    final userString = await _storage.read(key: 'user');
-    print('usuario guardado $userString');
-    if (userString != null) {
-      return json.decode(userString);
+    await _storage.write(key: 'user', value: jsonEncode(user));
+    // Guarda kind por separado para accesos rápidos
+    if (user['kind'] != null) {
+      await _storage.write(key: 'kind', value: user['kind'].toString());
     }
-    return null;
+    debugPrint('Token guardado y user/kind almacenados correctamente.');
   }
 
-  // Renovar el token
+  Future<String?> getToken() => _storage.read(key: 'accessToken');
+
+  Future<Map<String, dynamic>?> getUser() async {
+    final raw = await _storage.read(key: 'user');
+    if (raw == null) return null;
+    return jsonDecode(raw) as Map<String, dynamic>;
+  }
+
+  Future<String?> getKind() => _storage.read(key: 'kind');
+
+  // ==========================
+  // REFRESH TOKEN
+  // GET /auth/refresh-token -> { user, token }
+  // ==========================
   Future<bool> renewToken() async {
     final token = await getToken();
+    if (token == null) return false;
 
-    if (token == null) {
-      return false; // No hay token guardado
-    }
+    final uri = Uri.parse('$baseUrl/auth/refresh-token');
 
-    final url = Uri.parse(
-      '${this.url}/auth/refresh-token',
-    ); // Reemplaza con tu URL
-    print(url);
     try {
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token', // Envía el token actual
-        },
+      final resp = await http.get(
+        uri,
+        headers: {..._jsonHeaders, 'Authorization': 'Bearer $token'},
       );
 
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        final newToken = responseData['token'];
-        final user = responseData['user'];
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final newToken = data['token'] as String?;
+        final user = data['user'] as Map<String, dynamic>?;
 
-        // Guardar el nuevo token y los datos del usuario
+        if (newToken == null || user == null) {
+          debugPrint('Respuesta inválida al renovar token: ${resp.body}');
+          return false;
+        }
+
+        // El backend ya inyecta kind en req.user (estrategia actualizada).
+        // Aseguramos que exista por compatibilidad.
+        user['kind'] = user['kind'] ?? (await getKind()) ?? 'USUARIO';
+
         await saveUserData(newToken, user);
-
-        print('Token renovado: $newToken');
-        print('Usuario actualizado: $user');
-
-        return true; // Token renovado exitosamente
+        return true;
       } else {
-        print('Error al renovar el token: ${response.statusCode}');
-        print('Respuesta del servidor: ${response.body}');
-        return false; // Error al renovar el token
+        debugPrint(
+          'Error al renovar token: ${resp.statusCode} -> ${resp.body}',
+        );
+        return false;
       }
     } catch (e) {
-      print('Error en la solicitud: $e');
-      return false; // Error de red u otro error
+      debugPrint('Error en renewToken(): $e');
+      return false;
     }
   }
 
-  // Verificar si el usuario está autenticado
-  /*   Future<bool> isUserAuthenticated() async {
-    final token = await getToken();
-    print('Token actualllllllllllllllllll: $token');
-    if (token == null) {
-      return false; // No hay token guardado
-    }
-
-    // Verificar si el token es válido (puedes hacer una solicitud al servidor)
-    final url =
-        Uri.parse('${this.url}/auth/refresh-token'); // Reemplaza con tu URL
-    print(url);
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
-      print('Respuesta del servidor: ${response.body}');
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        final accessToken = responseData['token'];
-        final user = responseData['user'];
-
-        // Guardar en Secure Storage
-        await saveUserData(accessToken, user);
-        return true; // Token válido
-        //ActualizarToken
-      } else {
-        return false; // Token inválido o caducado
-      }
-    } catch (e) {
-      print('Error al validar el token: $e');
-      return false; // Error de red u otro error
-    }
-  }
- */
-  // Eliminar los datos de autenticación (logout)
+  // ==========================
+  // LOGOUT
+  // ==========================
   Future<void> logout() async {
-    final user = await getUser();
-    final userId = user!['_id'];
+    try {
+      final user = await getUser();
+      final userId = user?['_id'];
+      // await MyFirebaseMessagingService().unsubscribeFromTopicNuevo(userId);
 
-    await MyFirebaseMessagingService().unsubscribeFromTopicNuevo(userId);
-    print('Eliminando datos de autenticación...');
-    await _storage.delete(key: 'accessToken');
-    await _storage.delete(key: 'user');
-    print('Datos de autenticación eliminados');
+      await _storage.delete(key: 'accessToken');
+      await _storage.delete(key: 'user');
+      await _storage.delete(key: 'kind');
+      debugPrint('Sesión cerrada. Datos eliminados. userId: $userId');
+    } catch (e) {
+      debugPrint('Error en logout: $e');
+    }
   }
 
-  Future<bool> hasToken() async {
-    final token = await _storage.read(key: 'accessToken');
-    return token != null; // Retorna true si hay un token, false si no
+  Future<bool> hasToken() async =>
+      (await _storage.read(key: 'accessToken')) != null;
+
+  // ==========================
+  // Utils
+  // ==========================
+  String _serverErrorMessage(http.Response resp) {
+    try {
+      final data = jsonDecode(resp.body);
+      final msg = data is Map && data['message'] != null
+          ? data['message']
+          : null;
+      return msg?.toString() ??
+          'Error ${resp.statusCode} al procesar la solicitud';
+    } catch (_) {
+      return 'Error ${resp.statusCode} al procesar la solicitud';
+    }
+  }
+
+  bool _isClienteRole(Map<String, dynamic>? user) {
+    print('tipo usuario  $user');
+    if (user == null) return false;
+    final rol = (user['rol'] ?? '').toString().toLowerCase();
+    final kind = (user['kind'] ?? '').toString().toUpperCase();
+    return rol == 'cliente' || kind == 'CLIENTE';
+  }
+
+  /// Decide a qué home ir según el usuario guardado.
+  Future<String> getTargetHomeRoute() async {
+    final user = await getUser();
+    final isCliente = _isClienteRole(user);
+    print('¿Es cliente? $isCliente');
+
+    // Si es cliente → /home_cliente, caso contrario → /home_user
+    return isCliente ? '/home_user' : '/home';
+  }
+
+  // En tu AuthService (añade esto)
+  Future<void> startRecovery(String correo, {required bool isCliente}) async {
+    final uri = Uri.parse('$baseUrl/auth/recover/start');
+    final resp = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({
+        'correo': correo,
+        'kind': isCliente
+            ? 'CLIENTE'
+            : 'USUARIO', // o 'EMPRESA' si lo manejas así
+      }),
+    );
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw Exception(_serverErrorMessage(resp));
+    }
+  }
+
+  Future<void> completeRecovery(String code, String newPassword) async {
+    final uri = Uri.parse('$baseUrl/auth/recover/complete');
+    final resp = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({'code': code, 'newPassword': newPassword}),
+    );
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw Exception(_serverErrorMessage(resp));
+    }
   }
 }

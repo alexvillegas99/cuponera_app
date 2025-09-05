@@ -1,7 +1,9 @@
+import 'package:enjoy/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import '../../ui/palette.dart';
-
+import 'package:go_router/go_router.dart';
 class ProfileScreenLight extends StatelessWidget {
+  final authService = AuthService();
   final String name;
   final String email;
   final String? avatarUrl;
@@ -15,7 +17,7 @@ class ProfileScreenLight extends StatelessWidget {
   final List<String> ciudades;
   final List<String> categoriasFav;
 
-  const ProfileScreenLight({
+  ProfileScreenLight({
     super.key,
     required this.name,
     required this.email,
@@ -53,7 +55,11 @@ class ProfileScreenLight extends StatelessWidget {
                       ? NetworkImage(avatarUrl!)
                       : null,
                   child: (avatarUrl == null || avatarUrl!.isEmpty)
-                      ? const Icon(Icons.person, color: Color(0xFF7C6CF4), size: 32)
+                      ? const Icon(
+                          Icons.person,
+                          color: Color(0xFF7C6CF4),
+                          size: 32,
+                        )
                       : null,
                 ),
                 const SizedBox(width: 12),
@@ -61,14 +67,16 @@ class ProfileScreenLight extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Palette.kTitle,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 18,
-                          )),
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Palette.kTitle,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         email,
@@ -87,8 +95,11 @@ class ProfileScreenLight extends StatelessWidget {
                       const SnackBar(content: Text('Acción: Editar perfil')),
                     );
                   },
-                  icon: const Icon(Icons.edit_outlined, color: Palette.kPrimary),
-                )
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    color: Palette.kPrimary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -140,14 +151,15 @@ class ProfileScreenLight extends StatelessWidget {
                 _sectionTitle(Icons.location_on_outlined, 'Mis ciudades'),
                 const SizedBox(height: 10),
                 if (ciudades.isEmpty)
-                  const Text('Aún no configuras ciudades', style: TextStyle(color: Palette.kMuted))
+                  const Text(
+                    'Aún no configuras ciudades',
+                    style: TextStyle(color: Palette.kMuted),
+                  )
                 else
                   Wrap(
                     spacing: 8,
                     runSpacing: -6,
-                    children: [
-                      for (final c in ciudades) _Chip(c),
-                    ],
+                    children: [for (final c in ciudades) _Chip(c)],
                   ),
               ],
             ),
@@ -165,14 +177,15 @@ class ProfileScreenLight extends StatelessWidget {
                 _sectionTitle(Icons.category_outlined, 'Categorías favoritas'),
                 const SizedBox(height: 10),
                 if (categoriasFav.isEmpty)
-                  const Text('Aún no seleccionas categorías', style: TextStyle(color: Palette.kMuted))
+                  const Text(
+                    'Aún no seleccionas categorías',
+                    style: TextStyle(color: Palette.kMuted),
+                  )
                 else
                   Wrap(
                     spacing: 8,
                     runSpacing: -6,
-                    children: [
-                      for (final t in categoriasFav) _Chip(t),
-                    ],
+                    children: [for (final t in categoriasFav) _Chip(t)],
                   ),
               ],
             ),
@@ -211,11 +224,31 @@ class ProfileScreenLight extends StatelessWidget {
                   title: 'Cerrar sesión',
                   subtitle: 'Salir de tu cuenta',
                   danger: true,
-                  onTap: () {
-                    // TODO: logout real
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Sesión cerrada (demo)')),
+                  onTap: () async {
+                    final confirmar = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text('¿Cerrar sesión?'),
+                        content: Text(
+                          '¿Estás seguro de que deseas salir de la aplicación?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: Text('Cancelar'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: Text('Cerrar sesión'),
+                          ),
+                        ],
+                      ),
                     );
+
+                    if (confirmar == true) {
+                      await authService.logout();
+                      if (context.mounted) context.go('/login');
+                    }
                   },
                 ),
               ],
@@ -246,17 +279,23 @@ class ProfileScreenLight extends StatelessWidget {
       children: [
         Icon(icon, color: Palette.kMuted, size: 18),
         const SizedBox(width: 6),
-        Text(text, style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700)),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Palette.kTitle,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ],
     );
   }
 
   Widget _vDivider() => Container(
-        width: 1,
-        height: 38,
-        margin: const EdgeInsets.symmetric(horizontal: 8),
-        color: Palette.kBorder,
-      );
+    width: 1,
+    height: 38,
+    margin: const EdgeInsets.symmetric(horizontal: 8),
+    color: Palette.kBorder,
+  );
 
   Widget _divider() => const Divider(height: 1, color: Palette.kBorder);
 }
@@ -281,13 +320,18 @@ class _StatTile extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('$value',
-                style: const TextStyle(
-                  color: Palette.kTitle,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                )),
-            Text(label, style: const TextStyle(color: Palette.kMuted, fontSize: 12)),
+            Text(
+              '$value',
+              style: const TextStyle(
+                color: Palette.kTitle,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+            Text(
+              label,
+              style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+            ),
           ],
         ),
       ],
@@ -340,8 +384,13 @@ class _SettingTile extends StatelessWidget {
         backgroundColor: Palette.kField,
         child: Icon(icon, color: color),
       ),
-      title: Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-      subtitle: subtitle != null ? Text(subtitle!, style: TextStyle(color: sub)) : null,
+      title: Text(
+        title,
+        style: TextStyle(color: color, fontWeight: FontWeight.w600),
+      ),
+      subtitle: subtitle != null
+          ? Text(subtitle!, style: TextStyle(color: sub))
+          : null,
       trailing: const Icon(Icons.chevron_right, color: Palette.kMuted),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
     );

@@ -107,7 +107,7 @@ class HistoricoCuponService {
     required String usuarioId,
   }) async {
     final url = Uri.parse('$_baseUrl/historico/validar/cupon/registro');
-
+    print('url validar $url');
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
