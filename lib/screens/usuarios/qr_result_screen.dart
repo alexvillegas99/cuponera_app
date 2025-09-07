@@ -109,43 +109,70 @@ class QrResultScreen extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () async {
-                      if (esActivo) {
-                        try {
-                          final historicoService = HistoricoCuponService();
-                          final authService = AuthService();
-                          final usuario = await authService.getUser();
+  if (esActivo) {
+    // 🔵 Mostrar diálogo "Realizando registro…"
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              SizedBox(
+                width: 20, height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('Realizando registro…',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
 
-                          final cuponId = qrData['_id'];
-                          final usuarioId = usuario?['_id'];
+    try {
+      final historicoService = HistoricoCuponService();
+      final authService = AuthService();
+      final usuario = await authService.getUser();
 
-                          await historicoService.registrarEscaneo({
-                            'cupon': cuponId,
-                            'usuario': usuarioId,
-                          });
+      final cuponId = qrData['_id'];
+      final usuarioId = usuario?['_id'];
 
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Cupón registrado correctamente'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                            context.go('/home');
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error al registrar cupón: $e'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        }
-                      } else {
-                        context.go('/home');
-                      }
-                    },
+      await historicoService.registrarEscaneo({
+        'cupon': cuponId,
+        'usuario': usuarioId,
+      });
+
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // 🔻 cerrar diálogo
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cupón registrado correctamente'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.of(context).pop(true); // ✅ devolver éxito
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // 🔻 cerrar diálogo
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al registrar cupón: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  } else {
+    // coherente con el flujo de resultado
+    Navigator.of(context).pop(false);
+  }
+},
+
 
                     style: ElevatedButton.styleFrom(
                       backgroundColor: esActivo

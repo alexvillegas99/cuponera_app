@@ -62,12 +62,14 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(_data?.version.nombre ?? 'Detalle cuponera'),
-        backgroundColor: Palette.kSurface,
-        foregroundColor: Palette.kTitle,
+         backgroundColor: Palette.kAccent,
+        foregroundColor: Palette.kBorder,
         elevation: 0.5,
         bottom: TabBar(
           controller: _tab,
-          labelColor: Palette.kTitle,
+          labelColor: Colors.white ,
+          unselectedLabelColor: Colors.white54,
+           indicatorColor: Colors.red, 
           tabs: const [
             Tab(text: 'Por escanear'),
             Tab(text: 'Escaneados'),
@@ -237,6 +239,16 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
             border: border,
             titleColor: title,
             muted: muted,
+             onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ComercioDetalleMiniScreen(
+                    usuarioId: l.usuarioId,
+                  ), // <--- usa el id real del usuario
+                ),
+              );
+            },
           ),
         )
         .toList();
@@ -532,7 +544,7 @@ class _LocalCard extends StatelessWidget {
                         .toList(),
                   ),
                   const SizedBox(height: 6),
-                  Row(
+                 /*  Row(
                     children: [
                       _Stars(rating: rating),
                       const SizedBox(width: 8),
@@ -545,8 +557,8 @@ class _LocalCard extends StatelessWidget {
                           ),
                         ),
                     ],
-                  ),
-                  if (count != null || lastScan != null) ...[
+                  ), */
+                /*   if (count != null || lastScan != null) ...[
                     const SizedBox(height: 6),
                     Row(
                       children: [
@@ -583,7 +595,7 @@ class _LocalCard extends StatelessWidget {
                       ],
                     ),
                   ],
-                ],
+               */  ],
               ),
             ),
           ],

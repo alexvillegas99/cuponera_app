@@ -14,6 +14,16 @@
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 		<key>NSCameraUsageDescription</key>
 		<string>La aplicación utiliza la cámara para leer el código QR de los cupones.</string>
+		<key>LSApplicationQueriesSchemes</key>
+<array>
+    <string>whatsapp</string>
+	<string>whatsapp-smb</string>
+</array>
+<key>UIBackgroundModes</key>
+<array>
+    <string>remote-notification</string>
+</array>
+<key>FirebaseAppDelegateProxyEnabled</key><true/>
 		<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
 		<key>CFBundleName</key>

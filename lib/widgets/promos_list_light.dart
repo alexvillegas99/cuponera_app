@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/promotion_models.dart';
 import 'promo_card_light.dart';
 
+
 typedef IsFav = bool Function(Promotion);
 typedef OnFav = Future<void> Function(Promotion); // o: void Function(Promotion)
 

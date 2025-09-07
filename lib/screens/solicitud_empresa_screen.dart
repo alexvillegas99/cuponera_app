@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:enjoy/services/registration_api.dart';
 import 'package:enjoy/widgets/pill_field.dart';
+import 'package:enjoy/widgets/branded_modal.dart';
+import 'package:enjoy/ui/palette.dart';
 
 class SolicitudEmpresaScreen extends StatefulWidget {
   const SolicitudEmpresaScreen({super.key});
@@ -14,11 +16,6 @@ class SolicitudEmpresaScreen extends StatefulWidget {
 class _SolicitudEmpresaScreenState extends State<SolicitudEmpresaScreen> {
   final _formKey = GlobalKey<FormState>();
   final _api = RegistrationApi();
-
-  final Color _bg = const Color(0xFFF6F9FF);
-  final Color _primary = const Color(0xFF2E6BE6);
-  final Color _text = const Color(0xFF111827);
-  final Color _muted = const Color(0xFF6B7280);
 
   // Campos
   final _empresa = TextEditingController();
@@ -43,7 +40,9 @@ class _SolicitudEmpresaScreenState extends State<SolicitudEmpresaScreen> {
     super.dispose();
   }
 
-  String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null;
+  String? _req(String? v) =>
+      (v == null || v.trim().isEmpty) ? 'Requerido' : null;
+
   String? _emailVal(String? v) {
     if (v == null || v.trim().isEmpty) return 'Requerido';
     final rx = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
@@ -52,6 +51,7 @@ class _SolicitudEmpresaScreenState extends State<SolicitudEmpresaScreen> {
 
   Future<void> _enviar() async {
     if (!_formKey.currentState!.validate()) return;
+
     setState(() => _loading = true);
 
     final dto = {
@@ -62,29 +62,26 @@ class _SolicitudEmpresaScreenState extends State<SolicitudEmpresaScreen> {
       "telefono": _telefono.text.trim(),
       "ciudad": _ciudad.text.trim(),
       "mensaje": _mensaje.text.trim().isEmpty ? null : _mensaje.text.trim(),
-      "origen": "ENJOY_APP", // puedes usarlo para segmentar
+      "origen": "ENJOY_APP",
     };
 
     try {
       await _api.enviarSolicitudEmpresa(dto);
       if (!mounted) return;
-      await showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Solicitud enviada'),
-          content: const Text('Nos pondremos en contacto contigo muy pronto.'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-        ),
+      await showBrandedDialog(
+        context,
+        title: 'Solicitud enviada',
+        message: 'Nos pondremos en contacto contigo muy pronto.',
+        icon: Icons.check_circle_outline,
       );
-      context.pop(); // volver
+      context.pop();
     } catch (e) {
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('No se pudo enviar'),
-          content: Text(e.toString()),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar'))],
-        ),
+      // Si el backend devuelve 409 (conflict por email duplicado) lo verás como mensaje acá
+      await showBrandedDialog(
+        context,
+        title: 'No se pudo enviar',
+        message: e.toString(),
+        icon: Icons.error_outline,
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -94,44 +91,92 @@ class _SolicitudEmpresaScreenState extends State<SolicitudEmpresaScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: Palette.kBg,
       appBar: AppBar(
-        backgroundColor: _bg,
+        backgroundColor: Palette.kBg,
         elevation: 0,
-        foregroundColor: _text,
+        foregroundColor: Palette.kTitle,
         title: const Text('Quiero ser parte de Enjoy'),
       ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
+            constraints: const BoxConstraints(maxWidth: 560),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Déjanos tus datos y te contactaremos',
-                        style: TextStyle(color: _text, fontSize: 18, fontWeight: FontWeight.w800)),
+                    // Header card alineada a la UI global
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Palette.kSurface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Palette.kBorder),
+                        boxShadow: [
+                          BoxShadow(
+                            blurRadius: 18,
+                            offset: const Offset(0, 10),
+                            color: Colors.black.withOpacity(0.05),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        children: [
+                          // Avatar gradiente
+                          _GradientCircleIcon(),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Déjanos tus datos y te contactaremos',
+                              style: TextStyle(
+                                color: Palette.kTitle,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 16),
 
-                    Text('Nombre del negocio', style: TextStyle(color: _muted)),
+                    const Text('Nombre del negocio',
+                        style: TextStyle(color: Palette.kSub)),
                     const SizedBox(height: 8),
-                    PillField(hint: 'Mi Restaurante S.A.', controller: _empresa, icon: Icons.store_outlined, validator: _req),
+                    PillField(
+                      hint: 'Mi Restaurante S.A.',
+                      controller: _empresa,
+                      icon: Icons.store_outlined,
+                      validator: _req,
+                    ),
                     const SizedBox(height: 16),
 
-                    Text('RUC (opcional)', style: TextStyle(color: _muted)),
+                    const Text('RUC (opcional)',
+                        style: TextStyle(color: Palette.kSub)),
                     const SizedBox(height: 8),
-                    PillField(hint: '1234567890001', controller: _ruc, icon: Icons.numbers_outlined),
+                    PillField(
+                      hint: '1234567890001',
+                      controller: _ruc,
+                      icon: Icons.numbers_outlined,
+                    ),
                     const SizedBox(height: 16),
 
-                    Text('Persona de contacto', style: TextStyle(color: _muted)),
+                    const Text('Persona de contacto',
+                        style: TextStyle(color: Palette.kSub)),
                     const SizedBox(height: 8),
-                    PillField(hint: 'Nombre y apellido', controller: _contacto, icon: Icons.person_outline, validator: _req),
+                    PillField(
+                      hint: 'Nombre y apellido',
+                      controller: _contacto,
+                      icon: Icons.person_outline,
+                      validator: _req,
+                    ),
                     const SizedBox(height: 16),
 
-                    Text('Email', style: TextStyle(color: _muted)),
+                    const Text('Email', style: TextStyle(color: Palette.kSub)),
                     const SizedBox(height: 8),
                     PillField(
                       hint: 'empresa@correo.com',
@@ -142,7 +187,8 @@ class _SolicitudEmpresaScreenState extends State<SolicitudEmpresaScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    Text('Teléfono', style: TextStyle(color: _muted)),
+                    const Text('Teléfono',
+                        style: TextStyle(color: Palette.kSub)),
                     const SizedBox(height: 8),
                     PillField(
                       hint: '+593...',
@@ -153,45 +199,69 @@ class _SolicitudEmpresaScreenState extends State<SolicitudEmpresaScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    Text('Ciudad', style: TextStyle(color: _muted)),
+                    const Text('Ciudad', style: TextStyle(color: Palette.kSub)),
                     const SizedBox(height: 8),
-                    PillField(hint: 'Ambato', controller: _ciudad, icon: Icons.location_city_outlined, validator: _req),
+                    PillField(
+                      hint: 'Ambato',
+                      controller: _ciudad,
+                      icon: Icons.location_city_outlined,
+                      validator: _req,
+                    ),
                     const SizedBox(height: 16),
 
-                    Text('Mensaje (opcional)', style: TextStyle(color: _muted)),
+                    const Text('Mensaje (opcional)',
+                        style: TextStyle(color: Palette.kSub)),
                     const SizedBox(height: 8),
                     Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD9E6FF),
+                        color: Palette.kField,
                         borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: Palette.kBorder),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 6),
                       child: TextFormField(
                         controller: _mensaje,
                         maxLines: 4,
                         decoration: const InputDecoration(
                           border: InputBorder.none,
-                          hintText: 'Cuéntanos brevemente sobre tu negocio...',
+                          hintText:
+                              'Cuéntanos brevemente sobre tu negocio...',
+                          hintStyle: TextStyle(color: Palette.kMuted),
                         ),
+                        style: const TextStyle(color: Palette.kTitle),
                       ),
                     ),
 
                     const SizedBox(height: 24),
-
                     SizedBox(
                       width: double.infinity,
                       height: 56,
-                      child: ElevatedButton(
-                        onPressed: _loading ? null : _enviar,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _primary,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Palette.kPrimary,
                           foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
-                        child: _loading
-                            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Text('Enviar solicitud', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                        onPressed: _loading ? null : _enviar,
+                        icon: _loading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.send_rounded,
+                                color: Colors.white),
+                        label: Text(
+                          _loading ? 'Enviando…' : 'Enviar solicitud',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w800),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -202,6 +272,27 @@ class _SolicitudEmpresaScreenState extends State<SolicitudEmpresaScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _GradientCircleIcon extends StatelessWidget {
+  const _GradientCircleIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 46,
+      width: 46,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [Palette.kPrimary, Palette.kAccent],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: const Icon(Icons.handshake_outlined, color: Colors.white),
     );
   }
 }

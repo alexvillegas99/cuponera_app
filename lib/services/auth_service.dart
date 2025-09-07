@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:enjoy/services/my_firebase_messaging_service%20copy.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -9,6 +10,7 @@ import 'package:http/http.dart' as http;
 class AuthService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final String baseUrl = dotenv.env['API_URL'] ?? '';
+  final myFirebaseService = MyFirebaseMessagingService();
 
   // ==========================
   // Helpers HTTP
@@ -47,6 +49,24 @@ class AuthService {
 
         // Asegura kind en el user (para estrategia unificada en frontend)
         user['kind'] = user['kind'] ?? 'USUARIO';
+
+        final userId = user?['_id']?.toString();
+        final usuarioCreacion = user?['usuarioCreacion']?.toString();
+
+        print('userId: $userId');
+        print('usuarioCreacion: $usuarioCreacion');
+
+        if (userId != null && userId.isNotEmpty) {
+          print('🔔 suscribiendo al topic $userId');
+          myFirebaseService.subscribe(userId);
+        }
+
+        if (usuarioCreacion != null && usuarioCreacion.isNotEmpty) {
+          print('🔔 suscribiendo al topic $usuarioCreacion');
+          myFirebaseService.subscribe(usuarioCreacion);
+        }
+
+        await saveUserData(accessToken, user);
 
         final ruta = await getTargetHomeRoute();
         print('ruta usuario $ruta');
@@ -91,8 +111,17 @@ class AuthService {
 
         // Normalizamos a 'user' y seteamos kind
         final user = {...cliente, 'kind': 'CLIENTE'};
+        print('userData $user');
 
         await saveUserData(accessToken, user);
+        final userId = user?['_id']?.toString();
+        print('userId: $userId');
+
+        if (userId != null && userId.isNotEmpty) {
+          print('🔔 suscribiendo al topic $userId');
+          myFirebaseService.subscribe(userId);
+        }
+
         final ruta = await getTargetHomeRoute();
         print('ruta cleuinte $ruta');
         context.go(ruta);
@@ -191,8 +220,21 @@ class AuthService {
   Future<void> logout() async {
     try {
       final user = await getUser();
-      final userId = user?['_id'];
-      // await MyFirebaseMessagingService().unsubscribeFromTopicNuevo(userId);
+      final userId = user?['_id']?.toString();
+      final usuarioCreacion = user?['usuarioCreacion']?.toString();
+
+      print('userId: $userId');
+      print('usuarioCreacion: $usuarioCreacion');
+
+      if (userId != null && userId.isNotEmpty) {
+        print('🔔 desuscribiendo al topic $userId');
+        myFirebaseService.unsubscribe(userId);
+      }
+
+      if (usuarioCreacion != null && usuarioCreacion.isNotEmpty) {
+        print('🔔 desuscribiendo al topic $usuarioCreacion');
+        myFirebaseService.unsubscribe(usuarioCreacion);
+      }
 
       await _storage.delete(key: 'accessToken');
       await _storage.delete(key: 'user');
@@ -240,27 +282,6 @@ class AuthService {
     return isCliente ? '/home_user' : '/home';
   }
 
-  // En tu AuthService (añade esto)
-  Future<void> startRecovery(String correo, {required bool isCliente}) async {
-    final uri = Uri.parse('$baseUrl/auth/recover/start');
-    final resp = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: jsonEncode({
-        'correo': correo,
-        'kind': isCliente
-            ? 'CLIENTE'
-            : 'USUARIO', // o 'EMPRESA' si lo manejas así
-      }),
-    );
-    if (resp.statusCode != 200 && resp.statusCode != 201) {
-      throw Exception(_serverErrorMessage(resp));
-    }
-  }
-
   Future<void> completeRecovery(String code, String newPassword) async {
     final uri = Uri.parse('$baseUrl/auth/recover/complete');
     final resp = await http.post(
@@ -273,6 +294,97 @@ class AuthService {
     );
     if (resp.statusCode != 200 && resp.statusCode != 201) {
       throw Exception(_serverErrorMessage(resp));
+    }
+  }
+
+  Future<void> updateContactInfo({
+    required String nombres,
+    required String apellidos,
+    required String correo,
+    required String telefono,
+  }) async {
+    final token = await getToken();
+    if (token == null) {
+      throw Exception('Sin token');
+    }
+
+    final user = await getUser();
+    final kind = (user?['kind'] ?? 'USUARIO').toString();
+    final id = user?['_id'];
+    final uri = Uri.parse('$baseUrl/clientes/me/${id}');
+
+    final resp = await http.put(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'apellidos': apellidos,
+        'nombres': nombres,
+        'correo': correo,
+        'telefono': telefono,
+      }),
+    );
+
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      throw Exception('Error ${resp.statusCode}: ${resp.body}');
+    }
+
+    // actualiza el storage local
+    final u = {...?user};
+    u['apellidos'] = apellidos;
+    u['nombres'] = nombres;
+    u['correo'] = correo;
+    u['telefono'] = telefono;
+    await saveUserData(token, u);
+  }
+
+  final _client = http.Client();
+  Uri _uri(String path) => Uri.parse('$baseUrl$path');
+  Future<void> resetPassword({
+    required String email,
+    required String newPassword,
+    required bool isCliente,
+  }) async {
+    final path = isCliente ? '/clientes/reset' : '/usuarios/reset';
+    final resp = await _client.patch(
+      _uri(path),
+      headers: {
+        'Content-Type': 'application/json',
+        'accept': 'application/json',
+      },
+      body: jsonEncode({'email': email, 'password': newPassword}),
+    );
+
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw Exception(_extractMessage(resp.body));
+    }
+    // Si quieres leer algún dato de confirmación del backend:
+    // if (resp.body.isNotEmpty) jsonDecode(resp.body);
+  }
+
+  String _extractMessage(String body) {
+    try {
+      final map = jsonDecode(body);
+      if (map is Map && map['message'] != null)
+        return map['message'].toString();
+    } catch (_) {}
+    return body.isEmpty ? 'Error inesperado' : body;
+  }
+
+  Future<void> startRecovery(String email) async {
+    final resp = await _client.post(
+      _uri('/clientes/recovery'),
+      headers: {
+        'Content-Type': 'application/json',
+        'accept': 'application/json',
+      },
+      body: jsonEncode({'email': email}),
+    );
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw Exception(_extractMessage(resp.body));
     }
   }
 }

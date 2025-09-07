@@ -1,6 +1,7 @@
 // lib/services/cupones_service.dart
 import 'dart:convert';
 import 'package:enjoy/mappers/cuponera.dart';
+import 'package:enjoy/services/core/api_exception.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../mappers/detalle_cupon.dart';
@@ -79,9 +80,31 @@ Future<List<Cuponera>> listarPorCliente(
 }
 
 
+Future<Map<String, dynamic>> findByIdRaw(String cuponId) async {
+  final uri = Uri.parse('$base/cupones/agregar/$cuponId');
+  final resp = await http.get(uri);
+
+  if (resp.statusCode != 200) {
+    String msg = 'Error ${resp.statusCode}';
+    try {
+      final d = jsonDecode(resp.body);
+      if (d is Map && d['message'] is Map && d['message']['message'] is String) {
+        msg = d['message']['message'] as String; // ← solo el texto que quieres
+      }
+    } catch (_) {}
+    throw ApiException(resp.statusCode, msg, rawBody: resp.body);
+  }
+
+  final decoded = jsonDecode(resp.body);
+  if (decoded is! Map<String, dynamic>) {
+    throw ApiException(500, 'Respuesta inesperada del servidor.', rawBody: resp.body);
+  }
+  return Map<String, dynamic>.from(decoded);
+}
+
   /// Asignar un cupón a un cliente
   /// POST /cupones/clientes/:clienteId/cupones/:cuponId/asignar
-  Future<void> asignarACiente(String clienteId, String cuponId) async {
+  Future<void> asignarACliente(String clienteId, String cuponId) async {
     final uri = Uri.parse('$base/cupones/clientes/$clienteId/cupones/$cuponId/asignar');
     print('[CuponesService] ➡️ POST $uri');
     final resp = await http.post(uri);
@@ -125,4 +148,46 @@ Future<List<Cuponera>> listarPorCliente(
     return detalle;
   }
 
+}
+class ApiException implements Exception {
+  final int statusCode;
+  final String message;
+  final String? rawBody;
+  ApiException(this.statusCode, this.message, {this.rawBody});
+
+  @override
+  String toString() => 'ApiException($statusCode): $message';
+}
+
+String _extractErrorMessage(int status, String body) {
+  try {
+    final decoded = jsonDecode(body);
+
+    if (decoded is Map<String, dynamic>) {
+      final m = decoded['message'];
+
+      // Caso: { "message": "texto" }
+      if (m is String && m.trim().isNotEmpty) return m;
+
+      // Caso: { "message": { "message": "texto", ... } }
+      if (m is Map<String, dynamic>) {
+        final inner = m['message'];
+        if (inner is String && inner.trim().isNotEmpty) return inner;
+        final err = m['error'];
+        if (err is String && err.trim().isNotEmpty) {
+          return '$err (HTTP $status)';
+        }
+      }
+
+      // Caso: { "error": "Bad Request", ... }
+      final err = decoded['error'];
+      if (err is String && err.trim().isNotEmpty) {
+        return '$err (HTTP $status)';
+      }
+    }
+  } catch (_) {
+    // body no era JSON; seguimos al fallback
+  }
+
+  return 'Error $status';
 }

@@ -38,6 +38,7 @@ class Cuponera {
   final int totalEscaneos;
   final DateTime? lastScanAt; // soporta ultimoScaneo/lastScanAt
   final List<ScanRecord> scans;
+  final String secuencial;
 
   Cuponera({
     required this.id,
@@ -50,6 +51,8 @@ class Cuponera {
     required this.totalEscaneos,
     required this.lastScanAt,
     required this.scans,
+    required this.secuencial,
+
   });
 
   factory Cuponera.fromJson(Map<String, dynamic> j) {
@@ -71,6 +74,7 @@ class Cuponera {
         .whereType<Map<String, dynamic>>()
         .map(ScanRecord.fromJson)
         .toList();
+        final secuencial = (j['secuencial']  ?? '').toString();
 
     return Cuponera(
       id: id,
@@ -83,6 +87,7 @@ class Cuponera {
       totalEscaneos: (j['totalEscaneos'] is num) ? (j['totalEscaneos'] as num).toInt() : 0,
       lastScanAt: lastScanAt,
       scans: scans,
+      secuencial:secuencial
     );
   }
 }

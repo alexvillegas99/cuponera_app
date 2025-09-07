@@ -26,4 +26,7 @@ class ComerciosService {
 
     return ComercioMini.fromJson(decoded);
   }
+
+
+  
 }

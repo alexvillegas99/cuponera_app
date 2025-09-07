@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -14,72 +12,135 @@ class QrScanScreen extends StatefulWidget {
 }
 
 class _QrScanScreenState extends State<QrScanScreen> {
-  bool isProcessing = false;
-  bool canScan = true;
-
+  bool _locked = false; // 🔒 evita múltiples solicitudes simultáneas
   final historicoService = HistoricoCuponService();
   final authService = AuthService();
 
-void _handleQrDetected(String data) async {
-  if (!canScan || isProcessing) return;
+  // ✅ Controlador persistente para poder detener/arrancar el escáner
+  late final MobileScannerController _controller;
 
-  setState(() {
-    isProcessing = true;
-    canScan = false;
-  });
+  @override
+  void initState() {
+    super.initState();
+    _controller = MobileScannerController(
+      // 👇 Usa uno u otro según tu versión de mobile_scanner:
 
-  try {
-    // Espera un JSON en el QR con al menos el campo "id"
- 
-    final String cuponId = data.trim();
+      // v3+:
+      // detectionSpeed: DetectionSpeed.noDuplicates,
+      // detectionTimeoutMs: 1000,
 
-    // Obtener el usuario actual
-    final usuario = await authService.getUser();
-    final usuarioId = usuario?['_id'];
-
-    if (usuarioId == null) {
-      throw Exception('No se pudo obtener el usuario autenticado');
-    }
-
-    // Validar el cupón
-    final Map<String, dynamic> validacion =
-        await historicoService.validarCuponPorId(
-      id: cuponId,
-      usuarioId: usuarioId,
+      // v2.x:
+      // formats: [BarcodeFormat.qrCode],
+      // facing: CameraFacing.back,
     );
+  }
 
-    if (!mounted) return;
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
+  Future<void> _handleQrDetected(String data) async {
+    if (_locked) return; // ya hay una solicitud en curso
+    _locked = true;
 
-    // Navegar al resultado
-    context.push(
-      '/qr-result',
-      extra: validacion,
-    );
-  } catch (e) {
-    if (!mounted) return;
+    // 🛑 Pausa de inmediato el escáner para que no haya más eventos
+    await _controller.stop();
 
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Error al validar cupón'),
-        content: Text(e.toString()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Aceptar'),
+    try {
+      final String cuponId = data.trim();
+
+      final usuario = await authService.getUser();
+      final usuarioId = usuario?['_id'];
+      if (usuarioId == null) {
+        throw Exception('No se pudo obtener el usuario autenticado');
+      }
+
+      final validacion = await historicoService.validarCuponPorId(
+        id: cuponId,
+        usuarioId: usuarioId,
+      );
+      if (!mounted) return;
+
+      // Navega al resultado y espera la respuesta (true = registrado)
+      final ok = await context.push<bool>('/qr-result', extra: validacion);
+      if (!mounted) return;
+
+      if (ok == true) {
+        // Propaga éxito hacia atrás (CuponesScreen/Home recargan)
+        Navigator.of(context).pop(true);
+        return; // No reanudes: ya saliste de esta pantalla
+      }
+
+      // Si no se registró, puedes reanudar el escáner para intentar de nuevo
+      await _controller.start();
+    } catch (e) {
+      if (!mounted) return;
+      await showDialog(
+  context: context,
+  barrierDismissible: false,
+  builder: (ctx) => AlertDialog(
+    backgroundColor: Colors.white,
+    surfaceTintColor: Colors.white,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    titlePadding: const EdgeInsets.only(top: 20, left: 20, right: 20),
+    contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+    actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+    title: Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.red[50],
+            shape: BoxShape.circle,
           ),
-        ],
+          child: const Icon(Icons.qr_code_2, color: Colors.red, size: 22),
+        ),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Text(
+            'QR no válido',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ],
+    ),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: const [
+        SizedBox(height: 4),
+        Text('El código escaneado no pertenece a ENJOY.'),
+        SizedBox(height: 8),
+        Text(
+          'Verifica que el QR provenga de un cupón oficial de ENJOY (impreso o generado en la app) y vuelve a intentarlo.',
+          style: TextStyle(color: Colors.black54, fontSize: 13),
+        ),
+      ],
+    ),
+    actions: [
+      FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: Color(0xFF398AE5), // tu primario
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+        onPressed: () => Navigator.of(ctx).pop(),
+        child: const Text('Intentar de nuevo', style: TextStyle(fontWeight: FontWeight.w800)),
       ),
-    );
-  }
+    ],
+  ),
+);
 
-  if (mounted) {
-    setState(() => isProcessing = false);
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted) setState(() => canScan = true);
+
+      // Tras el error, reanuda el escáner para reintentar
+      await _controller.start();
+    } finally {
+      _locked = false;
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -89,14 +150,21 @@ void _handleQrDetected(String data) async {
         children: [
           MobileScanner(
             fit: BoxFit.cover,
-            controller: MobileScannerController(),
+            controller: _controller,
+
+            // 👇 Evita lecturas repetidas sin parar el stream (elige según versión):
+            // v3+:
+            // detectionSpeed: DetectionSpeed.noDuplicates,
+            // detectionTimeoutMs: 1000,
+
+            // v2.x:
+            // allowDuplicates: false,
+
             onDetect: (capture) {
-              if (capture.barcodes.isNotEmpty) {
-                final qr = capture.barcodes.first.rawValue;
-                if (qr != null) {
-                  _handleQrDetected(qr);
-                }
-              }
+              if (capture.barcodes.isEmpty) return;
+              final qr = capture.barcodes.first.rawValue;
+              if (qr == null || qr.isEmpty) return;
+              _handleQrDetected(qr);
             },
           ),
 
@@ -120,14 +188,6 @@ void _handleQrDetected(String data) async {
               ],
             ),
           ),
-
-          if (isProcessing)
-            Container(
-              color: Colors.black.withOpacity(0.6),
-              child: const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              ),
-            ),
         ],
       ),
     );
@@ -139,11 +199,7 @@ void _handleQrDetected(String data) async {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(
-              Icons.arrow_back,
-              color: Color(0xFFF4F1DE),
-              size: 28,
-            ),
+            icon: const Icon(Icons.arrow_back, color: Color(0xFFF4F1DE), size: 28),
             onPressed: () => Navigator.pop(context),
           ),
           const SizedBox(width: 8),

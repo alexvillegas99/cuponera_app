@@ -1,3 +1,6 @@
+import 'package:enjoy/screens/clientes/perfil_cofiguraicon/edit_profile_screen.dart';
+import 'package:enjoy/screens/clientes/perfil_cofiguraicon/notifications_screen.dart';
+import 'package:enjoy/screens/clientes/perfil_cofiguraicon/privacy_screen.dart';
 import 'package:enjoy/screens/usuarios/home_screen.dart';
 import 'package:enjoy/screens/login_screen.dart';
 import 'package:enjoy/screens/usuarios/qr_result_screen.dart';
@@ -18,13 +21,7 @@ Future<String> getInitialRoute() async {
   final hasToken = await auth.hasToken();
   if (!hasToken) return '/login';
 
-  // 2) Intentar renovar (si falla, cerrar sesión y volver a login)
-  final ok = await auth.renewToken();
-  if (!ok) {
-    await auth.logout();
-    return '/login';
-  }
-
+ 
   // 3) Decidir home por rol/kind
   return auth.getTargetHomeRoute();
 }
@@ -78,7 +75,18 @@ GoRouter buildRouter(String initialRoute) {
         pageBuilder: (context, state) =>
             _slidePage(state, const RestablecerPasswordScreen()),
       ),
-      
+       GoRoute(
+        path: '/perfil/editar',
+        pageBuilder: (context, state) => _slidePage(state, const EditContactWithOtpScreen()),
+      ),
+      GoRoute(
+        path: '/perfil/notificaciones',
+        pageBuilder: (context, state) => _slidePage(state, const NotificationsScreen()),
+      ),
+      GoRoute(
+        path: '/perfil/privacidad',
+        pageBuilder: (context, state) => _slidePage(state, const PrivacyScreen()),
+      ),
     ],
   );
 }

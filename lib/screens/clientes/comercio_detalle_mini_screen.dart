@@ -1,12 +1,16 @@
 import 'dart:ui' show ImageFilter;
 import 'package:enjoy/services/auth_service.dart';
+import 'package:enjoy/services/comentarios_service.dart';
 import 'package:enjoy/services/compartidos_service.dart';
 import 'package:flutter/material.dart';
 import 'package:enjoy/ui/palette.dart';
 import 'package:enjoy/services/comercios_service.dart';
 import 'package:enjoy/mappers/comercio_mini.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+
+// 👇 NUEVO
 
 class ComercioDetalleMiniScreen extends StatefulWidget {
   final String usuarioId;
@@ -21,6 +25,15 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
   final _svc = ComerciosService();
   final _compSvc = CompartidosService();
   final authService = AuthService();
+  bool _editandoMiResena = false;
+  // 👇 NUEVO
+  final _comentSvc = ComentariosService();
+  bool _eligibileParaComentar = false;
+  Map<String, dynamic>? _miComentario; // { _id, texto, calificacion, ... }
+  int _myRating = 0;
+  final _myCommentCtrl = TextEditingController();
+  bool _saving = false;
+
   ComercioMini? _data;
   bool _loading = true;
   String? _error;
@@ -29,6 +42,13 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
   void initState() {
     super.initState();
     _load();
+    _loadElegibilidad(); // en paralelo; no depende del detalle
+  }
+
+  @override
+  void dispose() {
+    _myCommentCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -45,6 +65,146 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  // ───────────────────────── NUEVO: elegibilidad + mi comentario
+  Future<void> _loadElegibilidad() async {
+    try {
+      final usuario = await authService.getUser();
+      final clienteId = usuario?['_id']?.toString();
+      if (clienteId == null) {
+        setState(() {
+          _eligibileParaComentar = false;
+          _miComentario = null;
+          _myRating = 0;
+          _myCommentCtrl.text = '';
+          _editandoMiResena = false;
+        });
+        return;
+      }
+
+      final e = await _comentSvc.elegibilidad(
+        usuarioId: widget.usuarioId,
+        clienteId: clienteId,
+      );
+
+      Map<String, dynamic>? mio;
+      if (e['tieneComentario'] == true) {
+        mio = await _comentSvc.obtenerMiComentario(
+          usuarioId: widget.usuarioId,
+          clienteId: clienteId,
+        );
+      }
+
+      setState(() {
+        _eligibileParaComentar = e['elegible'] == true;
+        _miComentario = mio;
+        _myRating = (mio?['calificacion'] is num)
+            ? (mio!['calificacion'] as num).toInt()
+            : 0;
+        _myCommentCtrl.text = (mio?['texto'] ?? '') as String;
+        _editandoMiResena =
+            mio == null; // si no hay reseña, entra directo en modo crear
+      });
+    } catch (_) {}
+  }
+
+  void _startEditar() {
+    setState(() => _editandoMiResena = true);
+  }
+
+  void _cancelarEdicion() {
+    setState(() {
+      _editandoMiResena = false;
+      if (_miComentario != null) {
+        _myRating = (_miComentario!['calificacion'] as num?)?.toInt() ?? 0;
+        _myCommentCtrl.text = (_miComentario!['texto'] ?? '') as String;
+      }
+    });
+  }
+
+  Future<void> _guardarMiComentario() async {
+    if (_myRating < 1 || _myRating > 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona una calificación (1 a 5).')),
+      );
+      return;
+    }
+    try {
+      setState(() => _saving = true);
+      final usuario = await authService.getUser();
+      final clienteId = usuario?['_id']?.toString();
+      if (clienteId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Debes iniciar sesión para comentar.')),
+        );
+        return;
+      }
+
+      await _comentSvc.upsertMiComentario(
+        usuarioId: widget.usuarioId,
+        clienteId: clienteId,
+        calificacion: _myRating,
+        texto: _myCommentCtrl.text,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('¡Comentario guardado!')));
+
+      await _load();
+      await _loadElegibilidad();
+      if (!mounted) return;
+      setState(() => _editandoMiResena = false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _eliminarMiComentario() async {
+    try {
+      setState(() => _saving = true);
+      final usuario = await authService.getUser();
+      final clienteId = usuario?['_id']?.toString();
+      if (clienteId == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Debes iniciar sesión.')));
+        return;
+      }
+
+      await _comentSvc.eliminarMiComentario(
+        usuarioId: widget.usuarioId,
+        clienteId: clienteId,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Comentario eliminado.')));
+
+      // Limpiar UI y refrescar
+      setState(() {
+        _miComentario = null;
+        _myRating = 0;
+        _myCommentCtrl.text = '';
+      });
+      await _load();
+      await _loadElegibilidad();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al eliminar: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -70,14 +230,13 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
   String buildWhatsAppPromoMsg(PromoPrincipal p) {
     final nombre = (p.placeName ?? '').trim();
     final titulo = (p.title ?? '').trim();
-    final horario = (p.scheduleLabel ?? '').trim();
     final dir = (p.address ?? '').trim();
 
     final parts = <String>[
       'Hola 👋, vi este local en ENJOY y me gustaría saber más sobre las promociones que tienen.',
       if (nombre.isNotEmpty) '📍 Local: $nombre',
       if (titulo.isNotEmpty) '⭐ Promo destacada: ${p.title!.trim()}',
-      if ((dir ?? '').trim().isNotEmpty) '📌 Dirección: ${p.address!.trim()}',
+      if ((dir).isNotEmpty) '📌 Dirección: ${p.address!.trim()}',
       '',
       '¿Podrían brindarme más información? ¡Gracias!',
     ];
@@ -99,7 +258,6 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
     final txt = Uri.encodeComponent(buildWhatsAppPromoMsg(p));
     final native = Uri.parse('whatsapp://send?phone=$ph&text=$txt');
     final web = Uri.parse('https://wa.me/$ph?text=$txt');
-    // 1) Registrar el evento
     try {
       await _compSvc.registrar(
         clienteId: clienteId,
@@ -112,7 +270,6 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
       );
     } catch (_) {}
 
-    // 2) Abrir WhatsApp
     if (await canLaunchUrl(native)) {
       await launchUrl(native);
     } else {
@@ -126,7 +283,6 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
 
     final clienteId = usuario?['_id'];
     final String usuarioId = widget.usuarioId;
-    // 1) Registrar el evento
     try {
       await _compSvc.registrar(
         clienteId: clienteId,
@@ -138,7 +294,6 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
       );
     } catch (_) {}
 
-    // 2) Abrir share sheet
     await Share.share(text);
   }
 
@@ -175,30 +330,74 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
 
     final p = _data!.promoPrincipal;
     final telefono = _data?.telefono ?? _data?.promoPrincipal?.telefono;
-    final placeName = (p?.placeName?.trim().isNotEmpty ?? false)
-        ? p!.placeName!.trim()
-        : (p?.title?.trim() ?? 'Comercio');
 
     return Scaffold(
       backgroundColor: Palette.kBg,
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: () async {
+          await _load();
+          await _loadElegibilidad();
+        },
         child: CustomScrollView(
           slivers: [
             // ───────────── HEADER con frosted pill
             SliverAppBar(
               pinned: true,
               expandedHeight: 280,
-              backgroundColor: Palette.kSurface,
-              foregroundColor: Palette.kTitle,
-              title: Text('', maxLines: 1, overflow: TextOverflow.ellipsis),
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              automaticallyImplyLeading: false,
+              systemOverlayStyle: const SystemUiOverlayStyle(
+                statusBarColor: Colors.transparent,
+                statusBarIconBrightness: Brightness.light,
+                statusBarBrightness: Brightness.dark,
+              ),
               flexibleSpace: FlexibleSpaceBar(
-                background: _HeaderFrosted(
-                  p: p,
-                  telefono: telefono,
-                  onCall: (tel) => _openPhone(tel),
-                  onWhats: (tel, promo) => _openWhatsApp(tel, promo),
-                  onShare: (promo) => _sharePromo(promo),
+                background: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _HeaderFrosted(
+                      p: p,
+                      telefono: telefono,
+                      onCall: (tel) => _openPhone(tel),
+                      onWhats: (tel, promo) => _openWhatsApp(tel, promo),
+                      onShare: (promo) => _sharePromo(promo),
+                    ),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: IgnorePointer(
+                        child: Container(
+                          height: MediaQuery.of(context).padding.top + 56,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withOpacity(0.55),
+                                Colors.black.withOpacity(0.20),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if ((p?.logoUrl ?? '').isNotEmpty)
+                      Positioned(
+                        top: MediaQuery.of(context).padding.top + 8,
+                        right: 12,
+                        child: _CornerLogo(url: p!.logoUrl!),
+                      ),
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 8,
+                      left: 12,
+                      child: _BlurBackButton(
+                        onTap: () => Navigator.of(context).maybePop(),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -210,7 +409,6 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Chips de ciudades y categorías
                     if (_data!.ciudades.isNotEmpty)
                       _ChipsSection(
                         label: 'Ciudades',
@@ -232,7 +430,26 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
                       total: _data!.totalComentarios,
                     ),
 
-                    // Etiquetas de la promo
+                    // ───────────── NUEVO: MI RESEÑA
+                    const SizedBox(height: 14),
+                 _MiResenaCard(
+  elegible: _eligibileParaComentar,
+  miComentario: _miComentario,
+  // si no hay reseña ⇒ modo crear (true). Si hay, controlado por _editandoMiResena
+  modoEdicion: _miComentario == null ? true : _editandoMiResena,
+  rating: _myRating,
+  onRatingChanged: (v) => setState(() => _myRating = v),
+  commentCtrl: _myCommentCtrl,
+  saving: _saving,
+  onGuardar: _guardarMiComentario,
+  onEliminar: _miComentario == null ? null : _eliminarMiComentario,
+  onEditar: _startEditar,
+  onCancelar: _miComentario == null ? null : _cancelarEdicion,
+),
+
+
+                    // Etiquetas
+                    // Etiquetas
                     if (p != null && p.tags.isNotEmpty) ...[
                       const SizedBox(height: 14),
                       Text(
@@ -246,7 +463,7 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
                       Wrap(
                         spacing: 6,
                         runSpacing: -6,
-                        children: p.tags
+                        children: p!.tags
                             .map(
                               (t) => Chip(
                                 label: Text(
@@ -263,7 +480,6 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
                       ),
                     ],
 
-                    // Descripción
                     if ((p?.description ?? '').isNotEmpty) ...[
                       const SizedBox(height: 16),
                       Text(
@@ -280,7 +496,6 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
                       ),
                     ],
 
-                    // Dirección
                     if ((p?.address ?? '').isNotEmpty) ...[
                       const SizedBox(height: 16),
                       Text(
@@ -310,7 +525,6 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
                       ),
                     ],
 
-                    // Comentarios
                     const SizedBox(height: 18),
                     if (_data!.comentarios.isNotEmpty) ...[
                       Row(
@@ -378,7 +592,6 @@ class _HeaderFrosted extends StatelessWidget {
   Widget build(BuildContext context) {
     final promo = p;
     final hasImage = (promo?.imageUrl ?? '').isNotEmpty;
-    final hasLogo = (promo?.logoUrl ?? '').isNotEmpty;
     final placeName = (promo?.placeName?.trim().isNotEmpty ?? false)
         ? promo!.placeName!.trim()
         : (promo?.title?.trim() ?? 'Comercio');
@@ -386,30 +599,10 @@ class _HeaderFrosted extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Fondo
         if (hasImage)
           Image.network(promo!.imageUrl!, fit: BoxFit.cover)
         else
           Container(color: Palette.kField),
-
-        // Logo circular
-        Positioned(
-          left: 16,
-          bottom: 116,
-          child: CircleAvatar(
-            radius: 32,
-            backgroundColor: Colors.white,
-            backgroundImage: hasLogo ? NetworkImage(promo!.logoUrl!) : null,
-            child: !hasLogo
-                ? const Icon(
-                    Icons.store_mall_directory_outlined,
-                    color: Colors.black54,
-                  )
-                : null,
-          ),
-        ),
-
-        // “Píldora” frosted con texto
         Positioned(
           left: 12,
           right: 12,
@@ -477,8 +670,6 @@ class _HeaderFrosted extends StatelessWidget {
             ),
           ),
         ),
-
-        // Acciones
         Positioned(
           left: 12,
           right: 12,
@@ -632,6 +823,204 @@ class _RatingResumen extends StatelessWidget {
   }
 }
 
+// ──────────────────────────────────────────────────────────────
+// NUEVO: Card de “Mi reseña”
+class _MiResenaCard extends StatelessWidget {
+  final bool elegible;
+  final Map<String, dynamic>? miComentario;
+  final bool modoEdicion;
+  final int rating;
+  final ValueChanged<int> onRatingChanged;
+  final TextEditingController commentCtrl;
+  final bool saving;
+  final VoidCallback onGuardar;
+  final VoidCallback? onEliminar;
+  final VoidCallback onEditar;
+  final VoidCallback? onCancelar;
+
+  const _MiResenaCard({
+    required this.elegible,
+    required this.miComentario,
+    required this.modoEdicion,
+    required this.rating,
+    required this.onRatingChanged,
+    required this.commentCtrl,
+    required this.saving,
+    required this.onGuardar,
+    required this.onEliminar,
+    required this.onEditar,
+    required this.onCancelar,
+  });
+
+  Color get _primary => const Color(0xFF0A3D62); // azul oscurito
+
+  @override
+  Widget build(BuildContext context) {
+    if (!elegible) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Palette.kSurface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Palette.kBorder),
+        ),
+        child: Text(
+          'Para dejar un comentario debes haber usado al menos una promoción en este local.',
+          style: TextStyle(color: Palette.kMuted),
+        ),
+      );
+    }
+
+    final existe = miComentario != null;
+
+    // ── VISTA SOLO LECTURA ──
+    if (existe && !modoEdicion) {
+      final calif = (miComentario!['calificacion'] as num?)?.toInt() ?? 0;
+      final texto = (miComentario!['texto'] ?? '') as String;
+
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Palette.kSurface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Palette.kBorder),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 4))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Tu reseña', style: TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w800, fontSize: 16)),
+                const Spacer(),
+                OutlinedButton.icon(
+                  onPressed: onEliminar,
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Eliminar'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _primary,
+                    side: BorderSide(color: _primary),
+                    shape: const StadiumBorder(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: onEditar,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Editar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    foregroundColor: Colors.white,
+                    shape: const StadiumBorder(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            _StarDisplay(value: calif, color: _primary),
+            if (texto.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Palette.kField,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Palette.kBorder),
+                ),
+                child: Text(texto, style: TextStyle(color: Palette.kMuted)),
+              )
+            ],
+          ],
+        ),
+      );
+    }
+
+    // ── VISTA EDICIÓN / CREACIÓN ──
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Palette.kSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Palette.kBorder),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            existe ? 'Editar reseña' : 'Escribe tu reseña',
+            style: TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w800, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          _StarPicker(value: rating, onChanged: onRatingChanged, activeColor: _primary),
+          const SizedBox(height: 8),
+          TextField(
+            controller: commentCtrl,
+            maxLines: 3,
+            maxLength: 100, // ← límite 100
+            maxLengthEnforcement: MaxLengthEnforcement.enforced,
+            decoration: InputDecoration(
+              hintText: 'Cuéntanos en pocas palabras… (máx. 100)',
+              filled: true,
+              fillColor: Palette.kField,
+              border: OutlineInputBorder(
+                borderSide: const BorderSide(color: Palette.kBorder),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderSide: const BorderSide(color: Palette.kBorder),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: _primary, width: 1.4),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              contentPadding: const EdgeInsets.all(12),
+              counterText: '', // oculta contador numérico si prefieres
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: saving ? null : onGuardar,
+                  icon: saving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.save_outlined, size: 18),
+                  label: Text(existe ? 'Guardar cambios' : 'Publicar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    foregroundColor: Colors.white,
+                    shape: const StadiumBorder(),
+                  ),
+                ),
+              ),
+              if (onCancelar != null) ...[
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: saving ? null : onCancelar,
+                  icon: const Icon(Icons.close, size: 18),
+                  label: const Text('Cancelar'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: _primary,
+                    shape: const StadiumBorder(),
+                  ),
+                ),
+              ]
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
 class _ComentarioTilePro extends StatelessWidget {
   final ComentarioMini c;
   const _ComentarioTilePro({required this.c});
@@ -719,3 +1108,118 @@ class _ComentarioTilePro extends StatelessWidget {
     );
   }
 }
+
+class _StarPicker extends StatelessWidget {
+  final int value; // 0..5
+  final ValueChanged<int> onChanged;
+  final Color activeColor;
+  const _StarPicker({required this.value, required this.onChanged, required this.activeColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(5, (i) {
+        final idx = i + 1;
+        final filled = value >= idx;
+        return IconButton(
+          onPressed: () => onChanged(idx),
+          icon: Icon(filled ? Icons.star_rounded : Icons.star_border_rounded, size: 28),
+          color: filled ? activeColor : Colors.grey.shade400,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          splashRadius: 22,
+        );
+      }),
+    );
+  }
+}
+
+// Solo lectura (para la vista read-only)
+class _StarDisplay extends StatelessWidget {
+  final int value; // 0..5
+  final Color color;
+  const _StarDisplay({required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(
+        5,
+        (i) => Icon(
+          i < value ? Icons.star_rounded : Icons.star_border_rounded,
+          color: i < value ? color : Colors.grey.shade400,
+          size: 22,
+        ),
+      ),
+    );
+  }
+}
+
+
+class _BlurBackButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _BlurBackButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Material(
+          color: Colors.black.withOpacity(0.35),
+          shape: const StadiumBorder(),
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const StadiumBorder(),
+            child: const SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(Icons.arrow_back, color: Colors.white),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CornerLogo extends StatelessWidget {
+  final String url;
+  const _CornerLogo({required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withOpacity(0.9), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: Image.network(
+          url,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const ColoredBox(
+            color: Colors.white,
+            child: Icon(
+              Icons.store_mall_directory_outlined,
+              color: Colors.black54,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  
+}
+

@@ -1,3 +1,4 @@
+import 'package:enjoy/screens/clientes/comercio_detalle_mini_screen.dart';
 import 'package:flutter/material.dart';
 import '../ui/palette.dart';
 import '../models/promotion_models.dart';
@@ -5,7 +6,6 @@ import 'chip_tiny_light.dart';
 import 'info_tiny_light.dart';
 import 'flash_countdown_light.dart';
 import 'pill_light.dart';
-import '../ui/card_style.dart'; // ajusta el path según tu estructura
 
 
 
@@ -35,7 +35,16 @@ class PromoCardLight extends StatelessWidget {
   Widget build(BuildContext context) {
     final isFlash = style == CardStyle.flash;
     return InkWell(
-      onTap: onTap,
+     onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ComercioDetalleMiniScreen(
+                    usuarioId: promo.id,
+                  ), // <--- usa el id real del usuario
+                ),
+              );
+            },
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
