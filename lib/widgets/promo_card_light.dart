@@ -10,7 +10,7 @@ import 'pill_light.dart';
 
 
 
-enum CardStyle { normal, flash }
+enum CardStyle { normal, flash,compact }
 
 class PromoCardLight extends StatelessWidget {
   final Promotion promo;

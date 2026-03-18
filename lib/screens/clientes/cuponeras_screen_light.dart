@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:enjoy/services/cupones_service.dart';
 import 'package:enjoy/services/auth_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../ui/palette.dart';
 
 class CuponerasScreenLight extends StatefulWidget {
@@ -347,25 +348,48 @@ Future<bool?> _confirmAssignSheet(
     },
   );
 }
+Future<void> _openWhatsApp(String phone, {String? message}) async {
+  final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+  final text = Uri.encodeComponent(
+    message ?? 'Hola, quiero adquirir una cuponera.',
+  );
 
-  // FAB siempre visible, abajo-derecha
-  Widget _buildFab(BuildContext context) {
-    return SafeArea(
-      child: Align(
-        alignment: Alignment.bottomRight,
-        child: Padding(
-          padding: const EdgeInsets.only(right: 16, bottom: 16),
-          child: FloatingActionButton.extended(
-            onPressed: widget.onAddCuponera ?? () => _scanAndLink(context),
-            icon: const Icon(Icons.qr_code_scanner),
-            label: const Text('Agregar cuponera'),
-            backgroundColor: Palette.kAccent,
-            foregroundColor: Colors.white,
-          ),
-        ),
-      ),
+  final nativeUrl =
+      Uri.parse('whatsapp://send?phone=$cleanPhone&text=$text');
+  final webUrl =
+      Uri.parse('https://wa.me/$cleanPhone?text=$text');
+
+  if (await canLaunchUrl(nativeUrl)) {
+    await launchUrl(nativeUrl);
+  } else {
+    await launchUrl(
+      webUrl,
+      mode: LaunchMode.externalApplication,
     );
   }
+}
+
+Widget _buildFab(BuildContext context) {
+  return SafeArea(
+    child: Align(
+      alignment: Alignment.bottomRight,
+      child: Padding(
+        padding: const EdgeInsets.only(right: 16, bottom: 16),
+        child: FloatingActionButton.extended(
+          onPressed: () => _openWhatsApp(
+            '+593995333281',
+            message: 'Hola, quiero adquirir una cuponera.',
+          ),
+          icon: const Icon(Icons.message),
+          label: const Text('Adquirir Cuponera'),
+          backgroundColor: Palette.kAccent,
+          foregroundColor: Colors.white,
+        ),
+      ),
+    ),
+  );
+}
+
 
   @override
   Widget build(BuildContext context) {

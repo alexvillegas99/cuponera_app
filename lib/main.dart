@@ -22,10 +22,6 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
 import 'package:enjoy/ui/palette.dart';
 
-import 'package:enjoy/services/server_health_service.dart';
-import 'package:enjoy/state/server_health_store.dart';
-import 'package:enjoy/ui/maintenance_screen.dart';
-
 class MyHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
@@ -73,14 +69,6 @@ Future<void> main() async {
           create: (_) => FavoritesStore(FavoritosService()),
         ),
         ChangeNotifierProvider(create: (_) => ConnectivityStore()..start()),
-        ChangeNotifierProvider(
-          create: (_) => ServerHealthStore(
-            ServerHealthService(
-              // opcional: custom path si tu backend usa otro
-              // healthPath: '/status',
-            ),
-          )..start(),
-        ),
       ],
       child: RootApp(router: router), // 👈 pásalo aquí (sin const)
     ),
@@ -100,22 +88,8 @@ class RootApp extends StatelessWidget {
       theme: ThemeData(useMaterial3: true),
       routerConfig: router, // 👈 usa el router que recibes
       builder: (context, child) {
-        return Consumer2<ConnectivityStore, ServerHealthStore>(
-          builder: (_, net, health, __) {
-            // 1) Offline total => pantalla offline
-            if (!net.isOnline) return const OfflineScreen();
-
-            // 2) Online pero servidor no OK:
-            if (!health.isOk) {
-              // 2a) Si backend reporta mantenimiento => pantalla bonita
-              if (health.isMaintenance) return const MaintenanceScreen();
-
-              // 2b) Si está caído/500/timeouts => podrías mostrar una pantalla de “servicio no disponible”
-              // Reutilizamos MaintenanceScreen pero con mensaje actual:
-              return const MaintenanceScreen();
-            }
-
-            // 3) Todo OK: rutas normales
+        return Consumer<ConnectivityStore>(
+          builder: (_, net, __) {
             return child ?? const SizedBox.shrink();
           },
         );
@@ -160,84 +134,5 @@ class ConnectivityStore extends ChangeNotifier {
     _sub?.cancel();
     _poll?.cancel();
     super.dispose();
-  }
-}
-
-/// ------------------------------
-/// PANTALLA OFFLINE
-/// ------------------------------
-class OfflineScreen extends StatelessWidget {
-  const OfflineScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  height: 120,
-                  width: 120,
-                  decoration: BoxDecoration(
-                    color: Palette.kSurface,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        blurRadius: 30,
-                        color: Colors.black.withOpacity(0.15),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.wifi_off_rounded,
-                    size: 54,
-                    color: Palette.kTitle,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                const Text(
-                  'Sin conexión a internet',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Palette.kTitle,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Revisa tu Wi-Fi o datos móviles.\nReconectaremos en cuanto sea posible.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Palette.kSub, height: 1.4),
-                ),
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Palette.kPrimary,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  onPressed: () {
-                    context.read<ConnectivityStore>().checkNow();
-                  },
-                  icon: const Icon(Icons.refresh, color: Colors.white),
-                  label: const Text('Reintentar'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

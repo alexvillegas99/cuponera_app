@@ -6,6 +6,7 @@ enum LoginMode { cliente, empresa }
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -19,16 +20,14 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscure = true;
   bool _loading = false;
 
-  // Paleta “azul” tipo referencia
-// Paleta “azul oscuro” tipo referencia
-final Color _primary = const Color(0xFF010F23); // azul oscuro principal
-final Color _accent  = const Color(0xFF173A5E); // azul medio (para botones hover / acentos)
-final Color _bg      = const Color(0xFFF3F4F6); // fondo claro (hueso grisáceo)
-final Color _pill    = const Color(0xFFE0E7EF); // pill inputs gris-azulado
-final Color _text    = const Color(0xFF111827); // texto principal (gris muy oscuro)
-final Color _muted   = const Color(0xFF6B7280); // texto secundario (gris medio)
+  // Paleta
+  final Color _primary = const Color(0xFF010F23);
+  final Color _accent = const Color(0xFF173A5E);
+  final Color _bg = const Color(0xFFF3F4F6);
+  final Color _pill = const Color(0xFFE0E7EF);
+  final Color _text = const Color(0xFF111827);
+  final Color _muted = const Color(0xFF6B7280);
 
- 
   @override
   void dispose() {
     _userCtrl.dispose();
@@ -36,41 +35,39 @@ final Color _muted   = const Color(0xFF6B7280); // texto secundario (gris medio)
     super.dispose();
   }
 
+  String get _headline =>
+      _mode == LoginMode.cliente ? 'Iniciar sesión' : 'Acceso empresas';
+
+  String get _userHint =>
+      _mode == LoginMode.cliente ? 'Correo electrónico' : 'Correo corporativo';
+
   String get _forgotText => _mode == LoginMode.cliente
       ? '¿Olvidaste tu contraseña?'
       : '¿Olvidaste tu contraseña (empresa)?';
 
-  String get _headline =>
-      _mode == LoginMode.cliente ? 'Iniciar sesión' : 'Acceso empresas';
-  String get _userHint =>
-      _mode == LoginMode.cliente ? 'Correo' : 'Correo corporativo';
-
   Future<void> _doLogin() async {
-    final user = _userCtrl.text.trim();
-    final pass = _passCtrl.text;
-    if (user.isEmpty || pass.isEmpty) {
+    if (_userCtrl.text.isEmpty || _passCtrl.text.isEmpty) {
       _alert('Campos requeridos', 'Ingresa tus credenciales.');
       return;
     }
+
     setState(() => _loading = true);
     try {
-      if (_mode == LoginMode.cliente) {
-        await _auth.loginCliente(
-          user,
-          pass,
-          context,
-        ); // navega a la ruta correcta
-      } else {
-        await _auth.loginEmpresa(
-          user,
-          pass,
-          context,
-        ); // navega a la ruta correcta
-      }
+      _mode == LoginMode.cliente
+          ? await _auth.loginCliente(
+              _userCtrl.text.trim(),
+              _passCtrl.text,
+              context,
+            )
+          : await _auth.loginEmpresa(
+              _userCtrl.text.trim(),
+              _passCtrl.text,
+              context,
+            );
     } catch (_) {
       _alert(
-        'Error de inicio de sesión',
-        'Credenciales inválidas. Verifica tus datos e inténtalo nuevamente.',
+        'Error',
+        'Credenciales inválidas. Inténtalo nuevamente.',
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -97,112 +94,80 @@ final Color _muted   = const Color(0xFF6B7280); // texto secundario (gris medio)
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bg,
-      resizeToAvoidBottomInset: true, // ← fondo ya no se mueve
-      body: Stack(
-        children: [
-          // ======= Formas decorativas azules (arriba-derecha / abajo-izquierda) =======
-          Positioned(
-            right: -60,
-            top: -60,
-            child: Container(
-              width: 260,
-              height: 260,
-              decoration: BoxDecoration(
-                color: _primary,
-                borderRadius: BorderRadius.circular(40),
-                boxShadow: [
-                  BoxShadow(
-                    color: _primary.withOpacity(.35),
-                    blurRadius: 40,
-                    offset: const Offset(0, 18),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            left: -80,
-            bottom: -60,
-            child: Container(
-              width: 280,
-              height: 180,
-              decoration: BoxDecoration(
-                color: _accent,
-                borderRadius: BorderRadius.circular(28),
-              ),
-            ),
-          ),
-
-          // ====================== Contenido ======================
-          SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 520),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 22,
-                    vertical: 18,
-                  ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Card(
+                elevation: 14,
+                shadowColor: _primary.withOpacity(.25),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(32),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Logo + nombre
-                      Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white,
-                              border: Border.all(
-                                color: _primary, // color del borde
-                                width: 2, // grosor del borde
+                      // LOGO
+                      Center(
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border:
+                                    Border.all(color: _primary, width: 2),
                               ),
-                            ), 
-                            child: Padding(
-                              padding: const EdgeInsets.all(6),
-                              child: ClipOval(
-                                child: Image.asset('assets/img/logoeny.png'),
+                              child: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Image.asset(
+                                  'assets/img/logoeny.png',
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             ),
-                          ),
-
-                          const SizedBox(width: 10),
-                          Text(
-                            'Enjoy',
-                            style: TextStyle(
-                              color: _text,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
+                            const SizedBox(height: 12),
+                            Text(
+                              'Enjoy',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: _text,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 26),
+
+                      const SizedBox(height: 28),
 
                       Text(
                         _headline,
                         style: TextStyle(
-                          color: _text,
-                          fontSize: 28,
+                          fontSize: 26,
                           fontWeight: FontWeight.w800,
+                          color: _text,
                         ),
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Por favor, ingresa tus credenciales para continuar.',
+                        'Ingresa tus credenciales para continuar',
                         style: TextStyle(color: _muted),
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 22),
 
-                      // ===== Selector Cliente/Empresa (pill segment) =====
+                      // SEGMENTO
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: _pill,
                           borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: _primary.withOpacity(.15)),
                         ),
                         padding: const EdgeInsets.all(4),
                         child: Row(
@@ -210,59 +175,50 @@ final Color _muted   = const Color(0xFF6B7280); // texto secundario (gris medio)
                             _SegmentButton(
                               text: 'Cliente',
                               active: _mode == LoginMode.cliente,
+                              activeColor: _primary,
                               onTap: () =>
                                   setState(() => _mode = LoginMode.cliente),
-                              activeColor: _primary,
                             ),
                             _SegmentButton(
                               text: 'Empresa',
                               active: _mode == LoginMode.empresa,
+                              activeColor: _primary,
                               onTap: () =>
                                   setState(() => _mode = LoginMode.empresa),
-                              activeColor: _primary,
                             ),
                           ],
                         ),
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 22),
 
-                      // ===== Inputs estilo "pill" =====
-                      Text('Usuario', style: TextStyle(color: _muted)),
-                      const SizedBox(height: 8),
-                      _PillField(
-                        hint: _userHint,
+                      _InputField(
                         controller: _userCtrl,
-                        icon: Icons.person_outline,
-                        pillColor: _pill,
+                        hint: _userHint,
+                        icon: Icons.mail_outline,
                         textColor: _text,
                         hintColor: _muted,
                       ),
-                      const SizedBox(height: 16),
-
-                      Text('Contraseña', style: TextStyle(color: _muted)),
-                      const SizedBox(height: 8),
-                      _PillField(
-                        hint: '••••••••',
+                      const SizedBox(height: 14),
+                      _InputField(
                         controller: _passCtrl,
+                        hint: 'Contraseña',
                         icon: Icons.lock_outline,
                         obscure: _obscure,
-                        onToggleObscure: () =>
+                        onToggle: () =>
                             setState(() => _obscure = !_obscure),
-                        pillColor: _pill,
                         textColor: _text,
                         hintColor: _muted,
                       ),
 
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
 
-                      // Link recuperar
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () => context.push('/recuperar'),
                           child: Text(
-                            _forgotText, // usa el texto dinámico según cliente/empresa
+                            _forgotText,
                             style: TextStyle(
                               color: _primary,
                               fontWeight: FontWeight.w600,
@@ -271,71 +227,63 @@ final Color _muted   = const Color(0xFF6B7280); // texto secundario (gris medio)
                         ),
                       ),
 
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 12),
 
-                      // ===== Botón login grande con flecha =====
+                      // BOTÓN
                       SizedBox(
                         width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _loading ? null : _doLogin,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _primary,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28),
+                        height: 54,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(28),
+                            gradient: LinearGradient(
+                              colors: [_primary, _accent],
                             ),
                           ),
-                          child: _loading
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                          child: ElevatedButton(
+                            onPressed: _loading ? null : _doLogin,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(28),
+                              ),
+                            ),
+                            child: _loading
+                                ? const CircularProgressIndicator(
                                     color: Colors.white,
+                                    strokeWidth: 2,
+                                  )
+                                : const Text(
+                                    'Iniciar sesión',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
-                                )
-                              : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const [
-                                    Text(
-                                      'Login  ',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    Icon(
-                                      Icons.arrow_right_alt_rounded,
-                                      size: 26,
-                                    ),
-                                  ],
-                                ),
+                          ),
                         ),
                       ),
 
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 18),
 
-                      // Signup
+                      // FOOTER
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
                             _mode == LoginMode.cliente
-                                ? "¿No tienes cuenta?"
-                                : "¿Tu empresa no tiene acceso?",
+                                ? '¿No tienes cuenta?'
+                                : '¿Tu empresa no tiene acceso?',
                             style: TextStyle(color: _muted),
                           ),
                           const SizedBox(width: 6),
                           GestureDetector(
-                            onTap: () {
-                              if (_mode == LoginMode.cliente) {
-                                context.push('/registro-cliente');
-                              } else {
-                                context.push('/solicitud-empresa');
-                              }
-                            },
+                            onTap: () => context.push(
+                              _mode == LoginMode.cliente
+                                  ? '/registro-cliente'
+                                  : '/solicitud-empresa',
+                            ),
                             child: Text(
                               _mode == LoginMode.cliente
                                   ? 'Regístrate'
@@ -343,7 +291,6 @@ final Color _muted   = const Color(0xFF6B7280); // texto secundario (gris medio)
                               style: TextStyle(
                                 color: _primary,
                                 fontWeight: FontWeight.w800,
-                                decoration: TextDecoration.underline,
                               ),
                             ),
                           ),
@@ -355,13 +302,13 @@ final Color _muted   = const Color(0xFF6B7280); // texto secundario (gris medio)
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-// =============== Widgets auxiliares ===============
+// ================== COMPONENTES ==================
 
 class _SegmentButton extends StatelessWidget {
   final String text;
@@ -404,44 +351,35 @@ class _SegmentButton extends StatelessWidget {
   }
 }
 
-class _PillField extends StatelessWidget {
-  final String hint;
+class _InputField extends StatelessWidget {
   final TextEditingController controller;
+  final String hint;
   final IconData icon;
   final bool obscure;
-  final VoidCallback? onToggleObscure;
-  final Color pillColor;
+  final VoidCallback? onToggle;
   final Color textColor;
   final Color hintColor;
 
-  const _PillField({
-    super.key,
-    required this.hint,
+  const _InputField({
     required this.controller,
+    required this.hint,
     required this.icon,
-    this.obscure = false,
-    this.onToggleObscure,
-    required this.pillColor,
     required this.textColor,
     required this.hintColor,
+    this.obscure = false,
+    this.onToggle,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 54,
-      decoration: BoxDecoration(
-        color: pillColor,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.05),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.black12),
+      ),
       child: Row(
         children: [
           Icon(icon, color: hintColor),
@@ -451,44 +389,23 @@ class _PillField extends StatelessWidget {
               controller: controller,
               obscureText: obscure,
               decoration: InputDecoration(
-                border: InputBorder.none,
                 hintText: hint,
+                border: InputBorder.none,
                 hintStyle: TextStyle(color: hintColor),
-                isCollapsed: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 14),
               ),
               style: TextStyle(color: textColor),
             ),
           ),
-          if (onToggleObscure != null)
+          if (onToggle != null)
             IconButton(
               icon: Icon(
                 obscure ? Icons.visibility : Icons.visibility_off,
                 color: hintColor,
               ),
-              onPressed: onToggleObscure,
+              onPressed: onToggle,
             ),
         ],
       ),
-    );
-  }
-}
-
-class _SocialIcon extends StatelessWidget {
-  final Color color;
-  final IconData icon;
-  const _SocialIcon({required this.color, required this.icon, super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 42,
-      height: 42,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Icon(icon, color: color),
     );
   }
 }

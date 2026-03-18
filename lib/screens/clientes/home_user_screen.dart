@@ -760,7 +760,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
 
         // Categorías
         SizedBox(
-          height: 40,
+          height: 70,
           child: _catsLoading
               ? const Center(
                   child: SizedBox(
@@ -848,13 +848,13 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                 children: [
                   PromosListLight(
                     promos: _applyFilters(_allPromos),
-                    cardStyle: CardStyle.normal,
+                    cardStyle: CardStyle.compact,
                     isFavorite: (p) => favs.isFav(p.id),
                     onFavorite: (p) => context.read<FavoritesStore>().toggle(p.id),
                   ),
                   PromosListLight(
                     promos: _applyFilters(_onlyToday(_allPromos)),
-                    cardStyle: CardStyle.normal,
+                    cardStyle: CardStyle.compact,
                     isFavorite: (p) => favs.isFav(p.id),
                     onFavorite: (p) => context.read<FavoritesStore>().toggle(p.id),
                   ),
@@ -922,55 +922,108 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     return Scaffold(
       backgroundColor: Palette.kBg,
       appBar: AppBar(
-        backgroundColor: Palette.kBg,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: CityFilterIcon(
-              count: _selectedCityIds.isEmpty ? 0 : _selectedCityIds.length,
-              onTap: () async {
-                if (_citiesLoading) return;
-                if (_citiesError != null) {
-                  await _loadCiudades();
-                  return;
-                }
-                final resultIds = await _pickCities();
-                if (resultIds != null) {
-                  await _applyCitySelection(resultIds);
-                }
-              },
+  backgroundColor: Palette.kBg,
+  elevation: 0,
+  automaticallyImplyLeading: false,
+  toolbarHeight: 72,
+  titleSpacing: 12,
+
+  // 👇 AQUÍ MISMO: Hola + nombre
+  title: FutureBuilder<Map<String, dynamic>?>(
+    future: AuthService().getUser(),
+    builder: (context, snapshot) {
+      final user = snapshot.data;
+      String nombre = 'Invitado';
+
+      if (user != null) {
+        if (user['nombres'] != null) {
+          nombre =
+              '${user['nombres']} ${user['apellidos'] ?? ''}'.trim();
+        } else if (user['nombre'] != null) {
+          nombre = user['nombre'];
+        }
+      }
+
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Hola,',
+            style: TextStyle(
+              fontSize: 11,
+              color: Palette.kMuted,
+            ),
+          ),
+          Text(
+            nombre,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: Palette.kTitle,
             ),
           ),
         ],
-        bottom: PreferredSize(
-          preferredSize: Size.fromHeight(_bottomIndex == 0 ? 140 : 82),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                child: GreetingCard(
-                  onViewProfile: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfileScreenLight()),
-                    );
-                  },
-                ),
-              ),
-              if (_bottomIndex == 0)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                  child: SegmentedTabsLight(controller: _tabController),
-                )
-              else
-                const SizedBox(height: 0),
-            ],
-          ),
-        ),
+      );
+    },
+  ),
+
+actions: [
+  // 👤 PERFIL
+  Padding(
+    padding: const EdgeInsets.only(right: 4),
+    child: IconButton(
+      tooltip: 'Perfil',
+      icon: const Icon(
+        Icons.account_circle_outlined,
+        size: 26,
+        color: Palette.kPrimary,
       ),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const ProfileScreenLight(),
+          ),
+        );
+      },
+    ),
+  ),
+
+  // 📍 FILTRO DE CIUDAD
+  Padding(
+    padding: const EdgeInsets.only(right: 12),
+    child: CityFilterIcon(
+      count: _selectedCityIds.isEmpty ? 0 : _selectedCityIds.length,
+      onTap: () async {
+        if (_citiesLoading) return;
+        if (_citiesError != null) {
+          await _loadCiudades();
+          return;
+        }
+        final resultIds = await _pickCities();
+        if (resultIds != null) {
+          await _applyCitySelection(resultIds);
+        }
+      },
+    ),
+  ),
+],
+
+
+  bottom: _bottomIndex == 0
+      ? PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            child: SegmentedTabsLight(controller: _tabController),
+          ),
+        )
+      : null,
+),
+
       body: _buildBodyByIndex(),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
