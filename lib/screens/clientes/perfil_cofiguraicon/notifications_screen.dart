@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,8 +23,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   // Key para guardar el "estado actual" de topics aplicados (para diff)
   static const _kTopicsPrefs = 'notif_topics_current_v1';
 
-  final FirebaseMessaging _fm = FirebaseMessaging.instance;
-
+  FirebaseMessaging? _fm;
+  bool get isPushEnabled => !Platform.isIOS;
   bool _promos = true;
   bool _alertas = true;
   bool _saving = false;
@@ -31,6 +32,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
+
+    if (!Platform.isIOS) {
+      _fm = FirebaseMessaging.instance;
+    }
+
     _load();
   }
 
@@ -54,45 +60,70 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   /// ------------------ PERMISOS ------------------
 
   /// Pide permisos si hace falta; si siguen denegados, ofrece abrir ajustes.
-  Future<bool> _ensurePermissions(BuildContext context) async {
-    final settings = await _fm.getNotificationSettings();
-    if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional) {
-      return true;
-    }
+ Future<bool> _ensurePermissions(BuildContext context) async {
+  if (!isPushEnabled || _fm == null) return false;
 
-    final req = await _fm.requestPermission(alert: true, badge: true, sound: true);
+  final fm = _fm!; // ✅ promoción manual segura
 
-    if (req.authorizationStatus == AuthorizationStatus.authorized ||
-        req.authorizationStatus == AuthorizationStatus.provisional) {
-      return true;
-    }
+  final settings = await fm.getNotificationSettings();
 
-    if (!mounted) return false;
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Permisos de notificación'),
-        content: const Text('Para recibir notificaciones, habilítalas en Ajustes.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await openAppSettings();
-            },
-            child: const Text('Abrir ajustes'),
-          ),
-        ],
-      ),
-    );
-    return false;
+  if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+      settings.authorizationStatus == AuthorizationStatus.provisional) {
+    return true;
   }
 
+  final req = await fm.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+
+  if (req.authorizationStatus == AuthorizationStatus.authorized ||
+      req.authorizationStatus == AuthorizationStatus.provisional) {
+    return true;
+  }
+
+  if (!mounted) return false;
+
+  await showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Permisos de notificación'),
+      content: const Text('Para recibir notificaciones, habilítalas en Ajustes.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          onPressed: () async {
+            Navigator.pop(context);
+            await openAppSettings();
+          },
+          child: const Text('Abrir ajustes'),
+        ),
+      ],
+    ),
+  );
+
+  return false;
+}
   /// ------------------ TOPICS ------------------
 
-  Future<void> _subscribe(String topic) => _fm.subscribeToTopic(topic);
-  Future<void> _unsubscribe(String topic) => _fm.unsubscribeFromTopic(topic);
+Future<void> _subscribe(String topic) async {
+  if (_fm == null) return;
+
+  final fm = _fm!; // 🔥 promoción segura
+
+  await fm.subscribeToTopic(topic);
+}
+Future<void> _unsubscribe(String topic) async {
+  if (_fm == null) return;
+
+  final fm = _fm!;
+
+  await fm.unsubscribeFromTopic(topic);
+}
 
   /// slug básico para ciudades (minúsculas, sin acentos, reemplazo por '-')
   String _slug(String input) {
@@ -142,7 +173,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     // 2) Carga estado actual desde SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     final currentJson = prefs.getString(_kTopicsPrefs);
-    final current = currentJson != null ? List<String>.from(jsonDecode(currentJson)) : <String>[];
+    final current = currentJson != null
+        ? List<String>.from(jsonDecode(currentJson))
+        : <String>[];
     final currentSet = current.toSet();
 
     // 3) Diff
@@ -176,7 +209,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Activa los permisos para recibir notificaciones')),
+        const SnackBar(
+          content: Text('Activa los permisos para recibir notificaciones'),
+        ),
       );
       return;
     }
@@ -204,12 +239,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final msg = [
       if (subs.isNotEmpty) 'Suscrito: $subs',
       if (unsubs.isNotEmpty) 'Desuscrito: $unsubs',
-      if (subs.isEmpty && unsubs.isEmpty) 'Sin cambios'
+      if (subs.isEmpty && unsubs.isEmpty) 'Sin cambios',
     ].join(' · ');
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Preferencias guardadas.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Preferencias guardadas.')));
   }
 
   @override
@@ -218,7 +253,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       backgroundColor: Palette.kBg,
       appBar: AppBar(
         title: const Text('Notificaciones'),
-         backgroundColor: Palette.kAccent,
+        backgroundColor: Palette.kAccent,
         foregroundColor: Palette.kBg,
         elevation: 0.5,
       ),
@@ -285,13 +320,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: Palette.kPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
               icon: _saving
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Icon(Icons.save_outlined, color: Colors.white),
               label: const Text('Guardar preferencias'),
@@ -336,13 +376,18 @@ class _SwitchRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                        color: Palette.kTitle,
-                        fontWeight: FontWeight.w700,
-                      )),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Palette.kTitle,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(color: Palette.kMuted, fontSize: 12)),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+                  ),
                 ],
               ),
             ),
@@ -401,12 +446,14 @@ class _InfoCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: const TextStyle(
-                      color: Palette.kTitle,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                    )),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Palette.kTitle,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(subtitle, style: const TextStyle(color: Palette.kSub)),
               ],
@@ -441,10 +488,13 @@ class _PreviewCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: const TextStyle(
-                        color: Palette.kTitle,
-                        fontWeight: FontWeight.w700)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Palette.kTitle,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(body, style: const TextStyle(color: Palette.kMuted)),
               ],

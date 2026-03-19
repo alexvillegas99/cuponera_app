@@ -13,7 +13,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     await Firebase.initializeApp();
     debugPrint('📩 [BG] ${message.messageId} ${message.notification?.title}');
-  } catch (e, st) {
+  } catch (e, st) {/*  */
     debugPrint('❌ BG handler error: $e\n$st');
   }
 }

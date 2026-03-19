@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:enjoy/mappers/cuponera.dart';
 import 'package:enjoy/models/categoria.dart';
@@ -50,7 +51,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   final _ciudadesService = CiudadesService();
   final _catService = CategoriasService();
   final _promoService = PromotionsService();
-  final FirebaseMessaging _fm = FirebaseMessaging.instance;
+  FirebaseMessaging? _fm;
 
   // ===== Estado UI =====
   late final TabController _tabController;
@@ -91,7 +92,8 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
 
   // ===== Notificaciones por ciudad (topics) =====
   final RegExp _topicRegex = RegExp(r'^[A-Za-z0-9\-_.~%]+$');
-  bool _isValidTopic(String t) => t.isNotEmpty && t.length <= 900 && _topicRegex.hasMatch(t);
+  bool _isValidTopic(String t) =>
+      t.isNotEmpty && t.length <= 900 && _topicRegex.hasMatch(t);
 
   String _slug(String input) {
     final lower = input.trim().toLowerCase();
@@ -125,7 +127,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
 
     // migración desde String accidental
     final str = prefs.getString(_kCityTopicsPrefs);
-   if (str == null || str.isEmpty) return <String>{};
+    if (str == null || str.isEmpty) return <String>{};
 
     try {
       final decoded = jsonDecode(str);
@@ -164,59 +166,58 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     await prefs.setStringList(_kCityTopicsPrefs, topics.toList());
   }
 
-  Future<void> _syncCityTopics() async {
-    final prefs = await SharedPreferences.getInstance();
-    final promosOn = prefs.getBool(_kNotifPromos) ?? true;
+ Future<void> _syncCityTopics() async {
+  if (Platform.isIOS || _fm == null) return; // 🔴 BLOQUEO TOTAL
 
-    // 1) carga actual
-    final current = await _loadTopicsSet();
-    final currentValid = current.where(_isValidTopic).toSet();
-    debugPrint('🔵 [_syncCityTopics] actual: $currentValid');
+  final prefs = await SharedPreferences.getInstance();
+  final promosOn = prefs.getBool(_kNotifPromos) ?? true;
 
-    // 2) si OFF o sin ciudades -> desuscribir todo
-    if (!promosOn || _selectedCityIds.isEmpty) {
-      debugPrint('⚠️ promosOn=$promosOn, ciudades=${_selectedCityIds.length} → unsubscribe all');
-      for (final t in currentValid) {
-        await _fm.unsubscribeFromTopic(t);
-      }
-      await _saveTopicsSet(<String>{});
-      return;
+  final current = await _loadTopicsSet();
+  final currentValid = current.where(_isValidTopic).toSet();
+
+  if (!promosOn || _selectedCityIds.isEmpty) {
+    for (final t in currentValid) {
+      await _fm!.unsubscribeFromTopic(t);
     }
-
-    // 3) deseados
-    final desiredRaw = _selectedCityIds.map(_cityTopicForId).toSet();
-    final desired = desiredRaw.where(_isValidTopic).toSet();
-
-    // 4) diff
-    final toSub = desired.difference(currentValid);
-    final toUnsub = currentValid.difference(desired);
-
-    // 5) permisos
-    final s = await _fm.getNotificationSettings();
-    if (s.authorizationStatus != AuthorizationStatus.authorized &&
-        s.authorizationStatus != AuthorizationStatus.provisional) {
-      final r = await _fm.requestPermission(alert: true, badge: true, sound: true);
-      final ok = r.authorizationStatus == AuthorizationStatus.authorized ||
-          r.authorizationStatus == AuthorizationStatus.provisional;
-      if (!ok) {
-        debugPrint('❌ Permisos notifs denegados, guardar desired y salir');
-        await _saveTopicsSet(desired);
-        return;
-      }
-    }
-
-    // 6) aplicar
-    for (final t in toSub) {
-      await _fm.subscribeToTopic(t);
-    }
-    for (final t in toUnsub) {
-      await _fm.unsubscribeFromTopic(t);
-    }
-
-    // 7) persistir
-    await _saveTopicsSet(desired);
+    await _saveTopicsSet(<String>{});
+    return;
   }
 
+  final desiredRaw = _selectedCityIds.map(_cityTopicForId).toSet();
+  final desired = desiredRaw.where(_isValidTopic).toSet();
+
+  final toSub = desired.difference(currentValid);
+  final toUnsub = currentValid.difference(desired);
+
+  final s = await _fm!.getNotificationSettings();
+
+  if (s.authorizationStatus != AuthorizationStatus.authorized &&
+      s.authorizationStatus != AuthorizationStatus.provisional) {
+    final r = await _fm!.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    final ok =
+        r.authorizationStatus == AuthorizationStatus.authorized ||
+        r.authorizationStatus == AuthorizationStatus.provisional;
+
+    if (!ok) {
+      await _saveTopicsSet(desired);
+      return;
+    }
+  }
+
+  for (final t in toSub) {
+    await _fm!.subscribeToTopic(t);
+  }
+  for (final t in toUnsub) {
+    await _fm!.unsubscribeFromTopic(t);
+  }
+
+  await _saveTopicsSet(desired);
+}
   // ===== Persistencia de selección de ciudades =====
   Future<void> _saveSelectedCityIds() async {
     final prefs = await SharedPreferences.getInstance();
@@ -253,6 +254,9 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   @override
   void initState() {
     super.initState();
+    if (!Platform.isIOS) {
+    _fm = FirebaseMessaging.instance;
+  }
     _tabController = TabController(length: 3, vsync: this);
     _initScreen();
   }
@@ -334,41 +338,40 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   }
 
   Future<void> _loadPromosByCities() async {
-  // ✅ Si no hay ciudades seleccionadas, NO llames al backend
-  if (_selectedCityIds.isEmpty) {
-    if (mounted) {
-      setState(() {
-        _allPromos = [];
-        _promosError = null;   // no mostrar error
-        _loadingPromos = false;
-      });
+    // ✅ Si no hay ciudades seleccionadas, NO llames al backend
+    if (_selectedCityIds.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _allPromos = [];
+          _promosError = null; // no mostrar error
+          _loadingPromos = false;
+        });
+      }
+      return;
     }
-    return;
-  }
 
-  try {
-    setState(() => _loadingPromos = true);
-    final promos = await _promoService.getAllActivePromos(
-      cityIds: _selectedCityIds.toList(),
-    );
-    if (mounted) {
-      setState(() {
-        _allPromos = promos;
-        _promosError = null;
-        _loadingPromos = false;
-      });
-    }
-    _debugIds();
-  } catch (e) {
-    if (mounted) {
-      setState(() {
-        _promosError = e.toString();
-        _loadingPromos = false;
-      });
+    try {
+      setState(() => _loadingPromos = true);
+      final promos = await _promoService.getAllActivePromos(
+        cityIds: _selectedCityIds.toList(),
+      );
+      if (mounted) {
+        setState(() {
+          _allPromos = promos;
+          _promosError = null;
+          _loadingPromos = false;
+        });
+      }
+      _debugIds();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _promosError = e.toString();
+          _loadingPromos = false;
+        });
+      }
     }
   }
-}
-
 
   Future<void> _loadCuponeras() async {
     try {
@@ -400,7 +403,9 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
 
   void _debugIds() {
     for (final p in _allPromos.take(5)) {
-      debugPrint('[PROMO] title="${p.title}" id=${p.id} detailId=${p.detailId}');
+      debugPrint(
+        '[PROMO] title="${p.title}" id=${p.id} detailId=${p.detailId}',
+      );
     }
   }
 
@@ -417,9 +422,11 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   }
 
   void _toggleCat(String cat) {
-    setState(() => _selectedCats.contains(cat)
-        ? _selectedCats.remove(cat)
-        : _selectedCats.add(cat));
+    setState(
+      () => _selectedCats.contains(cat)
+          ? _selectedCats.remove(cat)
+          : _selectedCats.add(cat),
+    );
   }
 
   Future<Set<String>?> _pickCities() async {
@@ -440,7 +447,10 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
               selected: temp,
               onToggle: (c, v) {
                 setModalState(() {
-                  if (v) temp.add(c); else temp.remove(c);
+                  if (v)
+                    temp.add(c);
+                  else
+                    temp.remove(c);
                   initialNames
                     ..clear()
                     ..addAll(temp);
@@ -552,9 +562,10 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     if (_query.isNotEmpty) {
       final q = _query.toLowerCase();
       list = list.where((p) {
-        final haystack = '${p.title} ${p.placeName} ${p.description} '
-                '${p.categories.join(" ")} ${p.tags.join(" ")}'
-            .toLowerCase();
+        final haystack =
+            '${p.title} ${p.placeName} ${p.description} '
+                    '${p.categories.join(" ")} ${p.tags.join(" ")}'
+                .toLowerCase();
         return haystack.contains(q);
       }).toList();
     }
@@ -646,7 +657,10 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                     return GestureDetector(
                       onTap: () async {
                         final newSet = {..._selectedCityIds};
-                        if (selected) newSet.remove(c.id); else newSet.add(c.id);
+                        if (selected)
+                          newSet.remove(c.id);
+                        else
+                          newSet.add(c.id);
                         await _applyCitySelection(newSet);
                       },
                       child: Container(
@@ -668,15 +682,21 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              selected ? Icons.check_circle : Icons.circle_outlined,
+                              selected
+                                  ? Icons.check_circle
+                                  : Icons.circle_outlined,
                               size: 16,
-                              color: selected ? Palette.kAccent : Palette.kMuted,
+                              color: selected
+                                  ? Palette.kAccent
+                                  : Palette.kMuted,
                             ),
                             const SizedBox(width: 6),
                             Text(
                               c.nombre,
                               style: TextStyle(
-                                color: selected ? Palette.kAccent : Palette.kTitle,
+                                color: selected
+                                    ? Palette.kAccent
+                                    : Palette.kTitle,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -741,17 +761,27 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
             decoration: InputDecoration(
               hintText: 'Buscar por local, plato o categoría…',
               hintStyle: const TextStyle(color: Palette.kMuted),
-              prefixIcon: const Icon(Icons.search, color: Palette.kMuted, size: 22),
+              prefixIcon: const Icon(
+                Icons.search,
+                color: Palette.kMuted,
+                size: 22,
+              ),
               filled: true,
               fillColor: Palette.kField,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: const BorderSide(color: Palette.kBorder),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Palette.kAccent, width: 1.2),
+                borderSide: const BorderSide(
+                  color: Palette.kAccent,
+                  width: 1.2,
+                ),
               ),
             ),
           ),
@@ -770,44 +800,51 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                   ),
                 )
               : (_catsError != null)
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.error_outline, color: Colors.redAccent, size: 18),
-                          const SizedBox(width: 8),
-                          const Expanded(
-                            child: Text(
-                              'No se pudieron cargar categorías',
-                              style: TextStyle(color: Colors.redAccent),
-                            ),
-                          ),
-                          TextButton(onPressed: _loadCategorias, child: const Text('Reintentar')),
-                        ],
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.redAccent,
+                        size: 18,
                       ),
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        CategoryChipLight(
-                          label: '2x1',
-                          icon: Icons.local_offer_outlined,
-                          selected: _selectedCats.contains('2x1'),
-                          onTap: () => _toggleCat('2x1'),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'No se pudieron cargar categorías',
+                          style: TextStyle(color: Colors.redAccent),
                         ),
-                        ..._categorias.map((c) {
-                          final icon = _iconFor(c.icono);
-                          final selected = _selectedCats.contains(c.nombre);
-                          return CategoryChipLight(
-                            label: c.nombre,
-                            icon: icon,
-                            selected: selected,
-                            onTap: () => _toggleCat(c.nombre),
-                          );
-                        }),
-                      ],
+                      ),
+                      TextButton(
+                        onPressed: _loadCategorias,
+                        child: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    CategoryChipLight(
+                      label: '2x1',
+                      icon: Icons.local_offer_outlined,
+                      selected: _selectedCats.contains('2x1'),
+                      onTap: () => _toggleCat('2x1'),
                     ),
+                    ..._categorias.map((c) {
+                      final icon = _iconFor(c.icono);
+                      final selected = _selectedCats.contains(c.nombre);
+                      return CategoryChipLight(
+                        label: c.nombre,
+                        icon: icon,
+                        selected: selected,
+                        onTap: () => _toggleCat(c.nombre),
+                      );
+                    }),
+                  ],
+                ),
         ),
         const SizedBox(height: 8),
 
@@ -833,7 +870,10 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                       const SizedBox(height: 8),
                       Text(_promosError!, textAlign: TextAlign.center),
                       const SizedBox(height: 8),
-                      TextButton(onPressed: _loadPromosByCities, child: const Text('Reintentar')),
+                      TextButton(
+                        onPressed: _loadPromosByCities,
+                        child: const Text('Reintentar'),
+                      ),
                     ],
                   ),
                 );
@@ -850,19 +890,24 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                     promos: _applyFilters(_allPromos),
                     cardStyle: CardStyle.compact,
                     isFavorite: (p) => favs.isFav(p.id),
-                    onFavorite: (p) => context.read<FavoritesStore>().toggle(p.id),
+                    onFavorite: (p) =>
+                        context.read<FavoritesStore>().toggle(p.id),
                   ),
                   PromosListLight(
                     promos: _applyFilters(_onlyToday(_allPromos)),
                     cardStyle: CardStyle.compact,
                     isFavorite: (p) => favs.isFav(p.id),
-                    onFavorite: (p) => context.read<FavoritesStore>().toggle(p.id),
+                    onFavorite: (p) =>
+                        context.read<FavoritesStore>().toggle(p.id),
                   ),
                   PromosListLight(
-                    promos: _applyFilters(_allPromos.where((p) => p.isFlash).toList()),
+                    promos: _applyFilters(
+                      _allPromos.where((p) => p.isFlash).toList(),
+                    ),
                     cardStyle: CardStyle.flash,
                     isFavorite: (p) => favs.isFav(p.id),
-                    onFavorite: (p) => context.read<FavoritesStore>().toggle(p.id),
+                    onFavorite: (p) =>
+                        context.read<FavoritesStore>().toggle(p.id),
                   ),
                 ],
               );
@@ -902,11 +947,17 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Error al cargar cuponeras', style: TextStyle(color: Colors.redAccent)),
+              const Text(
+                'Error al cargar cuponeras',
+                style: TextStyle(color: Colors.redAccent),
+              ),
               const SizedBox(height: 8),
               Text(_cuponerasError!, textAlign: TextAlign.center),
               const SizedBox(height: 8),
-              TextButton(onPressed: _loadCuponeras, child: const Text('Reintentar')),
+              TextButton(
+                onPressed: _loadCuponeras,
+                child: const Text('Reintentar'),
+              ),
             ],
           ),
         );
@@ -922,107 +973,100 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     return Scaffold(
       backgroundColor: Palette.kBg,
       appBar: AppBar(
-  backgroundColor: Palette.kBg,
-  elevation: 0,
-  automaticallyImplyLeading: false,
-  toolbarHeight: 72,
-  titleSpacing: 12,
+        backgroundColor: Palette.kBg,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        toolbarHeight: 72,
+        titleSpacing: 12,
 
-  // 👇 AQUÍ MISMO: Hola + nombre
-  title: FutureBuilder<Map<String, dynamic>?>(
-    future: AuthService().getUser(),
-    builder: (context, snapshot) {
-      final user = snapshot.data;
-      String nombre = 'Invitado';
+        // 👇 AQUÍ MISMO: Hola + nombre
+        title: FutureBuilder<Map<String, dynamic>?>(
+          future: AuthService().getUser(),
+          builder: (context, snapshot) {
+            final user = snapshot.data;
+            String nombre = 'Invitado';
 
-      if (user != null) {
-        if (user['nombres'] != null) {
-          nombre =
-              '${user['nombres']} ${user['apellidos'] ?? ''}'.trim();
-        } else if (user['nombre'] != null) {
-          nombre = user['nombre'];
-        }
-      }
+            if (user != null) {
+              if (user['nombres'] != null) {
+                nombre = '${user['nombres']} ${user['apellidos'] ?? ''}'.trim();
+              } else if (user['nombre'] != null) {
+                nombre = user['nombre'];
+              }
+            }
 
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Hola,',
-            style: TextStyle(
-              fontSize: 11,
-              color: Palette.kMuted,
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Hola,',
+                  style: TextStyle(fontSize: 11, color: Palette.kMuted),
+                ),
+                Text(
+                  nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Palette.kTitle,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+
+        actions: [
+          // 👤 PERFIL
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: IconButton(
+              tooltip: 'Perfil',
+              icon: const Icon(
+                Icons.account_circle_outlined,
+                size: 26,
+                color: Palette.kPrimary,
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfileScreenLight()),
+                );
+              },
             ),
           ),
-          Text(
-            nombre,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: Palette.kTitle,
+
+          // 📍 FILTRO DE CIUDAD
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: CityFilterIcon(
+              count: _selectedCityIds.isEmpty ? 0 : _selectedCityIds.length,
+              onTap: () async {
+                if (_citiesLoading) return;
+                if (_citiesError != null) {
+                  await _loadCiudades();
+                  return;
+                }
+                final resultIds = await _pickCities();
+                if (resultIds != null) {
+                  await _applyCitySelection(resultIds);
+                }
+              },
             ),
           ),
         ],
-      );
-    },
-  ),
 
-actions: [
-  // 👤 PERFIL
-  Padding(
-    padding: const EdgeInsets.only(right: 4),
-    child: IconButton(
-      tooltip: 'Perfil',
-      icon: const Icon(
-        Icons.account_circle_outlined,
-        size: 26,
-        color: Palette.kPrimary,
+        bottom: _bottomIndex == 0
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(52),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                  child: SegmentedTabsLight(controller: _tabController),
+                ),
+              )
+            : null,
       ),
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const ProfileScreenLight(),
-          ),
-        );
-      },
-    ),
-  ),
-
-  // 📍 FILTRO DE CIUDAD
-  Padding(
-    padding: const EdgeInsets.only(right: 12),
-    child: CityFilterIcon(
-      count: _selectedCityIds.isEmpty ? 0 : _selectedCityIds.length,
-      onTap: () async {
-        if (_citiesLoading) return;
-        if (_citiesError != null) {
-          await _loadCiudades();
-          return;
-        }
-        final resultIds = await _pickCities();
-        if (resultIds != null) {
-          await _applyCitySelection(resultIds);
-        }
-      },
-    ),
-  ),
-],
-
-
-  bottom: _bottomIndex == 0
-      ? PreferredSize(
-          preferredSize: const Size.fromHeight(52),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-            child: SegmentedTabsLight(controller: _tabController),
-          ),
-        )
-      : null,
-),
 
       body: _buildBodyByIndex(),
       bottomNavigationBar: Padding(

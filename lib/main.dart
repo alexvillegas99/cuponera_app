@@ -49,11 +49,14 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load();
-  await Firebase.initializeApp();
 
-  /// ✅ SOLO Android / no iOS
+  /// 🔴 SOLO inicializa Firebase si NO es iOS
   if (isPushEnabled) {
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await Firebase.initializeApp();
+
+    FirebaseMessaging.onBackgroundMessage(
+      firebaseMessagingBackgroundHandler,
+    );
 
     final notifService = MyFirebaseMessagingService();
     await notifService.initNotifications();
@@ -76,7 +79,6 @@ Future<void> main() async {
     ),
   );
 }
-
 /// RootApp
 class RootApp extends StatelessWidget {
   const RootApp({super.key, required this.router});
