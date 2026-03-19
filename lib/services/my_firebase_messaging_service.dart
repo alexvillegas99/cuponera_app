@@ -8,6 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 /// ============ TOP-LEVEL BG HANDLER ============
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (Platform.isIOS) return; // 🔴 BLOQUEO TOTAL iOS
+
   try {
     await Firebase.initializeApp();
     debugPrint('📩 [BG] ${message.messageId} ${message.notification?.title}');
@@ -25,17 +27,25 @@ class MyFirebaseMessagingService {
   bool _initialized = false;
 
   Future<bool> initNotifications() async {
-    if (_initialized) return true; // evita doble init
+    /// 🔴 BLOQUEO TOTAL iOS
+    if (Platform.isIOS) {
+      debugPrint('🚫 FCM desactivado en iOS');
+      return false;
+    }
+
+    if (_initialized) return true;
 
     try {
-      // --- init local notifications (ambas plataformas) ---
+      // --- init local notifications ---
       final fln = FlutterLocalNotificationsPlugin();
+
       const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
       const darwinInit = DarwinInitializationSettings(
         requestAlertPermission: false,
         requestBadgePermission: false,
         requestSoundPermission: false,
       );
+
       const initSettings = InitializationSettings(
         android: androidInit,
         iOS: darwinInit,
@@ -48,78 +58,57 @@ class MyFirebaseMessagingService {
           if (p != null && p.isNotEmpty) _abrirEnlace(p);
         },
       );
+
       _fln = fln;
 
       // --- canal Android ---
       if (!kIsWeb && Platform.isAndroid) {
-        try {
-          const channel = AndroidNotificationChannel(
-            'high_importance_channel',
-            'Notificaciones Importantes',
-            importance: Importance.max,
-          );
-          await _fln!
-              .resolvePlatformSpecificImplementation<
-                  AndroidFlutterLocalNotificationsPlugin>()
-              ?.createNotificationChannel(channel);
-        } catch (e) {
-          debugPrint('⚠️ No se pudo crear el canal Android: $e');
-        }
+        const channel = AndroidNotificationChannel(
+          'high_importance_channel',
+          'Notificaciones Importantes',
+          importance: Importance.max,
+        );
+
+        await _fln!
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.createNotificationChannel(channel);
       }
 
-      // --- permisos (iOS y Android 13+) ---
+      // --- permisos (solo Android 13+) ---
       try {
         final perm = await _fm.requestPermission(
-          alert: true, badge: true, sound: true, provisional: false,
+          alert: true,
+          badge: true,
+          sound: true,
         );
         debugPrint('🔔 Permisos: ${perm.authorizationStatus}');
       } catch (e) {
         debugPrint('⚠️ requestPermission falló: $e');
       }
 
-      // banners en foreground (iOS)
-      if (!kIsWeb && Platform.isIOS) {
-        try {
-          await _fm.setForegroundNotificationPresentationOptions(
-            alert: true, badge: true, sound: true,
-          );
-        } catch (e) {
-          debugPrint('⚠️ setForegroundNotificationPresentationOptions: $e');
-        }
-      }
-
-      // --- background handler (idempotente) ---
+      // --- background handler ---
       if (!_bgRegistered) {
-        FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+        FirebaseMessaging.onBackgroundMessage(
+            firebaseMessagingBackgroundHandler);
         _bgRegistered = true;
       }
 
       // --- listeners ---
-      FirebaseMessaging.onMessage.listen(_safeOnMessage, onError: (e, st) {
-        debugPrint('❌ onMessage error: $e\n$st');
-      });
-      FirebaseMessaging.onMessageOpenedApp.listen(_safeOnMessageOpened, onError: (e, st) {
-        debugPrint('❌ onMessageOpenedApp error: $e\n$st');
-      });
+      FirebaseMessaging.onMessage.listen(_safeOnMessage);
+      FirebaseMessaging.onMessageOpenedApp.listen(_safeOnMessageOpened);
 
-      // mensaje inicial (app cold start)
-      try {
-        final initialMsg = await _fm.getInitialMessage();
-        if (initialMsg != null) _safeOnMessageOpened(initialMsg);
-      } catch (e) {
-        debugPrint('⚠️ getInitialMessage error: $e');
-      }
+      final initialMsg = await _fm.getInitialMessage();
+      if (initialMsg != null) _safeOnMessageOpened(initialMsg);
 
-      // token + refresh con retry
+      // --- token ---
       await getTokenWithRetry();
+
       _fm.onTokenRefresh.listen((t) {
         debugPrint('🔄 FCM token refresh: $t');
-        // TODO: envíalo a tu backend
-      }, onError: (e, st) {
-        debugPrint('❌ onTokenRefresh error: $e\n$st');
       });
 
-      // ejemplo: topic
+      // --- topic ---
       await subscribeToTopic('general');
 
       _initialized = true;
@@ -131,6 +120,8 @@ class MyFirebaseMessagingService {
   }
 
   Future<void> subscribeToTopic(String topic) async {
+    if (Platform.isIOS) return; // 🔴
+
     try {
       await _fm.subscribeToTopic(topic);
       debugPrint("📌 Suscrito a '$topic'");
@@ -140,6 +131,8 @@ class MyFirebaseMessagingService {
   }
 
   Future<void> unsubscribeFromTopic(String topic) async {
+    if (Platform.isIOS) return; // 🔴
+
     try {
       await _fm.unsubscribeFromTopic(topic);
       debugPrint("📌 Desuscrito de '$topic'");
@@ -149,7 +142,10 @@ class MyFirebaseMessagingService {
   }
 
   Future<String?> getTokenWithRetry({int retries = 3}) async {
+    if (Platform.isIOS) return null; // 🔴
+
     String? token;
+
     for (var i = 0; i < retries; i++) {
       try {
         token = await _fm.getToken();
@@ -160,87 +156,61 @@ class MyFirebaseMessagingService {
       } catch (e) {
         debugPrint('⚠️ getToken intento ${i + 1} falló: $e');
       }
+
       await Future.delayed(Duration(milliseconds: 400 * (i + 1)));
     }
+
     return token;
   }
 
-  // ---------------- safe handlers ----------------
   void _safeOnMessage(RemoteMessage m) {
-    try {
-      debugPrint("📩 FG: ${m.notification?.title}");
-      _showNotification(m);
-    } catch (e, st) {
-      debugPrint('❌ _safeOnMessage error: $e\n$st');
-    }
+    debugPrint("📩 FG: ${m.notification?.title}");
+    _showNotification(m);
   }
 
   void _safeOnMessageOpened(RemoteMessage m) {
-    try {
-      debugPrint("📩 OPENED: ${m.notification?.title}");
-      final url = m.data['link']?.toString();
-      if (url != null && url.isNotEmpty) _abrirEnlace(url);
-    } catch (e, st) {
-      debugPrint('❌ _safeOnMessageOpened error: $e\n$st');
-    }
+    debugPrint("📩 OPENED: ${m.notification?.title}");
+
+    final url = m.data['link']?.toString();
+    if (url != null && url.isNotEmpty) _abrirEnlace(url);
   }
 
   Future<void> _showNotification(RemoteMessage message) async {
-    if (_fln == null) {
-      debugPrint('⚠️ _fln no inicializado, skip notification');
-      return;
-    }
-    try {
-      // Android
-      const android = AndroidNotificationDetails(
-        'high_importance_channel',
-        'Notificaciones Importantes',
-        importance: Importance.max,
-        priority: Priority.high,
-        showWhen: true,
-      );
-      // iOS
-      const ios = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
+    if (_fln == null) return;
 
-      final details = const NotificationDetails(android: android, iOS: ios);
+    const android = AndroidNotificationDetails(
+      'high_importance_channel',
+      'Notificaciones Importantes',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
 
-      // usa un id variable para evitar colisiones
-      final id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    const ios = DarwinNotificationDetails();
 
-      await _fln!.show(
-        id,
-        message.notification?.title ?? 'Notificación',
-        message.notification?.body ?? '',
-        details,
-        payload: message.data['link']?.toString(),
-      );
-    } catch (e, st) {
-      debugPrint('❌ _showNotification error: $e\n$st');
-    }
+    final details = const NotificationDetails(
+      android: android,
+      iOS: ios,
+    );
+
+    final id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+    await _fln!.show(
+      id,
+      message.notification?.title ?? 'Notificación',
+      message.notification?.body ?? '',
+      details,
+      payload: message.data['link']?.toString(),
+    );
   }
 
   Future<void> _abrirEnlace(String url) async {
-    try {
-      final uri = Uri.tryParse(url);
-      if (uri == null) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
 
-      // permite solo http/https para seguridad básica
-      if (!['http', 'https'].contains(uri.scheme)) {
-        debugPrint('⚠️ Esquema no permitido: ${uri.scheme}');
-        return;
-      }
+    if (!['http', 'https'].contains(uri.scheme)) return;
 
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        debugPrint('⚠️ No se pudo abrir la URL: $url');
-      }
-    } catch (e, st) {
-      debugPrint('❌ _abrirEnlace error: $e\n$st');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
-}
+} 
