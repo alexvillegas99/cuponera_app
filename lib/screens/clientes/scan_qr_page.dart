@@ -18,7 +18,7 @@ class _ScanQrPageState extends State<ScanQrPage> {
       appBar: AppBar(title: const Text('Escanear cuponera')),
       body: Stack(
         children: [
-          MobileScanner(
+          MobileScanner( 
             onDetect: (capture) {
               if (_done) return;
               final barcodes = capture.barcodes;
