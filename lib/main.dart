@@ -13,8 +13,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'package:enjoy/config/router/app_router.dart';
+import 'package:enjoy/services/core/api_client.dart';
 import 'package:enjoy/services/favorites_service.dart';
 import 'package:enjoy/services/my_firebase_messaging_service.dart';
+import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/state/favorites_store.dart';
 
 // Conectividad
@@ -66,6 +68,12 @@ Future<void> main() async {
 
   final String initialRoute = await getInitialRoute();
   final GoRouter router = buildRouter(initialRoute);
+
+  // Configurar cierre de sesión automático cuando el token expira
+  ApiClient.onSessionExpired = () {
+    AuthService().logout();
+    router.go('/login');
+  };
 
   runApp(
     MultiProvider(

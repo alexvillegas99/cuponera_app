@@ -8,6 +8,7 @@ import 'package:enjoy/screens/clientes/mis_solicitudes_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:enjoy/services/cupones_service.dart';
+import 'package:enjoy/services/core/api_exception.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../ui/palette.dart';

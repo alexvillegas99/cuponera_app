@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/comentarios_service.dart';
 import 'package:enjoy/services/compartidos_service.dart';
+import 'package:enjoy/services/cupones_service.dart';
 import 'package:enjoy/widgets/action_pill_button.dart';
 import 'package:enjoy/widgets/blur_icon_button.dart';
 import 'package:enjoy/widgets/corner_logo.dart';
@@ -11,6 +12,7 @@ import 'package:enjoy/ui/palette.dart';
 import 'package:enjoy/services/comercios_service.dart';
 import 'package:enjoy/mappers/comercio_mini.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -37,6 +39,9 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
   int _myRating = 0;
   final _myCommentCtrl = TextEditingController();
   bool _saving = false;
+
+  List<Map<String, dynamic>> _cuponesDisponibles = [];
+  bool _cuponesExpandido = false;
 
   ComercioMini? _data;
   bool _loading = true;
@@ -87,6 +92,15 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
         });
         return;
       }
+
+      // Cargar cupones disponibles para este local
+      try {
+        final cupones = await CuponesService().disponiblesParaLocal(
+          clienteId,
+          widget.usuarioId,
+        );
+        if (mounted) setState(() => _cuponesDisponibles = cupones);
+      } catch (_) {}
 
       final e = await _comentSvc.elegibilidad(
         usuarioId: widget.usuarioId,
@@ -210,6 +224,232 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  // ───────────────────────── Sección cupón disponible
+  Widget _buildCuponDisponibleSection() {
+    final total = _cuponesDisponibles.length;
+
+    // Si solo hay 1 cupón → mostrar directo con botón QR
+    if (total == 1) {
+      final cupon = _cuponesDisponibles.first;
+      final version = cupon['version'] as Map<String, dynamic>? ?? {};
+      final nombreVersion = (version['nombre'] ?? 'Cupón').toString();
+      final secuencial = cupon['secuencial']?.toString() ?? '';
+
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Palette.kAccent.withValues(alpha: 0.08), Palette.kAccent.withValues(alpha: 0.02)],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Palette.kAccent.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Palette.kAccent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.confirmation_number, color: Palette.kAccent, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Cupón disponible',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Palette.kTitle),
+                  ),
+                  Text(
+                    '$nombreVersion · Nº $secuencial',
+                    style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => _mostrarQrCupon(cupon),
+              icon: const Icon(Icons.qr_code, size: 16),
+              label: const Text('Canjear'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Palette.kAccent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Más de 1 cupón → banner colapsable
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Palette.kAccent.withValues(alpha: 0.08), Palette.kAccent.withValues(alpha: 0.02)],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Palette.kAccent.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          // Banner principal
+          InkWell(
+            onTap: () => setState(() => _cuponesExpandido = !_cuponesExpandido),
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Palette.kAccent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.confirmation_number, color: Palette.kAccent, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Cupones disponibles para canjear',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Palette.kTitle),
+                        ),
+                        Text(
+                          '$total cupones disponibles',
+                          style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    _cuponesExpandido ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    color: Palette.kAccent,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Lista expandible
+          if (_cuponesExpandido) ...[
+            const Divider(height: 1, indent: 14, endIndent: 14),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+              child: Column(
+                children: _cuponesDisponibles.map((cupon) {
+                  final version = cupon['version'] as Map<String, dynamic>? ?? {};
+                  final nombreVersion = (version['nombre'] ?? 'Cupón').toString();
+                  final secuencial = cupon['secuencial']?.toString() ?? '';
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(nombreVersion,
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Palette.kTitle)),
+                              Text('Nº $secuencial',
+                                style: const TextStyle(color: Palette.kMuted, fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _mostrarQrCupon(cupon),
+                          icon: const Icon(Icons.qr_code, size: 16),
+                          label: const Text('Canjear'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Palette.kAccent,
+                            textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────────── QR bottom sheet para cupón
+  void _mostrarQrCupon(Map<String, dynamic> cupon) {
+    final version = cupon['version'] as Map<String, dynamic>? ?? {};
+    final nombreVersion = (version['nombre'] ?? 'Cupón').toString();
+    final secuencial = cupon['secuencial']?.toString() ?? '';
+    final cuponId = cupon['_id']?.toString() ?? '';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Palette.kSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Palette.kBorder,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              nombreVersion,
+              style: TextStyle(
+                color: Palette.kTitle,
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'N\u00ba $secuencial',
+              style: TextStyle(color: Palette.kMuted, fontSize: 14),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: QrImageView(
+                data: cuponId,
+                size: 200,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Muestra este QR al comercio para canjear',
+              style: TextStyle(color: Palette.kMuted, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // ───────────────────────── helpers de acciones
@@ -413,6 +653,12 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ───────────── CUPÓN DISPONIBLE (antes de todo)
+                    if (_cuponesDisponibles.isNotEmpty) ...[
+                      _buildCuponDisponibleSection(),
+                      const SizedBox(height: 14),
+                    ],
+
                     if (_data!.ciudades.isNotEmpty)
                       ChipsSection(
                         label: 'Ciudades',

@@ -1,18 +1,13 @@
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
+import 'package:enjoy/services/core/api_client.dart';
 
 class SolicitudCuponeraService {
-  static final String _base = '${dotenv.env['API_URL'] ?? ''}/solicitudes-cuponera';
-
   static Future<bool> enviar(Map<String, dynamic> dto) async {
     try {
-      final response = await http.post(
-        Uri.parse(_base),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(dto),
+      final resp = await ApiClient.instance.post(
+        '/solicitudes-cuponera',
+        data: dto,
       );
-      return response.statusCode == 201;
+      return resp.statusCode == 201;
     } catch (_) {
       return false;
     }
@@ -20,8 +15,8 @@ class SolicitudCuponeraService {
 
   static Future<List<dynamic>> misSolicitudes(String clienteId) async {
     try {
-      final response = await http.get(Uri.parse('$_base/cliente/$clienteId'));
-      if (response.statusCode == 200) return json.decode(response.body);
+      final resp = await ApiClient.instance.get('/solicitudes-cuponera/cliente/$clienteId');
+      if (resp.statusCode == 200) return resp.data as List<dynamic>;
     } catch (_) {}
     return [];
   }

@@ -1,16 +1,12 @@
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
+import 'package:enjoy/services/core/api_client.dart';
 
 class ConfiguracionService {
-  static final String _base = '${dotenv.env['API_URL'] ?? ''}/configuracion';
-
   /// Obtener el valor de una configuración por clave
   static Future<String?> obtenerValor(String clave) async {
     try {
-      final response = await http.get(Uri.parse('$_base/$clave'));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      final resp = await ApiClient.instance.get('/configuracion/$clave');
+      if (resp.statusCode == 200) {
+        final data = resp.data as Map<String, dynamic>;
         return data['valor'] as String?;
       }
     } catch (_) {}
@@ -20,9 +16,9 @@ class ConfiguracionService {
   /// Obtener todas las configuraciones
   static Future<Map<String, String>> obtenerTodas() async {
     try {
-      final response = await http.get(Uri.parse(_base));
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+      final resp = await ApiClient.instance.get('/configuracion');
+      if (resp.statusCode == 200) {
+        final List<dynamic> data = resp.data as List<dynamic>;
         return {
           for (final item in data)
             item['clave'] as String: item['valor'] as String,

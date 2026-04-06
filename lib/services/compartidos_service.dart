@@ -1,13 +1,9 @@
 // lib/services/compartidos_service.dart
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
+import 'package:enjoy/services/core/api_client.dart';
 
 enum CanalCompartir { whatsapp, sistema }
 
 class CompartidosService {
-  final String base = dotenv.env['API_URL'] ?? '';
-
   Future<void> registrar({
     required String clienteId,  // tu id de cliente logueado
     required String usuarioId,  // el admin-local del comercio
@@ -17,7 +13,6 @@ class CompartidosService {
     String? origen,             // 'comercio' | 'cupon'
     String? origenId,
   }) async {
-    final uri = Uri.parse('$base/compartidos');
     final body = {
       'clienteId': clienteId,
       'usuarioId': usuarioId,
@@ -28,14 +23,6 @@ class CompartidosService {
       if (origenId != null) 'origenId': origenId,
     };
 
-    final resp = await http.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    );
-
-    if (resp.statusCode != 200 && resp.statusCode != 201) {
-      throw Exception('[CompartidosService] ${resp.statusCode}: ${resp.body}');
-    }
+    await ApiClient.instance.post('/compartidos', data: body);
   }
 }

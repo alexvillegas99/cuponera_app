@@ -1,30 +1,26 @@
 // lib/services/ciudades_service.dart
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:enjoy/services/core/api_client.dart';
 import '../models/ciudad.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class CiudadesService {
-  final String base = dotenv.env['API_URL'] ?? '';
-
  Future<List<Ciudad>> getParaPromos() async {
-  final uri = Uri.parse('$base/ciudades/promociones');
+  final path = '/ciudades/promociones';
 
-  debugPrint('🌐 [GET] $uri');
+  debugPrint('🌐 [GET] $path');
 
   try {
-    final resp = await http.get(uri, headers: {'accept': '*/*'});
+    final resp = await ApiClient.instance.get(path);
 
     debugPrint('📡 [STATUS] ${resp.statusCode}');
-    debugPrint('📦 [BODY] ${resp.body}');
+    debugPrint('📦 [BODY] ${resp.data}');
 
     if (resp.statusCode != 200) {
       debugPrint('❌ Error en respuesta');
-      throw Exception('Error ${resp.statusCode}: ${resp.body}');
+      throw Exception('Error ${resp.statusCode}: ${resp.data}');
     }
 
-    final List data = jsonDecode(resp.body) as List;
+    final List data = resp.data as List;
 
     debugPrint('✅ [PARSE] ciudades recibidas: ${data.length}');
 

@@ -1,36 +1,32 @@
 // lib/services/promotions_service.dart
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
+import 'package:enjoy/services/core/api_client.dart';
 
 import '../models/promotion_models.dart';
 import '../mappers/promotion_mapper.dart';
 
 class PromotionsService {
-  final String base = dotenv.env['API_URL'] ?? '';
-
   /// 🔹 Trae todas las promos activas (ajusta el endpoint según tu backend)
 Future<List<Promotion>> getAllActivePromos({
   List<String>? cityIds,
 }) async {
-  final params = <String, String>{};
+  final Map<String, dynamic> params = {};
   if (cityIds != null && cityIds.isNotEmpty) {
     params['ciudades'] = cityIds.join(',');
   }
 
-  final uri = Uri.parse('$base/usuarios/por-ciudades')
-      .replace(queryParameters: params.isEmpty ? null : params);
-
-  print('[PromotionsService] ➡️ GET $uri');
-  final resp = await http.get(uri);
+  print('[PromotionsService] ➡️ GET /usuarios/por-ciudades params=$params');
+  final resp = await ApiClient.instance.get(
+    '/usuarios/por-ciudades',
+    queryParameters: params.isEmpty ? null : params,
+  );
 
   print('[PromotionsService] ⬅️ Status: ${resp.statusCode}');
   if (resp.statusCode != 200) {
-    print('[PromotionsService] ❌ Body: ${resp.body}');
-    throw Exception('Error ${resp.statusCode}: ${resp.body}');
+    print('[PromotionsService] ❌ Body: ${resp.data}');
+    throw Exception('Error ${resp.statusCode}: ${resp.data}');
   }
 
-  final List data = jsonDecode(resp.body) as List;
+  final List data = resp.data as List;
   print('[PromotionsService] ✅ Items: ${data.length}');
   return data
       .map((e) => mapBackendItemToPromotion(e as Map<String, dynamic>))
@@ -40,18 +36,20 @@ Future<List<Promotion>> getAllActivePromos({
   /// Tu backend espera: /usuarios/por-ciudades?ciudades=id1,id2,id3
   Future<List<Promotion>> getByCityIds(List<String> ciudadIds) async {
     final joined = ciudadIds.join(',');
-    final uri = Uri.parse('$base/usuarios/por-ciudades?ciudades=$joined');
 
-    print('[PromotionsService] ➡️ GET $uri');
-    final resp = await http.get(uri);
+    print('[PromotionsService] ➡️ GET /usuarios/por-ciudades?ciudades=$joined');
+    final resp = await ApiClient.instance.get(
+      '/usuarios/por-ciudades',
+      queryParameters: {'ciudades': joined},
+    );
 
     print('[PromotionsService] ⬅️ Status: ${resp.statusCode}');
     if (resp.statusCode != 200) {
-      print('[PromotionsService] ❌ Body: ${resp.body}');
-      throw Exception('Error ${resp.statusCode}: ${resp.body}');
+      print('[PromotionsService] ❌ Body: ${resp.data}');
+      throw Exception('Error ${resp.statusCode}: ${resp.data}');
     }
 
-    final List data = jsonDecode(resp.body) as List;
+    final List data = resp.data as List;
     print('[PromotionsService] ✅ Items: ${data.length}');
 
     return data

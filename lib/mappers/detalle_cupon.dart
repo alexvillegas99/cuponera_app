@@ -65,15 +65,17 @@ class VersionMeta {
   final String nombre;
   final bool estado;
   final List<String> ciudadesDisponibles;
-  final int numeroDeLocales;
+  final int totalLocales;
   final String? descripcion;
+  final String? precio;
 
   VersionMeta({
     required this.nombre,
     required this.estado,
     required this.ciudadesDisponibles,
-    required this.numeroDeLocales,
+    required this.totalLocales,
     required this.descripcion,
+    this.precio,
   });
 
   factory VersionMeta.fromJson(Map<String, dynamic> j) => VersionMeta(
@@ -83,8 +85,9 @@ class VersionMeta {
         .map((e) => e?.toString() ?? '')
         .where((s) => s.isNotEmpty)
         .toList(),
-    numeroDeLocales: (j['numeroDeLocales'] ?? 0) as int,
+    totalLocales: (j['totalLocales'] ?? j['numeroDeLocales'] ?? 0) as int,
     descripcion: j['descripcion']?.toString(),
+    precio: j['precio']?.toString(),
   );
 }
 

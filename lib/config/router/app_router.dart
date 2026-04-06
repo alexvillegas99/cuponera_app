@@ -21,7 +21,13 @@ Future<String> getInitialRoute() async {
   final hasToken = await auth.hasToken();
   if (!hasToken) return '/login';
 
- 
+  // 2) Refrescar token para validar que la sesión esté vigente
+  final tokenValido = await auth.renewToken();
+  if (!tokenValido) {
+    await auth.logout();
+    return '/login';
+  }
+
   // 3) Decidir home por rol/kind
   return auth.getTargetHomeRoute();
 }

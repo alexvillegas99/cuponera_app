@@ -5,9 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../ui/palette.dart';
 import '../../services/configuracion_service.dart';
 import '../../services/solicitud_cuponera_service.dart';
+import '../../services/versiones_service.dart';
+import '../../services/pagos_service.dart';
+import 'detalle_version_screen.dart';
 
 class ComprarCuponeraScreen extends StatefulWidget {
   final String clienteId;
@@ -35,6 +40,9 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
   List<Map<String, dynamic>> _cuentas = [];
   String _instrucciones = '';
 
+  bool _payphoneActivo = false;
+  bool _paypalActivo = false;
+
   int? _selectedCuponera;
   File? _comprobante;
   final _montoCtrl = TextEditingController();
@@ -55,17 +63,21 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
   }
 
   Future<void> _fetchConfigs() async {
-    final configs = await ConfiguracionService.obtenerTodas();
+    // Cargar configuración, versiones activas y métodos de pago en paralelo
+    final results = await Future.wait([
+      ConfiguracionService.obtenerTodas(),
+      VersionesService.listarActivas(),
+      PagosService.metodosPago(),
+    ]);
+
     if (!mounted) return;
 
-    List<Map<String, dynamic>> cuponeras = [];
+    final configs = results[0] as Map<String, dynamic>;
+    final versiones = results[1] as List<Map<String, dynamic>>;
+    final metodos = results[2] as Map<String, bool>;
+
     List<Map<String, dynamic>> cuentas = [];
     String instrucciones = '';
-
-    try {
-      final cuponerasRaw = configs['cuponeras_disponibles'] ?? '[]';
-      cuponeras = List<Map<String, dynamic>>.from(json.decode(cuponerasRaw));
-    } catch (_) {}
 
     try {
       final cuentasRaw = configs['cuentas_bancarias'] ?? '[]';
@@ -75,9 +87,11 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
     instrucciones = configs['transferencia_instrucciones'] ?? '';
 
     setState(() {
-      _cuponeras = cuponeras;
+      _cuponeras = versiones;
       _cuentas = cuentas;
       _instrucciones = instrucciones;
+      _payphoneActivo = metodos['payphone'] ?? false;
+      _paypalActivo = metodos['paypal'] ?? false;
       _loading = false;
     });
   }
@@ -191,7 +205,7 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
       'emailCliente': widget.emailCliente,
       'telefonoCliente': widget.telefonoCliente ?? '',
       'cuponeraNombre': cuponera['nombre'] ?? '',
-      'cuponeraPrecio': cuponera['precio'] ?? '',
+      'cuponeraPrecio': cuponera['precio'] ?? '0.00',
       'montoTransferido': _montoCtrl.text.trim(),
       'observaciones': _obsCtrl.text.trim(),
       'comprobanteBase64': base64Image,
@@ -213,6 +227,93 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
     } else {
       _showSnack('Error al enviar la solicitud. Intenta de nuevo.');
     }
+  }
+
+  Future<void> _pagarConPayPhone() async {
+    if (_selectedCuponera == null) {
+      _showSnack('Selecciona una cuponera');
+      return;
+    }
+
+    setState(() => _submitting = true);
+    final cuponera = _cuponeras[_selectedCuponera!];
+
+    try {
+      final result = await PagosService.crearPayPhone(
+        clienteId: widget.clienteId,
+        nombreCliente: widget.nombreCliente,
+        emailCliente: widget.emailCliente,
+        telefonoCliente: widget.telefonoCliente,
+        cuponeraNombre: cuponera['nombre'] ?? '',
+        cuponeraPrecio: cuponera['precio'] ?? '0.00',
+        responseUrl: 'https://ecuenjoy.com/pago/exito',
+        cancellationUrl: 'https://ecuenjoy.com/pago/cancelado',
+      );
+
+      final paymentUrl = result['paymentUrl'];
+      if (paymentUrl != null) {
+        final uri = Uri.parse(paymentUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _showSnack('Completa el pago en PayPhone');
+    } catch (e) {
+      setState(() => _submitting = false);
+      _showSnack('Error al iniciar el pago: $e');
+    }
+  }
+
+  Future<void> _pagarConPayPal() async {
+    if (_selectedCuponera == null) {
+      _showSnack('Selecciona una cuponera');
+      return;
+    }
+
+    setState(() => _submitting = true);
+    final cuponera = _cuponeras[_selectedCuponera!];
+
+    try {
+      final result = await PagosService.crearPayPal(
+        clienteId: widget.clienteId,
+        nombreCliente: widget.nombreCliente,
+        emailCliente: widget.emailCliente,
+        cuponeraNombre: cuponera['nombre'] ?? '',
+        cuponeraPrecio: cuponera['precio'] ?? '0.00',
+        returnUrl: 'https://ecuenjoy.com/pago/exito',
+        cancelUrl: 'https://ecuenjoy.com/pago/cancelado',
+      );
+
+      final approveUrl = result['approveUrl'];
+      if (approveUrl != null) {
+        final uri = Uri.parse(approveUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _showSnack('Completa el pago en PayPal');
+    } catch (e) {
+      setState(() => _submitting = false);
+      _showSnack('Error al iniciar el pago: $e');
+    }
+  }
+
+  void _verLocales(Map<String, dynamic> version) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DetalleVersionScreen(
+          versionId: version['_id'] ?? '',
+          versionData: version,
+        ),
+      ),
+    );
   }
 
   void _showSnack(String msg) {
@@ -269,100 +370,178 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String label) {
+  InputDecoration _inputDecoration(String label, {IconData? icon}) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: Palette.kMuted),
+      labelStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
+      prefixIcon: icon != null ? Icon(icon, color: Palette.kAccent, size: 20) : null,
       filled: true,
-      fillColor: Palette.kBg,
+      fillColor: Colors.white,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Palette.kAccent, width: 1.5),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
   }
 
   // ─── Sections ───────────────────────────────────────────────
 
+  Widget _buildCuponeraCard(Map<String, dynamic> c, {bool selected = false, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: _card(
+        selected: selected,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: selected ? Palette.kAccent.withOpacity(0.15) : Palette.kBg,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.local_activity,
+                      color: selected ? Palette.kAccent : Palette.kMuted),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          c['nombre']?.toString() ?? 'Cuponera',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 15,
+                            color: selected ? Palette.kTitle : Palette.kSub,
+                          ),
+                        ),
+                        if (c['descripcion'] != null && c['descripcion'].toString().isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(c['descripcion'].toString(),
+                            style: const TextStyle(color: Palette.kMuted, fontSize: 13),
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                        ],
+                        if (c['ciudadesDisponibles'] is List && (c['ciudadesDisponibles'] as List).isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text((c['ciudadesDisponibles'] as List).join(', '),
+                            style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Text('\$${c['precio'] ?? '0.00'}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 18,
+                      color: selected ? Palette.kAccent : Palette.kTitle,
+                    ),
+                  ),
+                ],
+              ),
+              if (selected) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _verLocales(c),
+                    icon: const Icon(Icons.store_outlined, size: 18),
+                    label: const Text('Ver locales disponibles'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Palette.kAccent,
+                      side: BorderSide(color: Palette.kAccent.withValues(alpha: 0.4)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _abrirSelectorCuponeras() async {
+    final result = await Navigator.push<int>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _SelectorCuponerasPage(cuponeras: _cuponeras),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() => _selectedCuponera = result);
+    }
+  }
+
   Widget _buildCuponerasSection() {
+    final total = _cuponeras.length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionHeader(Icons.card_giftcard, 'Selecciona tu cuponera'),
         const SizedBox(height: 12),
-        if (_cuponeras.isEmpty)
+
+        if (total == 0)
           const Text('No hay cuponeras disponibles.', style: TextStyle(color: Palette.kMuted))
+
+        // Más de 5: modo selector
+        else if (total > 5) ...[
+          if (_selectedCuponera != null) ...[
+            _buildCuponeraCard(_cuponeras[_selectedCuponera!], selected: true),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: _abrirSelectorCuponeras,
+                icon: const Icon(Icons.swap_horiz, size: 18),
+                label: const Text('Cambiar cuponera'),
+                style: TextButton.styleFrom(foregroundColor: Palette.kAccent),
+              ),
+            ),
+          ] else
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: OutlinedButton.icon(
+                onPressed: _abrirSelectorCuponeras,
+                icon: const Icon(Icons.local_activity, size: 20),
+                label: Text('Seleccionar cuponera ($total disponibles)'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Palette.kTitle,
+                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+        ]
+
+        // 5 o menos: listar directo
         else
           ..._cuponeras.asMap().entries.map((entry) {
             final i = entry.key;
-            final c = entry.value;
-            final selected = _selectedCuponera == i;
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: GestureDetector(
+              child: _buildCuponeraCard(
+                entry.value,
+                selected: _selectedCuponera == i,
                 onTap: () => setState(() => _selectedCuponera = i),
-                child: _card(
-                  selected: selected,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? Palette.kAccent.withOpacity(0.15)
-                                : Palette.kBg,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.local_activity,
-                            color: selected ? Palette.kAccent : Palette.kMuted,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                c['nombre']?.toString() ?? 'Cuponera',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
-                                  color: selected ? Palette.kTitle : Palette.kSub,
-                                ),
-                              ),
-                              if (c['descripcion'] != null) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  c['descripcion'].toString(),
-                                  style: const TextStyle(color: Palette.kMuted, fontSize: 13),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        Text(
-                          '\$${c['precio'] ?? '0'}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 18,
-                            color: selected ? Palette.kAccent : Palette.kTitle,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ),
             );
           }),
@@ -562,14 +741,79 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
         TextField(
           controller: _montoCtrl,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: _inputDecoration('Monto transferido'),
+          decoration: _inputDecoration('Monto transferido (\$)', icon: Icons.attach_money),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         TextField(
           controller: _obsCtrl,
           maxLines: 3,
-          decoration: _inputDecoration('Observaciones (opcional)'),
+          decoration: _inputDecoration('Observaciones (opcional)', icon: Icons.notes),
         ),
+      ],
+    );
+  }
+
+  Widget _buildMetodosPagoOnline() {
+    if (!_payphoneActivo && !_paypalActivo) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        if (_payphoneActivo)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: _submitting ? null : _pagarConPayPhone,
+                icon: const Icon(Icons.payment, size: 20),
+                label: Text(
+                  _submitting ? 'Procesando...' : 'Pagar con PayPhone',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1A73E8),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ),
+        if (_paypalActivo)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: _submitting ? null : _pagarConPayPal,
+                icon: const Icon(Icons.account_balance_wallet, size: 20),
+                label: Text(
+                  _submitting ? 'Procesando...' : 'Pagar con PayPal',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF003087),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ),
+        const SizedBox(height: 2),
+        const Row(
+          children: [
+            Expanded(child: Divider(color: Palette.kMuted)),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Text('o paga por transferencia', style: TextStyle(color: Palette.kMuted, fontSize: 13)),
+            ),
+            Expanded(child: Divider(color: Palette.kMuted)),
+          ],
+        ),
+        const SizedBox(height: 12),
       ],
     );
   }
@@ -638,11 +882,101 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
                   const SizedBox(height: 24),
                   _buildFormFields(),
                   const SizedBox(height: 28),
+                  _buildMetodosPagoOnline(),
                   _buildSubmitButton(),
                   const SizedBox(height: 32),
                 ],
               ),
             ),
+    );
+  }
+}
+
+/// Pantalla de selección cuando hay más de 5 cuponeras
+class _SelectorCuponerasPage extends StatelessWidget {
+  final List<Map<String, dynamic>> cuponeras;
+  const _SelectorCuponerasPage({required this.cuponeras});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Palette.kBg,
+      appBar: AppBar(
+        backgroundColor: Palette.kPrimary,
+        foregroundColor: Colors.white,
+        title: const Text('Seleccionar cuponera',
+          style: TextStyle(fontWeight: FontWeight.w700)),
+        elevation: 0,
+      ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: cuponeras.length,
+        itemBuilder: (context, i) {
+          final c = cuponeras[i];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context, i),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 12,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(
+                        color: Palette.kBg,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.local_activity, color: Palette.kMuted),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(c['nombre']?.toString() ?? 'Cuponera',
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Palette.kTitle)),
+                          if (c['descripcion'] != null && c['descripcion'].toString().isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(c['descripcion'].toString(),
+                              style: const TextStyle(color: Palette.kMuted, fontSize: 13),
+                              maxLines: 2, overflow: TextOverflow.ellipsis),
+                          ],
+                          if (c['ciudadesDisponibles'] is List && (c['ciudadesDisponibles'] as List).isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text((c['ciudadesDisponibles'] as List).join(', '),
+                              style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Column(
+                      children: [
+                        Text('\$${c['precio'] ?? '0.00'}',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Palette.kTitle)),
+                        const SizedBox(height: 4),
+                        const Icon(Icons.chevron_right, color: Palette.kMuted, size: 20),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
