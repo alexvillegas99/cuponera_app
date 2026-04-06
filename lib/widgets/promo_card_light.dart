@@ -45,17 +45,16 @@ class PromoCardLight extends StatelessWidget {
                 ),
               );
             },
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         decoration: BoxDecoration(
           color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Palette.kBorder),
+          borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -67,8 +66,8 @@ class PromoCardLight extends StatelessWidget {
             // Imagen + badges (CON LOGO)
             ClipRRect(
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+                topLeft: Radius.circular(8),
+                topRight: Radius.circular(8),
               ),
               child: Stack(
                 children: [
@@ -149,9 +148,9 @@ class PromoCardLight extends StatelessWidget {
                       ),
                       if (promo.rating > 0) ...[
                         const SizedBox(width: 8),
-                        Icon(
+                        const Icon(
                           Icons.star,
-                          color: Colors.amber.shade400,
+                          color: Palette.kAccentLight,
                           size: 18,
                         ),
                         Text(

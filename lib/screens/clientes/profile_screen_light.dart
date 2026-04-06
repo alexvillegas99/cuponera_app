@@ -351,7 +351,7 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
       child: const Padding(
         padding: EdgeInsets.all(20),
         child: CircularProgressIndicator(
-          color: Palette.kPrimary,
+          color: Palette.kAccent,
           strokeWidth: 2,
         ),
       ),
@@ -377,13 +377,12 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
   BoxDecoration _cardBox() {
     return BoxDecoration(
       color: Palette.kSurface,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Palette.kPrimary.withOpacity(0.08)),
+      borderRadius: BorderRadius.circular(8),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.04),
-          blurRadius: 10,
-          offset: const Offset(0, 6),
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 20,
+          offset: const Offset(0, 4),
         ),
       ],
     );
@@ -467,14 +466,13 @@ class _Chip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: Palette.kAccent.withOpacity(0.10),
+        color: Palette.kAccent.withOpacity(0.1),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Palette.kPrimary.withOpacity(0.20)),
       ),
       child: Text(
         text,
         style: const TextStyle(
-          color: Palette.kPrimary,
+          color: Palette.kAccent,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -502,8 +500,8 @@ class _SettingTile extends StatelessWidget {
     final iconBg = danger
         ? Colors.redAccent.withOpacity(0.12)
         : Palette.kAccent.withOpacity(0.12);
-    final iconColor = danger ? Colors.redAccent : Palette.kPrimary;
-    final titleColor = danger ? Colors.redAccent : Palette.kPrimary;
+    final iconColor = danger ? Colors.redAccent : Palette.kAccent;
+    final titleColor = danger ? Colors.redAccent : Palette.kTitle;
     final sub = danger ? Colors.redAccent.shade200 : Palette.kMuted;
 
     return ListTile(
@@ -522,7 +520,7 @@ class _SettingTile extends StatelessWidget {
           : null,
       trailing: Icon(
         Icons.chevron_right,
-        color: danger ? Colors.redAccent : Palette.kPrimary.withOpacity(0.6),
+        color: danger ? Colors.redAccent : Palette.kMuted,
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
     );
@@ -547,18 +545,13 @@ class _HeroHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Palette.kPrimary.withOpacity(0.08)),
-        gradient: const LinearGradient(
-          colors: [Colors.white, Colors.white],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Palette.kSurface,
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Palette.kPrimary.withOpacity(0.1),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -585,9 +578,7 @@ class _HeroHeader extends StatelessWidget {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Palette.kAccent == null
-                      ? null
-                      : const TextStyle(color: Palette.kAccent),
+                  style: const TextStyle(color: Palette.kTitle),
                 ),
                 if (email != null && email!.isNotEmpty) ...[
                   const SizedBox(height: 2),
@@ -595,7 +586,7 @@ class _HeroHeader extends StatelessWidget {
                     email!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Palette.kAccent),
+                    style: const TextStyle(color: Palette.kMuted),
                   ),
                 ],
               ],

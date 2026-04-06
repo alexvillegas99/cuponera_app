@@ -605,13 +605,12 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: Palette.kSurface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Palette.kBorder),
-            boxShadow: const [
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
               BoxShadow(
                 blurRadius: 20,
-                offset: Offset(0, 10),
-                color: Color(0x11000000),
+                offset: const Offset(0, 4),
+                color: Colors.black.withOpacity(0.05),
               ),
             ],
           ),
@@ -720,7 +719,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                       foregroundColor: Palette.kTitle,
                       side: const BorderSide(color: Palette.kBorder),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                     ),
                   ),
@@ -732,8 +731,9 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                       label: const Text('Reintentar'),
                       style: FilledButton.styleFrom(
                         backgroundColor: Palette.kAccent,
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(20),
                         ),
                       ),
                     ),

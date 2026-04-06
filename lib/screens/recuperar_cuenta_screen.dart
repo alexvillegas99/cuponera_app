@@ -3,8 +3,6 @@ import 'package:enjoy/widgets/branded_modal.dart';
 import 'package:flutter/material.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/otp_service.dart';
-// Usa TU widget OTP (según lo pusiste en el proyecto):
-// Si tu OTP está en otra ruta, ajusta el import arriba.
 import 'package:enjoy/ui/palette.dart';
 
 enum RecoveryMode { cliente, empresa }
@@ -19,40 +17,19 @@ class RecuperarCuentaScreen extends StatefulWidget {
 class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
   final _auth = AuthService();
   final _otp = OtpService();
-  bool _showPass = false;
-  bool _showPass2 = false;
 
   final _correoCtrl = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-
-  // Paso 2: contraseñas
   final _passCtrl = TextEditingController();
   final _pass2Ctrl = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
 
   RecoveryMode _mode = RecoveryMode.cliente;
   bool _loading = false;
-  bool _otpOk = false; // <- cuando el OTP se valida, mostramos campos de clave
+  bool _otpOk = false;
+  bool _showPass = false;
+  bool _showPass2 = false;
 
-  // ===== Paleta (azul oscuro) =====
-  static const Color _brand = Color(0xFF0D2B75);
-  static const Color _brandAlt = Color(0xFF103896);
-  static const Color _bg = Color(0xFFF6F9FF);
-  static const Color _text = Color(0xFF0B1220);
-  static const Color _sub = Color(0xFF6B7280);
-  static const Color _surface = Colors.white;
-  static const Color _field = Color(0xFFE9F0FF);
-  static const Color _border = Color(0xFFE0E7FF);
-  final _otpService = OtpService(); // Lee API_URL de .env
   static const int _otpLen = 5;
-
-  Future<void> _dialog({required String title, required String message}) async {
-  await showBrandedDialog(
-    context,
-    title: title,
-    message: message,
-    icon: Icons.info_outline,
-  );
-}
 
   @override
   void dispose() {
@@ -69,17 +46,42 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
   }
 
   String? _passVal(String? v) {
-    final s = (v ?? '').trim();
-    if (s.isEmpty) return 'Ingresa tu nueva contraseña';
-    if (s.length < 6) return 'Usa al menos 6 caracteres';
+    if (v == null || v.trim().isEmpty) return 'Ingresa tu nueva contraseña';
+    if (v.trim().length < 6) return 'Usa al menos 6 caracteres';
     return null;
   }
 
   String? _pass2Val(String? v) {
-    final s = (v ?? '').trim();
-    if (s.isEmpty) return 'Repite tu nueva contraseña';
-    if (s != _passCtrl.text.trim()) return 'Las contraseñas no coinciden';
+    if (v == null || v.trim().isEmpty) return 'Repite tu nueva contraseña';
+    if (v != _passCtrl.text.trim()) return 'Las contraseñas no coinciden';
     return null;
+  }
+
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  InputDecoration _inputDec(String hint, {IconData? icon, Widget? suffix}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
+      prefixIcon: icon != null ? Icon(icon, color: Palette.kMuted, size: 20) : null,
+      suffixIcon: suffix,
+      filled: true,
+      fillColor: Palette.kBg,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kAccent, width: 1.5)),
+      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent)),
+      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent, width: 1.5)),
+    );
   }
 
   Future<void> _sendOtpAndValidate() async {
@@ -88,12 +90,9 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
     final correo = _correoCtrl.text.trim();
     setState(() => _loading = true);
     try {
-      // 1) Enviar OTP dependiendo de modo
-      await _otpService.sendOtp(correo);
-
+      await _otp.sendOtp(correo);
       if (!mounted) return;
 
-      // 2) Abrir tu pantalla OTP (la que nos pasaste)
       final ok = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
@@ -102,23 +101,20 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
             email: correo,
             otpService: _otp,
             title: 'Verificación',
-            subtitle:
-                'Ingresa el código de $_otpLen dígitos enviado a $correo.',
+            subtitle: 'Ingresa el código de $_otpLen dígitos enviado a $correo.',
             canResend: true,
             resendSeconds: 45,
-            // sessionSeconds y maxResends si los usas en tu constructor.
           ),
         ),
       );
 
       if (!mounted) return;
-      if (ok == true) {
-        setState(() => _otpOk = true); // ✅ ahora mostramos los campos de clave
-      }
+      if (ok == true) setState(() => _otpOk = true);
     } catch (e) {
-      _dialog(
-        title: 'No pudimos enviar/verificar el código',
+      await showBrandedDialog(context,
+        title: 'Error',
         message: e.toString(),
+        icon: Icons.error_outline,
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -126,23 +122,11 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
   }
 
   Future<void> _resetPassword() async {
-    // Validar solo los campos de password (no hace falta revalidar correo)
     if (!_otpOk) return;
     final passError = _passVal(_passCtrl.text);
     final pass2Error = _pass2Val(_pass2Ctrl.text);
-    if (passError != null || pass2Error != null) {
-      // Fuerza la visualización de errores usando un Form dedicado o SnackBar:
-      if (passError != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(passError)));
-      } else if (pass2Error != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(pass2Error)));
-      }
-      return;
-    }
+    if (passError != null) { _snack(passError); return; }
+    if (pass2Error != null) { _snack(pass2Error); return; }
 
     setState(() => _loading = true);
     try {
@@ -152,305 +136,173 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
         isCliente: _mode == RecoveryMode.cliente,
       );
       if (!mounted) return;
-      await _dialog(
+      await showBrandedDialog(context,
         title: '¡Listo!',
         message: 'Tu contraseña fue actualizada.',
+        icon: Icons.check_circle_outline,
       );
       if (!mounted) return;
-      Navigator.pop(context); // vuelve al login / pantalla anterior
+      Navigator.pop(context);
     } catch (e) {
-      _dialog(title: 'No pudimos actualizar', message: e.toString());
+      await showBrandedDialog(context,
+        title: 'No pudimos actualizar',
+        message: e.toString(),
+        icon: Icons.error_outline,
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-
-
-  static InputDecoration _pillDec({
-    required String hint,
-    IconData? prefix,
-    bool isPassword = false,
-  }) => InputDecoration(
-    hintText: hint,
-    hintStyle: const TextStyle(color: _sub),
-    prefixIcon: prefix != null ? Icon(prefix, color: _sub) : null,
-    filled: true,
-    fillColor: _field,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: _border),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: _brand, width: 1.2),
-    ),
-  );
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: Palette.kBg,
       appBar: AppBar(
-        backgroundColor: _bg,
+        backgroundColor: Palette.kPrimary,
+        foregroundColor: Colors.white,
         elevation: 0,
-        foregroundColor: _text,
+        title: const Text('Recuperar contraseña', style: TextStyle(fontWeight: FontWeight.w600)),
       ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: const BoxConstraints(maxWidth: 480),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+              padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: _surface,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: _border),
-                      boxShadow: [
-                        BoxShadow(
-                          blurRadius: 18,
-                          offset: const Offset(0, 10),
-                          color: Colors.black.withOpacity(0.05),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          height: 46,
-                          width: 46,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: [_brand, _brandAlt],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.key_rounded,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            _otpOk
-                                ? 'Define tu nueva contraseña'
-                                : '¿Olvidaste tu contraseña?',
-                            style: const TextStyle(
-                              color: _text,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        _ModeChip(mode: _mode),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Selector
+                  // ── Selector modo ──
                   AnimatedOpacity(
-                    opacity: _otpOk ? 0.55 : 1,
+                    opacity: _otpOk ? 0.5 : 1,
                     duration: const Duration(milliseconds: 200),
                     child: IgnorePointer(
-                      ignoring:
-                          _otpOk, // 👈 bloquea taps cuando ya está en paso de contraseña
-                      child: _Segmented(
-                        active: _mode,
-                        onChange: (m) => setState(() => _mode = m),
+                      ignoring: _otpOk,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4)),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(4),
+                        child: Row(
+                          children: [
+                            _ModeTab(
+                              icon: Icons.person_outline,
+                              text: 'Cliente',
+                              active: _mode == RecoveryMode.cliente,
+                              onTap: () => setState(() => _mode = RecoveryMode.cliente),
+                            ),
+                            _ModeTab(
+                              icon: Icons.business_outlined,
+                              text: 'Empresa',
+                              active: _mode == RecoveryMode.empresa,
+                              onTap: () => setState(() => _mode = RecoveryMode.empresa),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 18),
 
-                  // Paso 1: correo (antes de OTP)
-                  if (!_otpOk) ...[
-                    Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Correo', style: TextStyle(color: _sub)),
-                          const SizedBox(height: 8),
-                          Container(
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: _field,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: _border),
+                  const SizedBox(height: 20),
+
+                  // ── Paso 1: Email ──
+                  if (!_otpOk)
+                    _Card(
+                      icon: Icons.mail_outline,
+                      title: 'Ingresa tu correo',
+                      subtitle: 'Te enviaremos un código para verificar tu identidad.',
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _correoCtrl,
+                              validator: _emailVal,
+                              keyboardType: TextInputType.emailAddress,
+                              cursorColor: Palette.kAccent,
+                              style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+                              decoration: _inputDec('email@ejemplo.com', icon: Icons.alternate_email),
+                              onFieldSubmitted: (_) => _sendOtpAndValidate(),
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.alternate_email, color: _sub),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _correoCtrl,
-                                    validator: _emailVal,
-                                    keyboardType: TextInputType.emailAddress,
-                                    decoration: const InputDecoration(
-                                      border: InputBorder.none,
-                                      isCollapsed: true,
-                                      contentPadding: EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                    ),
-                                    style: const TextStyle(color: _text),
-                                    onFieldSubmitted: (_) =>
-                                        _sendOtpAndValidate(),
-                                  ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton.icon(
+                                onPressed: _loading ? null : _sendOtpAndValidate,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Palette.kAccent,
+                                  foregroundColor: Colors.white,
+                                  disabledBackgroundColor: Palette.kAccent.withOpacity(0.5),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                 ),
-                              ],
+                                icon: _loading
+                                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                    : const Icon(Icons.send, size: 18),
+                                label: Text(_loading ? 'Enviando…' : 'Enviar código', style: const TextStyle(fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // ── Paso 2: Nueva contraseña ──
+                  if (_otpOk)
+                    _Card(
+                      icon: Icons.lock_outline,
+                      title: 'Nueva contraseña',
+                      subtitle: 'Ingresa y confirma tu nueva contraseña.',
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _passCtrl,
+                            obscureText: !_showPass,
+                            cursorColor: Palette.kAccent,
+                            style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+                            decoration: _inputDec('Nueva contraseña', icon: Icons.lock_outline, suffix: IconButton(
+                              icon: Icon(_showPass ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Palette.kMuted, size: 20),
+                              onPressed: () => setState(() => _showPass = !_showPass),
+                            )),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _pass2Ctrl,
+                            obscureText: !_showPass2,
+                            cursorColor: Palette.kAccent,
+                            style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+                            decoration: _inputDec('Repetir contraseña', icon: Icons.lock_outline, suffix: IconButton(
+                              icon: Icon(_showPass2 ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Palette.kMuted, size: 20),
+                              onPressed: () => setState(() => _showPass2 = !_showPass2),
+                            )),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton.icon(
+                              onPressed: _loading ? null : _resetPassword,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Palette.kAccent,
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor: Palette.kAccent.withOpacity(0.5),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              icon: _loading
+                                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                  : const Icon(Icons.check, size: 18),
+                              label: Text(_loading ? 'Actualizando…' : 'Actualizar contraseña', style: const TextStyle(fontWeight: FontWeight.w600)),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _brand,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        onPressed: _loading ? null : _sendOtpAndValidate,
-                        icon: _loading
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.send_rounded,
-                                color: Colors.white,
-                              ),
-                        label: Text(
-                          _loading ? 'Enviando…' : 'Enviar código',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Te enviaremos un código para restablecer tu contraseña.',
-                      style: TextStyle(color: _sub),
-                    ),
-                  ],
-
-                  // Paso 2: contraseñas (después de OTP OK)
-                  if (_otpOk) ...[
-                    const Text(
-                      'Nueva contraseña',
-                      style: TextStyle(color: _sub),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _passCtrl,
-                      obscureText: !_showPass,
-                      enableSuggestions: false,
-                      autocorrect: false,
-                      decoration:
-                          _pillDec(
-                            hint: 'Escribe tu nueva contraseña',
-                            prefix: Icons.lock_outline,
-                          ).copyWith(
-                            suffixIcon: IconButton(
-                              onPressed: () =>
-                                  setState(() => _showPass = !_showPass),
-                              icon: Icon(
-                                _showPass
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
-                                color: _sub,
-                              ),
-                              tooltip: _showPass ? 'Ocultar' : 'Mostrar',
-                            ),
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Repite tu contraseña',
-                      style: TextStyle(color: _sub),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _pass2Ctrl,
-                      obscureText: !_showPass2,
-                      enableSuggestions: false,
-                      autocorrect: false,
-                      decoration:
-                          _pillDec(
-                            hint: 'Repite tu nueva contraseña',
-                            prefix: Icons.lock_outline,
-                          ).copyWith(
-                            suffixIcon: IconButton(
-                              onPressed: () =>
-                                  setState(() => _showPass2 = !_showPass2),
-                              icon: Icon(
-                                _showPass2
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
-                                color: _sub,
-                              ),
-                              tooltip: _showPass2 ? 'Ocultar' : 'Mostrar',
-                            ),
-                          ),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _brand,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        onPressed: _loading ? null : _resetPassword,
-                        icon: _loading
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.check, color: Colors.white),
-                        label: Text(
-                          _loading ? 'Actualizando…' : 'Actualizar contraseña',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -461,114 +313,78 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
   }
 }
 
-class _ModeChip extends StatelessWidget {
-  const _ModeChip({required this.mode});
-  final RecoveryMode mode;
+// ───────────── Card section
+class _Card extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget child;
 
-  @override
-  Widget build(BuildContext context) {
-    final txt = mode == RecoveryMode.cliente ? 'Cliente' : 'Empresa';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Palette.kPrimary.withOpacity(.08),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Palette.kPrimary.withOpacity(.25)),
-      ),
-      child: Text(
-        txt,
-        style: const TextStyle(
-          color: Palette.kPrimary,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
-class _Segmented extends StatelessWidget {
-  const _Segmented({required this.active, required this.onChange});
-  final RecoveryMode active;
-  final ValueChanged<RecoveryMode> onChange;
+  const _Card({required this.icon, required this.title, required this.subtitle, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 48,
-      padding: const EdgeInsets.all(4),
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Palette.kBorder),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4))],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SegItem(
-            icon: Icons.person_outline,
-            text: 'Cliente',
-            selected: active == RecoveryMode.cliente,
-            onTap: () => onChange(RecoveryMode.cliente),
-          ),
-          _SegItem(
-            icon: Icons.business_outlined,
-            text: 'Empresa',
-            selected: active == RecoveryMode.empresa,
-            onTap: () => onChange(RecoveryMode.empresa),
-          ),
+          Row(children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(color: Palette.kAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, size: 18, color: Palette.kAccent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(title, style: const TextStyle(color: Palette.kTitle, fontSize: 16, fontWeight: FontWeight.w700))),
+          ]),
+          const SizedBox(height: 6),
+          Text(subtitle, style: const TextStyle(color: Palette.kMuted, fontSize: 13)),
+          const SizedBox(height: 16),
+          child,
         ],
       ),
     );
   }
 }
 
-class _SegItem extends StatelessWidget {
-  const _SegItem({
-    required this.icon,
-    required this.text,
-    required this.selected,
-    required this.onTap,
-  });
-
+// ───────────── Mode tab
+class _ModeTab extends StatelessWidget {
   final IconData icon;
   final String text;
-  final bool selected;
+  final bool active;
   final VoidCallback onTap;
+
+  const _ModeTab({required this.icon, required this.text, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
+      child: GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: selected ? Palette.kPrimary : Colors.transparent,
-            borderRadius: BorderRadius.circular(999),
+            color: active ? Palette.kAccent : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: 18,
-                color: selected ? Colors.white : Palette.kPrimary,
-              ),
+              Icon(icon, size: 16, color: active ? Colors.white : Palette.kMuted),
               const SizedBox(width: 6),
-              Text(
-                text,
-                style: TextStyle(
-                  color: selected ? Colors.white : Palette.kPrimary,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
+              Text(text, style: TextStyle(color: active ? Colors.white : Palette.kMuted, fontWeight: FontWeight.w600, fontSize: 13)),
             ],
           ),
         ),
       ),
     );
   }
-  
 }

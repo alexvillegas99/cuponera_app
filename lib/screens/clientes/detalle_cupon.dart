@@ -62,14 +62,14 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(_data?.version.nombre ?? 'Detalle cuponera'),
-         backgroundColor: Palette.kAccent,
-        foregroundColor: Palette.kBorder,
-        elevation: 0.5,
+         backgroundColor: Palette.kPrimary,
+        foregroundColor: Colors.white,
+        elevation: 0,
         bottom: TabBar(
           controller: _tab,
-          labelColor: Colors.white ,
+          labelColor: Colors.white,
           unselectedLabelColor: Colors.white54,
-           indicatorColor: Colors.red, 
+           indicatorColor: Palette.kAccent,
           tabs: const [
             Tab(text: 'Por escanear'),
             Tab(text: 'Escaneados'),
@@ -85,7 +85,7 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
       ),
       backgroundColor: Palette.kBg,
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Palette.kAccent))
           : _error != null
           ? Center(child: Text(_error!, textAlign: TextAlign.center))
           : _data == null
@@ -280,13 +280,12 @@ class _HeaderCupon extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 6),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -351,12 +350,12 @@ class _HeaderCupon extends StatelessWidget {
                             (c) => Chip(
                               label: Text(
                                 c,
-                                style: const TextStyle(fontSize: 12),
+                                style: const TextStyle(fontSize: 12, color: Palette.kAccent),
                               ),
                               materialTapTargetSize:
                                   MaterialTapTargetSize.shrinkWrap,
-                              side: BorderSide(color: border),
-                              backgroundColor: Palette.kField,
+                              side: BorderSide.none,
+                              backgroundColor: Palette.kAccent.withOpacity(0.1),
                             ),
                           )
                           .toList(),
@@ -468,13 +467,12 @@ class _LocalCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: border),
+          borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 5),
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -533,12 +531,12 @@ class _LocalCard extends StatelessWidget {
                           (c) => Chip(
                             label: Text(
                               c,
-                              style: const TextStyle(fontSize: 11),
+                              style: const TextStyle(fontSize: 11, color: Palette.kAccent),
                             ),
                             materialTapTargetSize:
                                 MaterialTapTargetSize.shrinkWrap,
-                            side: BorderSide(color: border),
-                            backgroundColor: Palette.kField,
+                            side: BorderSide.none,
+                            backgroundColor: Palette.kAccent.withOpacity(0.1),
                           ),
                         )
                         .toList(),
@@ -618,10 +616,10 @@ class _Stars extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: List.generate(5, (i) {
         if (i < full)
-          return const Icon(Icons.star, size: 16, color: Colors.amber);
+          return const Icon(Icons.star, size: 16, color: Palette.kAccentLight);
         if (i == full && half)
-          return const Icon(Icons.star_half, size: 16, color: Colors.amber);
-        return const Icon(Icons.star_border, size: 16, color: Colors.amber);
+          return const Icon(Icons.star_half, size: 16, color: Palette.kAccentLight);
+        return const Icon(Icons.star_border, size: 16, color: Palette.kAccentLight);
       }),
     );
   }

@@ -26,8 +26,7 @@ class FloatingBottomBarLight extends StatelessWidget {
       decoration: BoxDecoration(
         color: Palette.kSurface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Palette.kBorder),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 14, offset: const Offset(0, 6))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 4))],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Row(
@@ -61,7 +60,7 @@ class _NavButtonLight extends StatelessWidget {
           boxShadow: active ? [BoxShadow(color: Palette.kAccent.withOpacity(0.25), blurRadius: 10, offset: const Offset(0, 4))] : null,
         ),
         child: Row(children: [
-          Icon(item.icon, color: active ? Colors.white : Palette.kSub, size: 22),
+          Icon(item.icon, color: active ? Colors.white : Palette.kMuted, size: 22),
           if (active) ...[
             const SizedBox(width: 6),
             Text(item.label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),

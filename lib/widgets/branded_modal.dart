@@ -84,7 +84,7 @@ Future<void> showBrandedDialog(
                   Expanded(
                     child: FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: Palette.kPrimary,
+                        backgroundColor: Palette.kAccent,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),

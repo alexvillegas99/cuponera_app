@@ -3,12 +3,15 @@ import 'dart:convert';
 
 import 'package:enjoy/mappers/cuponera.dart';
 import 'package:enjoy/screens/clientes/detalle_cupon.dart';
+import 'package:enjoy/screens/clientes/comprar_cuponera_screen.dart';
+import 'package:enjoy/screens/clientes/mis_solicitudes_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:enjoy/services/cupones_service.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../ui/palette.dart';
+import '../../services/configuracion_service.dart';
 
 class CuponerasScreenLight extends StatefulWidget {
   final List<Cuponera> cuponeras;
@@ -30,11 +33,24 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
 
   late List<Cuponera> _items; // copia local para refrescar
   bool _reloading = false;
+  String _whatsappNumero = '+593999999999';
+  String _whatsappMensaje = 'Hola, quiero adquirir una cuponera.';
 
   @override
   void initState() {
     super.initState();
     _items = List.of(widget.cuponeras);
+    _cargarConfigWhatsApp();
+  }
+
+  Future<void> _cargarConfigWhatsApp() async {
+    final configs = await ConfiguracionService.obtenerTodas();
+    if (mounted) {
+      setState(() {
+        _whatsappNumero = configs['whatsapp_numero'] ?? _whatsappNumero;
+        _whatsappMensaje = configs['whatsapp_mensaje'] ?? _whatsappMensaje;
+      });
+    }
   }
 
   Future<void> _reloadFromServer() async {
@@ -256,13 +272,12 @@ Future<bool?> _confirmAssignSheet(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Palette.kSurface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Palette.kBorder),
+                  borderRadius: BorderRadius.circular(8),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 6),
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
@@ -369,6 +384,136 @@ Future<void> _openWhatsApp(String phone, {String? message}) async {
   }
 }
 
+void _showAdquirirSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Palette.kAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.shopping_bag_outlined, color: Palette.kAccent),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Adquirir Cuponera',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                      color: Palette.kTitle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Elige como quieres adquirir tu cuponera',
+                style: TextStyle(color: Palette.kMuted),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _AdquirirOptionCard(
+                    icon: Icons.chat_outlined,
+                    title: 'WhatsApp',
+                    subtitle: 'Escribir por chat',
+                    onTap: () {
+                      Navigator.pop(context);
+                      _openWhatsApp(_whatsappNumero, message: _whatsappMensaje);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _AdquirirOptionCard(
+                    icon: Icons.credit_card_outlined,
+                    title: 'Compra directa',
+                    subtitle: 'Transferencia bancaria',
+                    onTap: () async {
+                      Navigator.pop(context);
+                      final me = await _auth.getUser();
+                      debugPrint('🔍 getUser() => $me');
+                      if (me == null || !mounted) return;
+                      final result = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ComprarCuponeraScreen(
+                            clienteId: me['_id']?.toString() ?? '',
+                            nombreCliente: '${me['nombres'] ?? ''} ${me['apellidos'] ?? ''}'.trim(),
+                            emailCliente: me['email']?.toString() ?? '',
+                            telefonoCliente: me['telefono']?.toString(),
+                          ),
+                        ),
+                      );
+                      if (result == true && mounted) {
+                        _reloadFromServer();
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ── Mis solicitudes ──
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  final me = await _auth.getUser();
+                  if (me == null || !mounted) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MisSolicitudesScreen(
+                        clienteId: me['_id']?.toString() ?? '',
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.receipt_long, size: 18, color: Palette.kPrimary),
+                label: const Text(
+                  'Ver mis solicitudes',
+                  style: TextStyle(color: Palette.kPrimary, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 Widget _buildFab(BuildContext context) {
   return SafeArea(
     child: Align(
@@ -376,11 +521,8 @@ Widget _buildFab(BuildContext context) {
       child: Padding(
         padding: const EdgeInsets.only(right: 16, bottom: 16),
         child: FloatingActionButton.extended(
-          onPressed: () => _openWhatsApp(
-            '+593995333281',
-            message: 'Hola, quiero adquirir una cuponera.',
-          ),
-          icon: const Icon(Icons.message),
+          onPressed: () => _showAdquirirSheet(context),
+          icon: const Icon(Icons.add),
           label: const Text('Adquirir Cuponera'),
           backgroundColor: Palette.kAccent,
           foregroundColor: Colors.white,
@@ -433,7 +575,7 @@ Widget _buildFab(BuildContext context) {
             child: SizedBox(
               width: 26,
               height: 26,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: CircularProgressIndicator(strokeWidth: 2, color: Palette.kAccent),
             ),
           ),
       ],
@@ -501,13 +643,12 @@ class _CuponeraTicketCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: border),
+          borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -843,6 +984,71 @@ class _SecBadge extends StatelessWidget {
           fontWeight: FontWeight.w800,
           fontSize: 12,
           letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+class _AdquirirOptionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _AdquirirOptionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Palette.kSurface,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Palette.kAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: Palette.kAccent, size: 26),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: Palette.kTitle,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Palette.kMuted,
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -460,7 +460,7 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
                     // Etiquetas
                     // Etiquetas
                     if (p != null && p.tags.isNotEmpty) ...[
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 14), 
                       Text(
                         'Etiquetas',
                         style: TextStyle(

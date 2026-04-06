@@ -1,5 +1,6 @@
 // lib/widgets/pill_field.dart
 import 'package:flutter/material.dart';
+import 'package:enjoy/ui/palette.dart';
 
 class PillField extends StatelessWidget {
   final String hint;
@@ -23,9 +24,9 @@ class PillField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color pill = const Color(0xFFD9E6FF);
-    final Color hintColor = const Color(0xFF6B7280);
-    final Color textColor = const Color(0xFF111827);
+    const Color pill = Palette.kField;
+    const Color hintColor = Palette.kMuted;
+    const Color textColor = Palette.kTitle;
 
     return Container(
       height: 54,

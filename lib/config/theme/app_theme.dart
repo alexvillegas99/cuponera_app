@@ -1,53 +1,56 @@
 import 'package:flutter/material.dart';
+import 'package:enjoy/ui/palette.dart';
 
 class AppTheme {
   static ThemeData getAppTheme() => ThemeData(
+    fontFamily: 'Roboto',
     colorScheme: const ColorScheme(
       brightness: Brightness.light,
-      primary: Color(0xFF398AE5), // Azul principal del login
-      onPrimary: Colors.white, // Texto blanco sobre primario
-      secondary: Color(0xFF64B5F6), // Azul claro
+      primary: Palette.kPrimary,
+      onPrimary: Colors.white,
+      secondary: Palette.kAccent,
       onSecondary: Colors.white,
-      surface: Colors.white,
-      onSurface: Color(0xFF0D47A1), // Azul profundo para texto
+      surface: Palette.kSurface,
+      onSurface: Palette.kTitle,
       error: Color(0xFFD32F2F),
       onError: Colors.white,
-      primaryContainer: Color(0xFFBBDEFB), // Azul claro variante
-      onPrimaryContainer: Color(0xFF0D47A1),
-      secondaryContainer: Color(0xFFE3F2FD), // Fondo
-      onSecondaryContainer: Color(0xFF0D47A1),
-      outline: Color(0xFFB3E5FC), // Bordes azules claros
+      primaryContainer: Color(0xFFE8EDF4),
+      onPrimaryContainer: Palette.kPrimary,
+      secondaryContainer: Color(0xFFFFF4E5),
+      onSecondaryContainer: Palette.kAccent,
+      outline: Palette.kBorder,
     ),
-  
-    scaffoldBackgroundColor: Color(0xFFE3F2FD), // Fondo general claro
+
+    scaffoldBackgroundColor: Palette.kBg,
 
     appBarTheme: const AppBarTheme(
-      backgroundColor: Color.fromRGBO(57, 138, 229, 1), // Azul fuerte del login
+      backgroundColor: Palette.kPrimary,
       elevation: 0,
       iconTheme: IconThemeData(color: Colors.white),
       titleTextStyle: TextStyle(
         color: Colors.white,
         fontSize: 20,
-        fontWeight: FontWeight.bold,
+        fontWeight: FontWeight.w600,
+        fontFamily: 'Roboto',
       ),
     ),
 
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF398AE5),
+        backgroundColor: Palette.kAccent,
         foregroundColor: Colors.white,
-        textStyle: const TextStyle(fontWeight: FontWeight.bold),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w500, fontFamily: 'Roboto'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     ),
 
-    textTheme: TextTheme(
-      bodyLarge: TextStyle(color: Color(0xFF0D47A1), fontSize: 16),
-      bodyMedium: TextStyle(color: Colors.grey[700], fontSize: 14),
-      titleLarge: const TextStyle(
-        color: Color(0xFF398AE5),
+    textTheme: const TextTheme(
+      bodyLarge: TextStyle(color: Palette.kTitle, fontSize: 16),
+      bodyMedium: TextStyle(color: Palette.kMuted, fontSize: 14),
+      titleLarge: TextStyle(
+        color: Palette.kTitle,
         fontSize: 20,
-        fontWeight: FontWeight.bold,
+        fontWeight: FontWeight.w600,
       ),
     ),
 
@@ -57,22 +60,22 @@ class AppTheme {
       contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey[300]!),
+        borderSide: const BorderSide(color: Palette.kBorder),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF398AE5), width: 2),
+        borderSide: const BorderSide(color: Palette.kAccent, width: 2),
       ),
-      labelStyle: TextStyle(color: Colors.grey[800]),
-      hintStyle: TextStyle(color: Colors.grey[500]),
+      labelStyle: const TextStyle(color: Palette.kMuted),
+      hintStyle: const TextStyle(color: Palette.kMuted),
     ),
 
     toggleButtonsTheme: ToggleButtonsThemeData(
-      borderColor: const Color(0xFF64B5F6),
-      selectedBorderColor: const Color(0xFF398AE5),
+      borderColor: Palette.kBorder,
+      selectedBorderColor: Palette.kAccent,
       selectedColor: Colors.white,
-      fillColor: const Color(0xFF398AE5),
-      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+      fillColor: Palette.kAccent,
+      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
       borderRadius: BorderRadius.circular(20),
     ),
   );

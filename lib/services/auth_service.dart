@@ -288,7 +288,7 @@ class AuthService {
         'nombres': nombres,
         'correo': correo,
         'telefono': telefono,
-      }),
+      }), 
     );
 
     if (resp.statusCode < 200 || resp.statusCode >= 300) {
