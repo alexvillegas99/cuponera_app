@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:enjoy/main.dart' show isPushEnabled;
 import 'package:enjoy/services/my_firebase_messaging_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -14,7 +15,7 @@ class AuthService {
   MyFirebaseMessagingService? myFirebaseService;
 
   AuthService() {
-    if (!Platform.isIOS) {
+    if (isPushEnabled) {
       myFirebaseService = MyFirebaseMessagingService();
     }
   }
@@ -104,6 +105,8 @@ class AuthService {
 
         if (userId != null && userId.isNotEmpty) {
           myFirebaseService?.subscribeToTopic(userId);
+          // Guardar FCM token en el backend para notificaciones personalizadas
+          _guardarFcmToken(userId);
         }
 
         final ruta = await getTargetHomeRoute();
@@ -303,5 +306,23 @@ class AuthService {
     updated['telefono'] = telefono;
 
     await saveUserData(token, updated);
+  }
+
+  /// Guarda el FCM token del cliente en el backend para notificaciones personalizadas
+  Future<void> _guardarFcmToken(String clienteId) async {
+    if (!isPushEnabled) return;
+    try {
+      final fcmToken = await MyFirebaseMessagingService().getTokenWithRetry();
+      if (fcmToken == null || fcmToken.isEmpty) return;
+
+      await http.patch(
+        Uri.parse('$baseUrl/clientes/$clienteId/fcm-token'),
+        headers: _jsonHeaders,
+        body: jsonEncode({'fcmToken': fcmToken}),
+      );
+      debugPrint('✅ FCM token guardado para cliente $clienteId');
+    } catch (e) {
+      debugPrint('⚠️ No se pudo guardar FCM token: $e');
+    }
   }
 }
