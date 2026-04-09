@@ -23,8 +23,12 @@ import 'package:enjoy/state/favorites_store.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
 
-/// 🔥 Flag global
-bool get isPushEnabled => !Platform.isIOS;
+/// 🔥 Flag global — usa las mismas banderas del servicio
+bool get isPushEnabled {
+  if (Platform.isAndroid) return kNotificacionesAndroid;
+  if (Platform.isIOS) return kNotificacionesIOS;
+  return false;
+}
 
 class MyHttpOverrides extends HttpOverrides {
   @override
@@ -39,7 +43,7 @@ class MyHttpOverrides extends HttpOverrides {
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
-    if (!isPushEnabled) return; // 🔴 bloqueo iOS
+    if (!isPushEnabled) return;
     await Firebase.initializeApp();
   } catch (e, st) {
     print('❌ BG handler error: $e\n$st');

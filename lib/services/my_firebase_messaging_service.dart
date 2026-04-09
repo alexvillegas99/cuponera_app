@@ -5,10 +5,15 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+// ============ BANDERAS DE PLATAFORMA ============
+const bool kNotificacionesAndroid = true;
+const bool kNotificacionesIOS = true;
+
 /// ============ TOP-LEVEL BG HANDLER ============
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  if (Platform.isIOS) return; // 🔴 BLOQUEO TOTAL iOS
+  if (Platform.isIOS && !kNotificacionesIOS) return;
+  if (Platform.isAndroid && !kNotificacionesAndroid) return;
 
   try {
     await Firebase.initializeApp();
@@ -27,9 +32,12 @@ class MyFirebaseMessagingService {
   bool _initialized = false;
 
   Future<bool> initNotifications() async {
-    /// 🔴 BLOQUEO TOTAL iOS
-    if (Platform.isIOS) {
+    if (Platform.isIOS && !kNotificacionesIOS) {
       debugPrint('🚫 FCM desactivado en iOS');
+      return false;
+    }
+    if (Platform.isAndroid && !kNotificacionesAndroid) {
+      debugPrint('🚫 FCM desactivado en Android');
       return false;
     }
 
@@ -120,7 +128,8 @@ class MyFirebaseMessagingService {
   }
 
   Future<void> subscribeToTopic(String topic) async {
-    if (Platform.isIOS) return; // 🔴
+    if (Platform.isIOS && !kNotificacionesIOS) return;
+    if (Platform.isAndroid && !kNotificacionesAndroid) return;
 
     try {
       await _fm.subscribeToTopic(topic);
@@ -131,7 +140,8 @@ class MyFirebaseMessagingService {
   }
 
   Future<void> unsubscribeFromTopic(String topic) async {
-    if (Platform.isIOS) return; // 🔴
+    if (Platform.isIOS && !kNotificacionesIOS) return;
+    if (Platform.isAndroid && !kNotificacionesAndroid) return;
 
     try {
       await _fm.unsubscribeFromTopic(topic);
@@ -142,7 +152,8 @@ class MyFirebaseMessagingService {
   }
 
   Future<String?> getTokenWithRetry({int retries = 3}) async {
-    if (Platform.isIOS) return null; // 🔴
+    if (Platform.isIOS && !kNotificacionesIOS) return null;
+    if (Platform.isAndroid && !kNotificacionesAndroid) return null;
 
     String? token;
 
