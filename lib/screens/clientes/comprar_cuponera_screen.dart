@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
-import 'package:url_launcher/url_launcher.dart';
+import 'payphone_webview_screen.dart';
 
 import '../../ui/palette.dart';
 import '../../services/configuracion_service.dart';
@@ -44,6 +44,7 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
   bool _paypalActivo = false;
 
   int? _selectedCuponera;
+  String? _metodoPago; // 'transferencia' | 'payphone' | 'paypal'
   File? _comprobante;
   final _montoCtrl = TextEditingController();
   final _obsCtrl = TextEditingController();
@@ -239,31 +240,60 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
     final cuponera = _cuponeras[_selectedCuponera!];
 
     try {
-      final result = await PagosService.crearPayPhone(
+      final result = await PagosService.iniciarPayPhone(
         clienteId: widget.clienteId,
         nombreCliente: widget.nombreCliente,
         emailCliente: widget.emailCliente,
         telefonoCliente: widget.telefonoCliente,
         cuponeraNombre: cuponera['nombre'] ?? '',
         cuponeraPrecio: cuponera['precio'] ?? '0.00',
-        responseUrl: 'https://ecuenjoy.com/pago/exito',
-        cancellationUrl: 'https://ecuenjoy.com/pago/cancelado',
       );
 
-      final paymentUrl = result['paymentUrl'];
-      if (paymentUrl != null) {
-        final uri = Uri.parse(paymentUrl);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
+      setState(() => _submitting = false);
+      if (!mounted) return;
+
+      final formularioUrl = result['formularioUrl'] as String?;
+      final txn = result['clientTransactionId'] as String?;
+      if (formularioUrl == null || txn == null) {
+        _showError('No se pudo iniciar el pago. Intenta de nuevo.');
+        return;
       }
 
+      final outcome = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PayPhoneWebViewScreen(
+            formularioUrl: formularioUrl,
+            clientTransactionId: txn,
+          ),
+        ),
+      );
+
+      if (!mounted) return;
+      if (outcome == 'aprobado') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Text('¡Pago aprobado! Tu cuponera ha sido activada.'),
+              ],
+            ),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        Navigator.pop(context, true);
+      } else if (outcome == 'rechazado') {
+        _showError('El pago no fue aprobado. Verifica tu tarjeta e intenta de nuevo.');
+      }
+    } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      _showSnack('Completa el pago en PayPhone');
-    } catch (e) {
-      setState(() => _submitting = false);
-      _showSnack('Error al iniciar el pago: $e');
+      _showError(PagosService.mensajeError(e, fallback: 'No se pudo iniciar el pago con PayPhone. Intenta de nuevo.'));
     }
   }
 
@@ -297,10 +327,11 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
 
       if (!mounted) return;
       setState(() => _submitting = false);
-      _showSnack('Completa el pago en PayPal');
+      _showSnack('Redirigiendo a PayPal para completar el pago...');
     } catch (e) {
+      if (!mounted) return;
       setState(() => _submitting = false);
-      _showSnack('Error al iniciar el pago: $e');
+      _showError(PagosService.mensajeError(e, fallback: 'No se pudo iniciar el pago con PayPal. Intenta de nuevo.'));
     }
   }
 
@@ -319,6 +350,24 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
+    );
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(child: Text(msg, style: const TextStyle(fontSize: 14))),
+          ],
+        ),
+        backgroundColor: const Color(0xFFD32F2F),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
     );
   }
 
@@ -484,7 +533,10 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
       ),
     );
     if (result != null && mounted) {
-      setState(() => _selectedCuponera = result);
+      setState(() {
+        _selectedCuponera = result;
+        _metodoPago = null;
+      });
     }
   }
 
@@ -541,7 +593,10 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
               child: _buildCuponeraCard(
                 entry.value,
                 selected: _selectedCuponera == i,
-                onTap: () => setState(() => _selectedCuponera = i),
+                onTap: () => setState(() {
+                  _selectedCuponera = i;
+                  _metodoPago = null;
+                }),
               ),
             );
           }),
@@ -753,69 +808,146 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
     );
   }
 
-  Widget _buildMetodosPagoOnline() {
-    if (!_payphoneActivo && !_paypalActivo) return const SizedBox.shrink();
+  Widget _buildMetodoPagoSelector() {
+    final metodos = <Map<String, dynamic>>[];
+    if (_cuentas.isNotEmpty) {
+      metodos.add({
+        'id': 'transferencia',
+        'label': 'Transferencia bancaria',
+        'icon': Icons.account_balance,
+        'color': const Color(0xFF2E7D32),
+      });
+    }
+    if (_payphoneActivo) {
+      metodos.add({
+        'id': 'payphone',
+        'label': 'PayPhone',
+        'icon': Icons.payment,
+        'color': const Color(0xFF1A73E8),
+      });
+    }
+    if (_paypalActivo) {
+      metodos.add({
+        'id': 'paypal',
+        'label': 'PayPal',
+        'icon': Icons.account_balance_wallet,
+        'color': const Color(0xFF003087),
+      });
+    }
+
+    if (metodos.isEmpty) return const SizedBox.shrink();
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (_payphoneActivo)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: _submitting ? null : _pagarConPayPhone,
-                icon: const Icon(Icons.payment, size: 20),
-                label: Text(
-                  _submitting ? 'Procesando...' : 'Pagar con PayPhone',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1A73E8),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
-                ),
-              ),
-            ),
-          ),
-        if (_paypalActivo)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: _submitting ? null : _pagarConPayPal,
-                icon: const Icon(Icons.account_balance_wallet, size: 20),
-                label: Text(
-                  _submitting ? 'Procesando...' : 'Pagar con PayPal',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF003087),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
-                ),
-              ),
-            ),
-          ),
-        const SizedBox(height: 2),
-        const Row(
-          children: [
-            Expanded(child: Divider(color: Palette.kMuted)),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text('o paga por transferencia', style: TextStyle(color: Palette.kMuted, fontSize: 13)),
-            ),
-            Expanded(child: Divider(color: Palette.kMuted)),
-          ],
-        ),
+        _sectionHeader(Icons.credit_card, 'Método de pago'),
         const SizedBox(height: 12),
+        ...metodos.map((m) {
+          final selected = _metodoPago == m['id'];
+          final color = m['color'] as Color;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: GestureDetector(
+              onTap: () => setState(() => _metodoPago = m['id'] as String),
+              child: _card(
+                selected: selected,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(selected ? 0.15 : 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(m['icon'] as IconData, color: color, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          m['label'] as String,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: selected ? Palette.kTitle : Palette.kSub,
+                          ),
+                        ),
+                      ),
+                      if (selected)
+                        const Icon(Icons.check_circle, color: Palette.kAccent, size: 22)
+                      else
+                        const Icon(Icons.radio_button_unchecked, color: Palette.kMuted, size: 22),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
       ],
     );
+  }
+
+  List<Widget> _buildContenidoMetodo() {
+    if (_metodoPago == 'transferencia') {
+      return [
+        _buildCuentasSection(),
+        if (_cuentas.isNotEmpty) const SizedBox(height: 24),
+        _buildInstruccionesSection(),
+        if (_instrucciones.isNotEmpty) const SizedBox(height: 24),
+        _buildComprobanteSection(),
+        const SizedBox(height: 24),
+        _buildFormFields(),
+        const SizedBox(height: 28),
+        _buildSubmitButton(),
+      ];
+    }
+    if (_metodoPago == 'payphone') {
+      return [
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: _submitting ? null : _pagarConPayPhone,
+            icon: const Icon(Icons.payment, size: 20),
+            label: Text(
+              _submitting ? 'Procesando...' : 'Pagar con PayPhone',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1A73E8),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              elevation: 0,
+            ),
+          ),
+        ),
+      ];
+    }
+    if (_metodoPago == 'paypal') {
+      return [
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: _submitting ? null : _pagarConPayPal,
+            icon: const Icon(Icons.account_balance_wallet, size: 20),
+            label: Text(
+              _submitting ? 'Procesando...' : 'Pagar con PayPal',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF003087),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              elevation: 0,
+            ),
+          ),
+        ),
+      ];
+    }
+    return [];
   }
 
   Widget _buildSubmitButton() {
@@ -873,17 +1005,14 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildCuponerasSection(),
-                  const SizedBox(height: 24),
-                  _buildCuentasSection(),
-                  if (_cuentas.isNotEmpty) const SizedBox(height: 24),
-                  _buildInstruccionesSection(),
-                  if (_instrucciones.isNotEmpty) const SizedBox(height: 24),
-                  _buildComprobanteSection(),
-                  const SizedBox(height: 24),
-                  _buildFormFields(),
-                  const SizedBox(height: 28),
-                  _buildMetodosPagoOnline(),
-                  _buildSubmitButton(),
+                  if (_selectedCuponera != null) ...[
+                    const SizedBox(height: 24),
+                    _buildMetodoPagoSelector(),
+                  ],
+                  if (_metodoPago != null) ...[
+                    const SizedBox(height: 24),
+                    ..._buildContenidoMetodo(),
+                  ],
                   const SizedBox(height: 32),
                 ],
               ),
