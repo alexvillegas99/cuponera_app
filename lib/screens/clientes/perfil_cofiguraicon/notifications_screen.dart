@@ -16,119 +16,77 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  // Keys para switches
-  static const _kNotifPromos = 'notif_promos_v1';
+  static const _kNotifPromos  = 'notif_promos_v1';
   static const _kNotifAlertas = 'notif_alertas_v1';
-
-  // Key para guardar el "estado actual" de topics aplicados (para diff)
-  static const _kTopicsPrefs = 'notif_topics_current_v1';
+  static const _kTopicsPrefs  = 'notif_topics_current_v1';
 
   FirebaseMessaging? _fm;
-  bool get isPushEnabled => !Platform.isIOS;
-  bool _promos = true;
+  bool get _isPush => !Platform.isIOS;
+
+  bool _promos  = true;
   bool _alertas = true;
-  bool _saving = false;
+  bool _saving  = false;
 
   @override
   void initState() {
     super.initState();
-
-    if (!Platform.isIOS) {
-      _fm = FirebaseMessaging.instance;
-    }
-
+    if (!Platform.isIOS) _fm = FirebaseMessaging.instance;
     _load();
   }
 
   Future<void> _load() async {
     final p = await SharedPreferences.getInstance();
     setState(() {
-      _promos = p.getBool(_kNotifPromos) ?? true;
+      _promos  = p.getBool(_kNotifPromos)  ?? true;
       _alertas = p.getBool(_kNotifAlertas) ?? true;
     });
   }
 
-  // TODO: reemplazar por tu fuente real (perfil del usuario, API, prefs, etc.)
-  // Devuelve la lista de ciudades que el usuario tiene seleccionadas.
-  Future<List<String>> _getSelectedCities() async {
-    // Ejemplo: léelo de prefs si lo guardas ahí:
-    // final p = await SharedPreferences.getInstance();
-    // return p.getStringList('user_selected_cities') ?? ['Ambato'];
-    return ['Ambato'];
+  Future<List<String>> _getSelectedCities() async => ['Ambato'];
+
+  Future<bool> _ensurePermissions() async {
+    if (!_isPush || _fm == null) return false;
+    final fm = _fm!;
+    final s = await fm.getNotificationSettings();
+    if (s.authorizationStatus == AuthorizationStatus.authorized ||
+        s.authorizationStatus == AuthorizationStatus.provisional) return true;
+
+    final r = await fm.requestPermission(alert: true, badge: true, sound: true);
+    if (r.authorizationStatus == AuthorizationStatus.authorized ||
+        r.authorizationStatus == AuthorizationStatus.provisional) return true;
+
+    if (!mounted) return false;
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Permisos de notificación',
+            style: TextStyle(fontWeight: FontWeight.w700)),
+        content: const Text(
+            'Para recibir notificaciones, habilítalas en Ajustes del dispositivo.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Palette.kAccent),
+            onPressed: () async {
+              Navigator.pop(context);
+              await openAppSettings();
+            },
+            child: const Text('Abrir ajustes'),
+          ),
+        ],
+      ),
+    );
+    return false;
   }
 
-  /// ------------------ PERMISOS ------------------
-
-  /// Pide permisos si hace falta; si siguen denegados, ofrece abrir ajustes.
- Future<bool> _ensurePermissions(BuildContext context) async {
-  if (!isPushEnabled || _fm == null) return false;
-
-  final fm = _fm!; // ✅ promoción manual segura
-
-  final settings = await fm.getNotificationSettings();
-
-  if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-      settings.authorizationStatus == AuthorizationStatus.provisional) {
-    return true;
-  }
-
-  final req = await fm.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
-
-  if (req.authorizationStatus == AuthorizationStatus.authorized ||
-      req.authorizationStatus == AuthorizationStatus.provisional) {
-    return true;
-  }
-
-  if (!mounted) return false;
-
-  await showDialog(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text('Permisos de notificación'),
-      content: const Text('Para recibir notificaciones, habilítalas en Ajustes.'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        TextButton(
-          onPressed: () async {
-            Navigator.pop(context);
-            await openAppSettings();
-          },
-          child: const Text('Abrir ajustes'),
-        ),
-      ],
-    ),
-  );
-
-  return false;
-}
-  /// ------------------ TOPICS ------------------
-
-Future<void> _subscribe(String topic) async {
-  if (_fm == null) return;
-
-  final fm = _fm!; // 🔥 promoción segura
-
-  await fm.subscribeToTopic(topic);
-}
-Future<void> _unsubscribe(String topic) async {
-  if (_fm == null) return;
-
-  final fm = _fm!;
-
-  await fm.unsubscribeFromTopic(topic);
-}
-
-  /// slug básico para ciudades (minúsculas, sin acentos, reemplazo por '-')
   String _slug(String input) {
-    final lower = input.trim().toLowerCase();
-    final replaced = lower
+    return input
+        .trim()
+        .toLowerCase()
         .replaceAll(RegExp(r'[áàä]'), 'a')
         .replaceAll(RegExp(r'[éèë]'), 'e')
         .replaceAll(RegExp(r'[íìï]'), 'i')
@@ -137,114 +95,85 @@ Future<void> _unsubscribe(String topic) async {
         .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
         .replaceAll(RegExp(r'-+'), '-')
         .replaceAll(RegExp(r'^-|-$'), '');
-    return replaced;
   }
 
-  /// Calcula diff y se suscribe/desuscribe. Guarda el estado final en prefs.
-  ///
-  /// Convenciones:
-  /// - Promos ON  -> topics: 'general' + 'ciudad-<slug(ciudad)>' por cada ciudad
-  /// - Alertas ON -> topic:  'alertas' (global). Si quisieras por ciudad, puedes añadir 'alertas-<slug>'
-  Future<Map<String, List<String>>> _syncTopics({
+  Future<void> _syncTopics({
     required bool promos,
     required bool alertas,
     required List<String> ciudades,
-    bool alertasPorCiudad = false,
   }) async {
-    // 1) Construye set deseado
-    final desired = <String>{};
+    if (_fm == null) return;
+    final desired = <String>{
+      if (promos) 'general',
+      if (promos) ...ciudades.map(_slug),
+      if (alertas) 'alertas',
+    };
 
-    if (promos) {
-      desired.add('general');
-      for (final c in ciudades) {
-        desired.add(_slug(c));
-      }
-    }
-
-    if (alertas) {
-      desired.add('alertas');
-      if (alertasPorCiudad) {
-        for (final c in ciudades) {
-          desired.add(_slug(c));
-        }
-      }
-    }
-
-    // 2) Carga estado actual desde SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     final currentJson = prefs.getString(_kTopicsPrefs);
     final current = currentJson != null
-        ? List<String>.from(jsonDecode(currentJson))
-        : <String>[];
-    final currentSet = current.toSet();
+        ? List<String>.from(jsonDecode(currentJson)).toSet()
+        : <String>{};
 
-    // 3) Diff
-    print(desired);
-    print('desired');
-    final toSubscribe = desired.difference(currentSet).toList();
-    final toUnsubscribe = currentSet.difference(desired).toList();
-
-    // 4) Aplica cambios
-    for (final t in toSubscribe) {
-      await _subscribe(t);
+    // Cada suscripción/desuscripción es independiente — un fallo no aborta las demás
+    for (final t in desired.difference(current)) {
+      try {
+        await _fm!.subscribeToTopic(t);
+      } catch (e) {
+        debugPrint('[Notif] subscribeToTopic("$t") falló: $e');
+      }
     }
-    for (final t in toUnsubscribe) {
-      await _unsubscribe(t);
+    for (final t in current.difference(desired)) {
+      try {
+        await _fm!.unsubscribeFromTopic(t);
+      } catch (e) {
+        debugPrint('[Notif] unsubscribeFromTopic("$t") falló: $e');
+      }
     }
 
-    // 5) Guarda nuevo estado
+    // Guardar el estado deseado igual, para que el próximo diff sea correcto
     await prefs.setString(_kTopicsPrefs, jsonEncode(desired.toList()));
-
-    return {'subscribed': toSubscribe, 'unsubscribed': toUnsubscribe};
   }
-
-  /// ------------------ GUARDAR ------------------
 
   Future<void> _save() async {
     setState(() => _saving = true);
-
-    // 1) Permisos de notificación
-    final allowed = await _ensurePermissions(context);
+    final allowed = await _ensurePermissions();
     if (!allowed) {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Activa los permisos para recibir notificaciones'),
-        ),
+        const SnackBar(content: Text('Activa los permisos para recibir notificaciones')),
       );
       return;
     }
-
-    // 2) Guardar switches
     final p = await SharedPreferences.getInstance();
     await p.setBool(_kNotifPromos, _promos);
     await p.setBool(_kNotifAlertas, _alertas);
 
-    // 3) Sincronizar topics
-    final ciudades = await _getSelectedCities();
-    final result = await _syncTopics(
-      promos: _promos,
-      alertas: _alertas,
-      ciudades: ciudades,
-      alertasPorCiudad: false, // pon true si quieres alertas por ciudad también
-    );
-
-    if (!mounted) return;
-    setState(() => _saving = false);
-
-    // 4) Feedback
-    final subs = (result['subscribed'] ?? []).join(', ');
-    final unsubs = (result['unsubscribed'] ?? []).join(', ');
-    final msg = [
-      if (subs.isNotEmpty) 'Suscrito: $subs',
-      if (unsubs.isNotEmpty) 'Desuscrito: $unsubs',
-      if (subs.isEmpty && unsubs.isEmpty) 'Sin cambios',
-    ].join(' · ');
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Preferencias guardadas.')));
+    try {
+      final ciudades = await _getSelectedCities();
+      await _syncTopics(promos: _promos, alertas: _alertas, ciudades: ciudades);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Preferencias guardadas'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[Notif] _save error: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Preferencias guardadas (topics pendientes de sync)'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -252,106 +181,374 @@ Future<void> _unsubscribe(String topic) async {
     return Scaffold(
       backgroundColor: Palette.kBg,
       appBar: AppBar(
-        title: const Text('Notificaciones'),
-        backgroundColor: Palette.kAccent,
-        foregroundColor: Palette.kBg,
-        elevation: 0.5,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        children: [
-          // Intro
-          _InfoCard(
-            icon: Icons.notifications_active_outlined,
-            title: 'Controla tus notificaciones',
-            subtitle:
-                'Elige qué quieres recibir. Puedes cambiarlo cuando quieras.',
+        backgroundColor: Palette.kSurface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        foregroundColor: Palette.kPrimary,
+        title: const Text(
+          'Notificaciones',
+          style: TextStyle(
+            color: Palette.kTitle,
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
           ),
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            color: Palette.kSurface,
+            border: Border(bottom: BorderSide(color: Palette.kBorder, width: 1)),
+          ),
+        ),
+      ),
+
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: [
+
+          // ── Header ───────────────────────────────────────────
+          _buildHeader(),
           const SizedBox(height: 16),
 
-          // Card de switches
+          // ── iOS banner ────────────────────────────────────────
+          if (!_isPush) ...[
+            _buildIosBanner(),
+            const SizedBox(height: 16),
+          ],
+
+          // ── Switches ─────────────────────────────────────────
+          _buildSwitchCard(),
+          const SizedBox(height: 16),
+
+          // ── Preview notificación ──────────────────────────────
+          if (_promos) ...[
+            _buildPreviewCard(),
+            const SizedBox(height: 16),
+          ],
+
+          // ── Botón guardar ─────────────────────────────────────
+          _buildSaveButton(),
+        ],
+      ),
+    );
+  }
+
+  // ── Header ────────────────────────────────────────────────────────
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Palette.kSurface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
           Container(
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: Palette.kSurface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Palette.kBorder),
+              gradient: const LinearGradient(
+                colors: [Palette.kAccent, Palette.kAccentLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  blurRadius: 16,
-                  offset: const Offset(0, 8),
-                  color: Colors.black.withOpacity(0.04),
+                  color: Palette.kAccent.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
-            child: Column(
-              children: [
-                _SwitchRow(
-                  leadingIcon: Icons.local_offer_outlined,
-                  title: 'Promociones y ofertas',
-                  subtitle: 'Novedades de locales, descuentos y 2x1',
-                  value: _promos,
-                  onChanged: (v) => setState(() => _promos = v),
-                ),
-                const Divider(height: 1, color: Palette.kBorder),
-                _SwitchRow(
-                  leadingIcon: Icons.announcement_outlined,
-                  title: 'Alertas importantes',
-                  subtitle: 'Mensajes de seguridad y avisos del sistema',
-                  value: _alertas,
-                  onChanged: (v) => setState(() => _alertas = v),
-                ),
-              ],
+            child: const Icon(
+              Icons.notifications_rounded,
+              color: Colors.white,
+              size: 22,
             ),
           ),
-
-          // Vista previa (opcional)
-          const SizedBox(height: 18),
-          if (_promos)
-            const _PreviewCard(
-              title: 'Ejemplo de promoción',
-              body: '🎉 20% OFF en tu cafetería favorita hoy.',
-            ),
-
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              style: FilledButton.styleFrom(
-                backgroundColor: Palette.kPrimary,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Controla tus notificaciones',
+                  style: TextStyle(
+                    color: Palette.kTitle,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
                 ),
-              ),
-              icon: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.save_outlined, color: Colors.white),
-              label: const Text('Guardar preferencias'),
+                SizedBox(height: 3),
+                Text(
+                  'Elige qué quieres recibir. Puedes cambiarlo cuando quieras.',
+                  style: TextStyle(color: Palette.kMuted, fontSize: 12, height: 1.4),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  // ── iOS banner ────────────────────────────────────────────────────
+  Widget _buildIosBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Palette.kPrimary.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Palette.kPrimary.withOpacity(0.18)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.info_outline_rounded, color: Palette.kPrimary, size: 18),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Las notificaciones push no están disponibles en iOS por ahora.',
+              style: TextStyle(color: Palette.kPrimary, fontSize: 12, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Switch card ───────────────────────────────────────────────────
+  Widget _buildSwitchCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Palette.kSurface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          _SwitchTile(
+            icon: Icons.local_offer_rounded,
+            iconColor: Palette.kAccent,
+            title: 'Promociones y ofertas',
+            subtitle: 'Novedades de locales, descuentos y 2x1',
+            value: _promos,
+            onChanged: _isPush ? (v) => setState(() => _promos = v) : null,
+          ),
+          const Divider(height: 1, color: Palette.kBorder, indent: 56),
+          _SwitchTile(
+            icon: Icons.campaign_rounded,
+            iconColor: Palette.kPrimary,
+            title: 'Alertas importantes',
+            subtitle: 'Mensajes de seguridad y avisos del sistema',
+            value: _alertas,
+            onChanged: _isPush ? (v) => setState(() => _alertas = v) : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Preview card ──────────────────────────────────────────────────
+  Widget _buildPreviewCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Palette.kSurface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: Palette.kAccent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.preview_rounded,
+                  color: Palette.kAccent,
+                  size: 15,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Vista previa',
+                style: TextStyle(
+                  color: Palette.kTitle,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Palette.kBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Palette.kBorder),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Palette.kAccent, Palette.kAccentLight],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.local_activity_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Enjoy',
+                            style: TextStyle(
+                              color: Palette.kTitle,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Text(
+                            'ahora',
+                            style: TextStyle(color: Palette.kMuted, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        '🎉 20% OFF en tu cafetería favorita hoy.',
+                        style: TextStyle(
+                          color: Palette.kMuted,
+                          fontSize: 12,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Save button ───────────────────────────────────────────────────
+  Widget _buildSaveButton() {
+    final enabled = _isPush && !_saving;
+    return GestureDetector(
+      onTap: enabled ? _save : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        height: 52,
+        decoration: BoxDecoration(
+          gradient: enabled
+              ? const LinearGradient(
+                  colors: [Palette.kAccent, Palette.kAccentLight],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: enabled ? null : Palette.kBorder,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: Palette.kAccent.withOpacity(0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: _saving
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.check_rounded,
+                    color: enabled ? Colors.white : Palette.kMuted,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Guardar preferencias',
+                    style: TextStyle(
+                      color: enabled ? Colors.white : Palette.kMuted,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
 }
 
-class _SwitchRow extends StatelessWidget {
-  final IconData leadingIcon;
+// ── Switch tile ────────────────────────────────────────────────────────
+class _SwitchTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
   final String title;
   final String subtitle;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
-  const _SwitchRow({
-    required this.leadingIcon,
+  const _SwitchTile({
+    required this.icon,
+    required this.iconColor,
     required this.title,
     required this.subtitle,
     required this.value,
@@ -360,145 +557,55 @@ class _SwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final disabled = onChanged == null;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: Palette.kField,
-            child: Icon(leadingIcon, color: Palette.kAccent),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: disabled
+                  ? Palette.kField
+                  : iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: disabled ? Palette.kMuted : iconColor,
+              size: 18,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Palette.kTitle,
-                      fontWeight: FontWeight.w700,
-                    ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: disabled ? Palette.kMuted : Palette.kTitle,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(color: Palette.kMuted, fontSize: 12),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+                ),
+              ],
             ),
           ),
+          const SizedBox(width: 8),
           Switch.adaptive(
             value: value,
             onChanged: onChanged,
             activeColor: Colors.white,
-            activeTrackColor: Palette.kAccent,
+            activeTrackColor: iconColor,
             inactiveThumbColor: Palette.kBorder,
             inactiveTrackColor: Palette.kField,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  const _InfoCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Palette.kBorder),
-      ),
-      child: Row(
-        children: [
-          Container(
-            height: 44,
-            width: 44,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Palette.kPrimary, Palette.kAccent],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.notifications_none, color: Colors.white),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Palette.kTitle,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(color: Palette.kSub)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PreviewCard extends StatelessWidget {
-  final String title;
-  final String body;
-
-  const _PreviewCard({required this.title, required this.body});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Palette.kBorder),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.push_pin_outlined, color: Palette.kAccent),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Palette.kTitle,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(body, style: const TextStyle(color: Palette.kMuted)),
-              ],
-            ),
           ),
         ],
       ),

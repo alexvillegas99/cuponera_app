@@ -8,7 +8,7 @@ class SegmentedTabsLight extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 40,
+      height: 44,
       child: Container(
         decoration: BoxDecoration(
           color: Palette.kField,
@@ -19,22 +19,61 @@ class SegmentedTabsLight extends StatelessWidget {
           controller: controller,
           labelPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
           indicatorSize: TabBarIndicatorSize.tab,
-          // 🔑 Quitar la línea inferior
+          dividerColor: Colors.transparent,
           indicatorColor: Colors.transparent,
           indicator: BoxDecoration(
-            color: Palette.kAccent,
+            gradient: const LinearGradient(
+              colors: [Palette.kAccent, Palette.kAccentLight],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Palette.kAccent.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          labelStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
+          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
           labelColor: Colors.white,
           unselectedLabelColor: Palette.kMuted,
           tabs: const [
-            Tab(text: 'Todas'),
-            Tab(text: 'Hoy'),
-            Tab(text: 'Flash'),
+            Tab(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.grid_view_rounded, size: 15),
+                  SizedBox(width: 5),
+                  Text('Todas'),
+                ],
+              ),
+            ),
+            Tab(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.today_rounded, size: 15),
+                  SizedBox(width: 5),
+                  Text('Hoy'),
+                ],
+              ),
+            ),
+            Tab(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.bolt_rounded, size: 15),
+                  SizedBox(width: 5),
+                  Text('Flash'),
+                ],
+              ),
+            ),
           ],
         ),
       ),

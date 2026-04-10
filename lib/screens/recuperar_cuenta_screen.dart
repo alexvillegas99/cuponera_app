@@ -172,43 +172,6 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  // ── Selector modo ──
-                  AnimatedOpacity(
-                    opacity: _otpOk ? 0.5 : 1,
-                    duration: const Duration(milliseconds: 200),
-                    child: IgnorePointer(
-                      ignoring: _otpOk,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4)),
-                          ],
-                        ),
-                        padding: const EdgeInsets.all(4),
-                        child: Row(
-                          children: [
-                            _ModeTab(
-                              icon: Icons.person_outline,
-                              text: 'Cliente',
-                              active: _mode == RecoveryMode.cliente,
-                              onTap: () => setState(() => _mode = RecoveryMode.cliente),
-                            ),
-                            _ModeTab(
-                              icon: Icons.business_outlined,
-                              text: 'Empresa',
-                              active: _mode == RecoveryMode.empresa,
-                              onTap: () => setState(() => _mode = RecoveryMode.empresa),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
                   // ── Paso 1: Email ──
                   if (!_otpOk)
                     _Card(
@@ -251,6 +214,33 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
                         ),
                       ),
                     ),
+
+                  // ── Acceso empresa (discreto) ──
+                  if (!_otpOk) ...[
+                    const SizedBox(height: 16),
+                    GestureDetector(
+                      onTap: () => setState(() => _mode = _mode == RecoveryMode.cliente
+                          ? RecoveryMode.empresa
+                          : RecoveryMode.cliente),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.business_outlined, size: 13, color: Palette.kMuted.withOpacity(0.6)),
+                          const SizedBox(width: 5),
+                          Text(
+                            _mode == RecoveryMode.empresa
+                                ? 'Volver a acceso cliente'
+                                : 'Recuperar contraseña empresas',
+                            style: TextStyle(
+                              color: Palette.kMuted.withOpacity(0.6),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
 
                   // ── Paso 2: Nueva contraseña ──
                   if (_otpOk)
@@ -354,37 +344,3 @@ class _Card extends StatelessWidget {
   }
 }
 
-// ───────────── Mode tab
-class _ModeTab extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final bool active;
-  final VoidCallback onTap;
-
-  const _ModeTab({required this.icon, required this.text, required this.active, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: active ? Palette.kAccent : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 16, color: active ? Colors.white : Palette.kMuted),
-              const SizedBox(width: 6),
-              Text(text, style: TextStyle(color: active ? Colors.white : Palette.kMuted, fontWeight: FontWeight.w600, fontSize: 13)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

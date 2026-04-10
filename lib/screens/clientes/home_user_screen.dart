@@ -759,8 +759,9 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     return Column(
       children: [
         // Buscar
+        const SizedBox(height: 12),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: TextField(
             onChanged: (q) => setState(() => _query = q.trim().toLowerCase()),
             style: const TextStyle(color: Palette.kTitle),
@@ -797,30 +798,26 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
 
         // Categorías
         SizedBox(
-          height: 70,
+          height: 48,
           child: _catsLoading
               ? const Center(
                   child: SizedBox(
-                    height: 22,
-                    width: 22,
+                    height: 20,
+                    width: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 )
               : (_catsError != null)
               ? Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: Colors.redAccent,
-                        size: 18,
-                      ),
+                      const Icon(Icons.error_outline, color: Colors.redAccent, size: 16),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
                           'No se pudieron cargar categorías',
-                          style: TextStyle(color: Colors.redAccent),
+                          style: TextStyle(color: Colors.redAccent, fontSize: 12),
                         ),
                       ),
                       TextButton(
@@ -831,7 +828,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                   ),
                 )
               : ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,
                   children: [
                     CategoryChipLight(
@@ -943,14 +940,6 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     }
 
     if (_bottomIndex == 2) {
-      return SearchScreenLight(
-        all: _allPromos,
-        isFavorite: (p) => context.watch<FavoritesStore>().isFav(p.id),
-        onFavorite: (p) => context.read<FavoritesStore>().toggle(p.id),
-      );
-    }
-
-    if (_bottomIndex == 3) {
       if (_loadingCuponeras) {
         return const Center(child: CircularProgressIndicator());
       }
@@ -991,95 +980,128 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     return Scaffold(
       backgroundColor: Palette.kBg,
       appBar: AppBar(
-        backgroundColor: Palette.kBg,
+        backgroundColor: Palette.kSurface,
         elevation: 0,
+        scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
         toolbarHeight: 72,
-        titleSpacing: 12,
+        titleSpacing: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            color: Palette.kSurface,
+            border: Border(
+              bottom: BorderSide(color: Palette.kBorder, width: 1),
+            ),
+          ),
+        ),
 
-        // 👇 AQUÍ MISMO: Hola + nombre
-        title: widget.guestMode
-            ? const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Hola,', style: TextStyle(fontSize: 11, color: Palette.kMuted)),
-                  Text(
-                    'Invitado',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Palette.kTitle),
+        // 👇 Logo + Hola + nombre
+        title: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 36,
+                width: 36,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  gradient: const LinearGradient(
+                    colors: [Palette.kAccent, Palette.kAccentLight],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ],
-              )
-            : FutureBuilder<Map<String, dynamic>?>(
-                future: AuthService().getUser(),
-                builder: (context, snapshot) {
-                  final user = snapshot.data;
-                  String nombre = 'Invitado';
-
-                  if (user != null) {
-                    if (user['nombres'] != null) {
-                      nombre = '${user['nombres']} ${user['apellidos'] ?? ''}'.trim();
-                    } else if (user['nombre'] != null) {
-                      nombre = user['nombre'];
-                    }
-                  }
-
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Hola,',
-                        style: TextStyle(fontSize: 11, color: Palette.kMuted),
-                      ),
-                      Text(
-                        nombre,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: Palette.kTitle,
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                  boxShadow: [
+                    BoxShadow(
+                      color: Palette.kAccent.withOpacity(0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.local_activity_rounded, color: Colors.white, size: 20),
               ),
+              const SizedBox(width: 10),
+              widget.guestMode
+                  ? const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Bienvenido', style: TextStyle(fontSize: 11, color: Palette.kMuted)),
+                        Text(
+                          'Invitado',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Palette.kTitle),
+                        ),
+                      ],
+                    )
+                  : FutureBuilder<Map<String, dynamic>?>(
+                      future: AuthService().getUser(),
+                      builder: (context, snapshot) {
+                        final user = snapshot.data;
+                        String nombre = 'Invitado';
+                        if (user != null) {
+                          if (user['nombres'] != null) {
+                            nombre = '${user['nombres']} ${user['apellidos'] ?? ''}'.trim();
+                          } else if (user['nombre'] != null) {
+                            nombre = user['nombre'];
+                          }
+                        }
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Hola,', style: TextStyle(fontSize: 11, color: Palette.kMuted)),
+                            Text(
+                              nombre,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Palette.kTitle,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+            ],
+          ),
+        ),
 
         actions: [
           // 👤 PERFIL o INICIAR SESIÓN (invitado)
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: widget.guestMode
-                ? TextButton(
+          widget.guestMode
+              ? Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: TextButton(
                     onPressed: _goLogin,
                     child: const Text(
                       'Iniciar sesión',
                       style: TextStyle(color: Palette.kAccent, fontWeight: FontWeight.w600),
                     ),
-                  )
-                : IconButton(
-                    tooltip: 'Perfil',
-                    icon: const Icon(
-                      Icons.account_circle_outlined,
-                      size: 26,
-                      color: Palette.kPrimary,
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ProfileScreenLight()),
-                      );
-                    },
                   ),
-          ),
+                )
+              : _HomeAppBarBtn(
+                  icon: Icons.account_circle_outlined,
+                  color: Palette.kPrimary,
+                  tooltip: 'Perfil',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfileScreenLight()),
+                    );
+                  },
+                ),
+          const SizedBox(width: 8),
 
           // 📍 FILTRO DE CIUDAD
           Padding(
-            padding: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.only(right: 16),
             child: CityFilterIcon(
               count: _selectedCityIds.isEmpty ? 0 : _selectedCityIds.length,
               onTap: () async {
@@ -1099,9 +1121,9 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
 
         bottom: _bottomIndex == 0
             ? PreferredSize(
-                preferredSize: const Size.fromHeight(52),
+                preferredSize: const Size.fromHeight(56),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                   child: SegmentedTabsLight(controller: _tabController),
                 ),
               )
@@ -1120,7 +1142,48 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                   NavItem(icon: Icons.home_filled, label: 'Inicio'),
                   NavItem(icon: Icons.local_activity_outlined, label: 'Cuponeras'),
                 ]
-              : null,
+              : const [
+                  NavItem(icon: Icons.home_filled, label: 'Inicio'),
+                  NavItem(icon: Icons.favorite, label: 'Favoritos'),
+                  NavItem(icon: Icons.qr_code_2, label: 'Cuponeras'),
+                ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Botón de AppBar estilizado
+// ─────────────────────────────────────────────────────────────
+class _HomeAppBarBtn extends StatelessWidget {
+  const _HomeAppBarBtn({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.09),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withOpacity(0.18)),
+          ),
+          child: Icon(icon, size: 18, color: color),
         ),
       ),
     );

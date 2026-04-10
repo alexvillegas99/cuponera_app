@@ -1,7 +1,8 @@
-import 'package:enjoy/widgets/promo_card_light.dart';
 import 'package:flutter/material.dart';
 import '../../models/promotion_models.dart';
 import '../../ui/palette.dart';
+import '../../widgets/promos_list_light.dart';
+import '../../widgets/promo_card_light.dart';
 
 class FavoritesScreenLight extends StatelessWidget {
   final List<Promotion> promos;
@@ -16,20 +17,48 @@ class FavoritesScreenLight extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (promos.isEmpty) {
-      return const Center(child: Text('Aún no tienes favoritos', style: TextStyle(color: Palette.kMuted)));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.favorite_border_rounded,
+                color: Colors.redAccent,
+                size: 30,
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Sin favoritos aún',
+              style: TextStyle(
+                color: Palette.kTitle,
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Guarda promociones para encontrarlas rápido',
+              style: TextStyle(color: Palette.kMuted, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
     }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
-      itemCount: promos.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (_, i) => PromoCardLight(
-        promo: promos[i],
-        style: CardStyle.normal,
-        isFavorite: true,
-        onTap: () {},
-        onFavorite: () => onUnfavorite(promos[i]),
-        onShare: () {},
-      ),
+
+    return PromosListLight(
+      promos: promos,
+      cardStyle: CardStyle.compact,
+      isFavorite: (_) => true,
+      onFavorite: (p) async => onUnfavorite(p),
     );
   }
 }

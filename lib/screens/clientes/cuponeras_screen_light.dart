@@ -18,7 +18,7 @@ import '../../services/configuracion_service.dart';
 
 class CuponerasScreenLight extends StatefulWidget {
   final List<Cuponera> cuponeras;
-  final Future<void> Function()? onAddCuponera; // callback externo opcional
+  final Future<void> Function()? onAddCuponera;
 
   const CuponerasScreenLight({
     super.key,
@@ -34,7 +34,7 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
   final _cuponSvc = CuponesService();
   final _auth = AuthService();
 
-  late List<Cuponera> _items; // copia local para refrescar
+  late List<Cuponera> _items;
   bool _reloading = false;
   String _whatsappNumero = '+593999999999';
   String _whatsappMensaje = 'Hola, quiero adquirir una cuponera.';
@@ -94,7 +94,10 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
       final me = await _auth.getUser();
       final clienteId = me?['_id']?.toString();
       if (clienteId != null) {
-        final fresh = await _cuponSvc.listarPorCliente(clienteId, soloActivas: true);
+        final fresh = await _cuponSvc.listarPorCliente(
+          clienteId,
+          soloActivas: true,
+        );
         if (!mounted) return;
         setState(() => _items = fresh);
       }
@@ -103,16 +106,14 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
     }
   }
 
-  // ───────────────────────────── escaneo + asignación
+  // ─────────────────────────── Escaneo + asignación
   Future<void> _scanAndLink(BuildContext context) async {
-    // 1) abrir escáner
     final code = await Navigator.push<String?>(
       context,
       MaterialPageRoute(builder: (_) => const _QrScanPage()),
     );
     if (code == null || code.trim().isEmpty) return;
 
-    // 2) extraer cuponId del QR
     final cuponId = _extractCuponId(code.trim());
     if (cuponId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -121,7 +122,6 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
       return;
     }
 
-    // 3) consultar al backend el cupón
     final me = await _auth.getUser();
     final clienteId = me?['_id']?.toString();
     if (clienteId == null) {
@@ -135,7 +135,6 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
     try {
       raw = await _cuponSvc.findByIdRaw(cuponId);
     } on ApiException catch (e) {
-      // Solo el texto del error ya procesado por el servicio
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message)),
       );
@@ -147,12 +146,13 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
       return;
     }
 
-    final dynamic local = raw['cliente']; // puede ser null o un ObjectId/string
+    final dynamic local = raw['cliente'];
     final yaAsignadoA =
-        (local is Map && local['_id'] != null) ? local['_id'].toString() : (local?.toString());
+        (local is Map && local['_id'] != null)
+            ? local['_id'].toString()
+            : (local?.toString());
 
     if (yaAsignadoA == null || yaAsignadoA.isEmpty) {
-      // 4) confirmar asignación al cliente actual con bottom sheet
       final ok = await _confirmAssignSheet(
         context,
         title: 'Asignar cuponera',
@@ -163,13 +163,12 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
       if (ok != true) return;
 
       try {
-        // OJO: usa el nombre real de tu método (asignarACiente o asignarACliente)
         await _cuponSvc.asignarACliente(clienteId, cuponId);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('¡Cuponera asignada correctamente!')),
         );
-        await _reloadFromServer(); // refresca lista
+        await _reloadFromServer();
       } on ApiException catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -183,32 +182,35 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
       }
     } else if (yaAsignadoA == clienteId) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Esta cuponera ya está ligada a tu cuenta.')),
+        const SnackBar(
+          content: Text('Esta cuponera ya está ligada a tu cuenta.'),
+        ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('La cuponera ya está ligada a otro cliente.')),
+        const SnackBar(
+          content: Text('La cuponera ya está ligada a otro cliente.'),
+        ),
       );
     }
   }
 
   String? _extractCuponId(String raw) {
-    // 24 hex → MongoId directo
     final reHex24 = RegExp(r'^[0-9a-fA-F]{24}$');
     if (reHex24.hasMatch(raw)) return raw;
 
-    // ¿URL con ?cuponId=... o cupon=...?
     try {
       final uri = Uri.parse(raw);
-      final id = uri.queryParameters['cuponId'] ?? uri.queryParameters['cupon'];
+      final id =
+          uri.queryParameters['cuponId'] ?? uri.queryParameters['cupon'];
       if (id != null && reHex24.hasMatch(id)) return id;
     } catch (_) {}
 
-    // ¿JSON con { cuponId / id }?
     try {
       final obj = jsonDecode(raw);
       if (obj is Map) {
-        final id = (obj['cuponId'] ?? obj['id'] ?? obj['cupon'])?.toString();
+        final id =
+            (obj['cuponId'] ?? obj['id'] ?? obj['cupon'])?.toString();
         if (id != null && reHex24.hasMatch(id)) return id;
       }
     } catch (_) {}
@@ -216,68 +218,74 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
     return null;
   }
 
-  // Bottom sheet de confirmación (bonito y azulito)
-// Bottom sheet de confirmación (bonito y azulito) + info adicional del cupón
-Future<bool?> _confirmAssignSheet(
-  BuildContext context, {
-  required String title,
-  required String message,
-  String confirmLabel = 'Asignar',
-  String cancelLabel = 'Cancelar',
-  Map<String, dynamic>? cuponRaw, // 👈 opcional para mostrar detalles
-}) {
-  // Extraer datos si vienen
-  final ver = cuponRaw?['version'];
-  final String versionNombre = (ver is Map && ver['nombre'] != null)
-      ? ver['nombre'].toString()
-      : '—';
-  final String versionDescripcion = (ver is Map && ver['descripcion'] != null)
-      ? ver['descripcion'].toString()
-      : '';
-  final int? sec = (cuponRaw?['secuencial'] is num)
-      ? (cuponRaw!['secuencial'] as num).toInt()
-      : null;
+  // ─────────────────────────── Confirm sheet
+  Future<bool?> _confirmAssignSheet(
+    BuildContext context, {
+    required String title,
+    required String message,
+    String confirmLabel = 'Asignar',
+    String cancelLabel = 'Cancelar',
+    Map<String, dynamic>? cuponRaw,
+  }) {
+    final ver = cuponRaw?['version'];
+    final String versionNombre =
+        (ver is Map && ver['nombre'] != null) ? ver['nombre'].toString() : '—';
+    final String versionDescripcion =
+        (ver is Map && ver['descripcion'] != null)
+            ? ver['descripcion'].toString()
+            : '';
+    final int? sec =
+        (cuponRaw?['secuencial'] is num)
+            ? (cuponRaw!['secuencial'] as num).toInt()
+            : null;
 
-  String _fmtSec(int? n) => n == null ? 'Nº —' : 'Nº ${n.toString().padLeft(3, '0')}';
+    String fmtSec(int? n) =>
+        n == null ? 'Nº —' : 'Nº ${n.toString().padLeft(3, '0')}';
 
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (_) {
-      return Padding(
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Palette.kSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => Padding(
         padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
+          left: 20,
+          right: 20,
           top: 16,
-          bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+          bottom: 20 + MediaQuery.of(context).viewInsets.bottom,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 44,
-              height: 5,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
-                color: Colors.black12,
+                color: Palette.kBorder,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 18),
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    color: Palette.kAccent.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(
+                      colors: [Palette.kAccent, Palette.kAccentLight],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.qr_code_2, color: Colors.black87),
+                  child: const Icon(
+                    Icons.qr_code_2_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     title,
@@ -290,293 +298,396 @@ Future<bool?> _confirmAssignSheet(
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                message,
-                style: const TextStyle(color: Palette.kMuted),
-              ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              style: const TextStyle(color: Palette.kMuted, fontSize: 14),
             ),
-
-            // 👇 Bloque adicional SOLO si tenemos cuponRaw
             if (cuponRaw != null) ...[
               const SizedBox(height: 14),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Palette.kSurface,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 20,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  color: Palette.kField,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Palette.kBorder),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Versión
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.layers_outlined, size: 18, color: Colors.grey),
+                        Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: Palette.kPrimary.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: const Icon(
+                            Icons.layers_rounded,
+                            size: 14,
+                            color: Palette.kPrimary,
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Versión: $versionNombre',
                             style: const TextStyle(
                               color: Palette.kTitle,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Palette.kAccent, Palette.kAccentLight],
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            fmtSec(sec),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    // Secuencial
-                    Row(
-                      children: [
-                        const Icon(Icons.tag, size: 18, color: Colors.grey),
-                        const SizedBox(width: 8),
-                        Chip(
-                          backgroundColor: Palette.kAccent.withOpacity(0.12),
-                          shape: const StadiumBorder(),
-                          labelPadding: const EdgeInsets.symmetric(horizontal: 10),
-                          label: Text(
-                            _fmtSec(sec),
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ],
-                    ),
-                    // Descripción (si hay)
                     if (versionDescripcion.trim().isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
                         versionDescripcion,
-                        style: const TextStyle(color: Palette.kMuted),
+                        style: const TextStyle(
+                          color: Palette.kMuted,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ],
                 ),
               ),
             ],
-
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: Text(cancelLabel),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Palette.kAccent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, false),
+                    child: Container(
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: Palette.kField,
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Palette.kBorder),
                       ),
-                    ),
-                    onPressed: () => Navigator.pop(context, true),
-                    child: Text(confirmLabel),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-          ],
-        ),
-      );
-    },
-  );
-}
-Future<void> _openWhatsApp(String phone, {String? message}) async {
-  final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
-  final text = Uri.encodeComponent(
-    message ?? 'Hola, quiero adquirir una cuponera.',
-  );
-
-  final nativeUrl =
-      Uri.parse('whatsapp://send?phone=$cleanPhone&text=$text');
-  final webUrl =
-      Uri.parse('https://wa.me/$cleanPhone?text=$text');
-
-  if (await canLaunchUrl(nativeUrl)) {
-    await launchUrl(nativeUrl);
-  } else {
-    await launchUrl(
-      webUrl,
-      mode: LaunchMode.externalApplication,
-    );
-  }
-}
-
-void _showAdquirirSheet(BuildContext context) {
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (_) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.black12,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Palette.kAccent.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.shopping_bag_outlined, color: Palette.kAccent),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'Adquirir Cuponera',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                      color: Palette.kTitle,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Elige como quieres adquirir tu cuponera',
-                style: TextStyle(color: Palette.kMuted),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _AdquirirOptionCard(
-                    icon: Icons.chat_outlined,
-                    title: 'WhatsApp',
-                    subtitle: 'Escribir por chat',
-                    onTap: () {
-                      Navigator.pop(context);
-                      _openWhatsApp(_whatsappNumero, message: _whatsappMensaje);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _AdquirirOptionCard(
-                    icon: Icons.credit_card_outlined,
-                    title: 'Compra directa',
-                    subtitle: 'Transferencia bancaria',
-                    onTap: () async {
-                      Navigator.pop(context);
-                      final me = await _auth.getUser();
-                      debugPrint('🔍 getUser() => $me');
-                      if (me == null || !mounted) return;
-                      final result = await Navigator.push<bool>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ComprarCuponeraScreen(
-                            clienteId: me['_id']?.toString() ?? '',
-                            nombreCliente: '${me['nombres'] ?? ''} ${me['apellidos'] ?? ''}'.trim(),
-                            emailCliente: me['email']?.toString() ?? '',
-                            telefonoCliente: me['telefono']?.toString(),
+                      child: Center(
+                        child: Text(
+                          cancelLabel,
+                          style: const TextStyle(
+                            color: Palette.kMuted,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      );
-                      if (result == true && mounted) {
-                        _reloadFromServer();
-                      }
-                    },
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, true),
+                    child: Container(
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Palette.kAccent, Palette.kAccentLight],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Palette.kAccent.withOpacity(0.30),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          confirmLabel,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-
-            // ── Mis solicitudes ──
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  final me = await _auth.getUser();
-                  if (me == null || !mounted) return;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => MisSolicitudesScreen(
-                        clienteId: me['_id']?.toString() ?? '',
-                      ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.receipt_long, size: 18, color: Palette.kPrimary),
-                label: const Text(
-                  'Ver mis solicitudes',
-                  style: TextStyle(color: Palette.kPrimary, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ),
           ],
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-Widget _buildFab(BuildContext context) {
-  return SafeArea(
-    child: Align(
-      alignment: Alignment.bottomRight,
-      child: Padding(
-        padding: const EdgeInsets.only(right: 16, bottom: 16),
-        child: FloatingActionButton.extended(
-          onPressed: () => _showAdquirirSheet(context),
-          icon: const Icon(Icons.add),
-          label: const Text('Adquirir Cuponera'),
-          backgroundColor: Palette.kAccent,
-          foregroundColor: Colors.white,
+  Future<void> _openWhatsApp(String phone, {String? message}) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final text = Uri.encodeComponent(
+      message ?? 'Hola, quiero adquirir una cuponera.',
+    );
+    final nativeUrl = Uri.parse('whatsapp://send?phone=$cleanPhone&text=$text');
+    final webUrl = Uri.parse('https://wa.me/$cleanPhone?text=$text');
+
+    if (await canLaunchUrl(nativeUrl)) {
+      await launchUrl(nativeUrl);
+    } else {
+      await launchUrl(webUrl, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _showAdquirirSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Palette.kSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Palette.kBorder,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Palette.kAccent, Palette.kAccentLight],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.shopping_bag_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Adquirir Cuponera',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                            color: Palette.kTitle,
+                          ),
+                        ),
+                        Text(
+                          'Elige cómo quieres adquirir tu cuponera',
+                          style: TextStyle(color: Palette.kMuted, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _AdquirirOptionCard(
+                      icon: Icons.chat_rounded,
+                      title: 'WhatsApp',
+                      subtitle: 'Escribir por chat',
+                      onTap: () {
+                        Navigator.pop(context);
+                        _openWhatsApp(
+                          _whatsappNumero,
+                          message: _whatsappMensaje,
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _AdquirirOptionCard(
+                      icon: Icons.credit_card_rounded,
+                      title: 'Compra directa',
+                      subtitle: 'Transferencia bancaria',
+                      onTap: () async {
+                        Navigator.pop(context);
+                        final me = await _auth.getUser();
+                        if (me == null || !mounted) return;
+                        final result = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ComprarCuponeraScreen(
+                              clienteId: me['_id']?.toString() ?? '',
+                              nombreCliente:
+                                  '${me['nombres'] ?? ''} ${me['apellidos'] ?? ''}'
+                                      .trim(),
+                              emailCliente: me['email']?.toString() ?? '',
+                              telefonoCliente: me['telefono']?.toString(),
+                            ),
+                          ),
+                        );
+                        if (result == true && mounted) {
+                          _reloadFromServer();
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Palette.kField,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Palette.kBorder),
+                ),
+                child: TextButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    final me = await _auth.getUser();
+                    if (me == null || !mounted) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MisSolicitudesScreen(
+                          clienteId: me['_id']?.toString() ?? '',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.receipt_long_rounded,
+                    size: 18,
+                    color: Palette.kPrimary,
+                  ),
+                  label: const Text(
+                    'Ver mis solicitudes',
+                    style: TextStyle(
+                      color: Palette.kPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
+  // ─────────────────────────── Barra CTA inferior
+  Widget _buildBottomCta(BuildContext context) {
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.bottomRight,
+        child: Padding(
+          padding: const EdgeInsets.only(right: 16, bottom: 16),
+          child: FloatingActionButton.extended(
+            onPressed: () => _showAdquirirSheet(context),
+            icon: const Icon(Icons.add),
+            label: const Text(
+              'Adquirir Cuponera',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            backgroundColor: Palette.kPrimary,
+            foregroundColor: Colors.white,
+            elevation: 6,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     if (_items.isEmpty) {
       return Stack(
         children: [
-          const Center(
-            child: Text('No tienes cuponeras activas', style: TextStyle(color: Palette.kMuted)),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Palette.kAccent, Palette.kAccentLight],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Palette.kAccent.withOpacity(0.30),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.local_activity_rounded,
+                      color: Colors.white,
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Sin cuponeras activas',
+                    style: TextStyle(
+                      color: Palette.kTitle,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Adquiere una cuponera para disfrutar descuentos en los mejores locales.',
+                    style: TextStyle(color: Palette.kMuted, fontSize: 13, height: 1.5),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
           ),
-          _buildFab(context),
+          _buildBottomCta(context),
         ],
       );
     }
@@ -584,36 +695,73 @@ Widget _buildFab(BuildContext context) {
     return Stack(
       children: [
         RefreshIndicator(
+          color: Palette.kAccent,
           onRefresh: _reloadFromServer,
           child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              16,
+              16,
+              88 + MediaQuery.of(context).padding.bottom,
+            ),
             itemCount: _items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, __) => const SizedBox(height: 14),
             itemBuilder: (_, i) => _CuponeraTicketCard(
               c: _items[i],
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => CuponDetalleScreen(cuponId: _items[i].id),
-                  ),
-                );
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CuponDetalleScreen(cuponId: _items[i].id),
+                ),
+              ),
               onMapTap: _items[i].versionId != null
                   ? () => _verMapa(context, _items[i])
                   : null,
             ),
           ),
         ),
-        _buildFab(context),
+        _buildBottomCta(context),
         if (_reloading)
-          const Positioned(
-            right: 16,
-            bottom: 90,
-            child: SizedBox(
-              width: 26,
-              height: 26,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Palette.kAccent),
+          Positioned(
+            top: 16,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Palette.kSurface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 12,
+                    ),
+                  ],
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Palette.kAccent,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Actualizando…',
+                      style: TextStyle(
+                        color: Palette.kMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
       ],
@@ -621,19 +769,23 @@ Widget _buildFab(BuildContext context) {
   }
 }
 
-/// ==========================
-/// CARD estilo ticket
-/// ==========================
+// ══════════════════════════════════════════════════════════════════
+// Ticket card
+// ══════════════════════════════════════════════════════════════════
 class _CuponeraTicketCard extends StatelessWidget {
   final Cuponera c;
   final VoidCallback onTap;
   final VoidCallback? onMapTap;
-  const _CuponeraTicketCard({required this.c, required this.onTap, this.onMapTap});
+
+  const _CuponeraTicketCard({
+    required this.c,
+    required this.onTap,
+    this.onMapTap,
+  });
 
   String _fmt(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-  // Formatea el secuencial: "Nº 050" (si es numérico) o "Nº ABC"
   String _secFmt(String s) {
     final n = int.tryParse(s);
     final pretty = n != null ? n.toString().padLeft(3, '0') : s;
@@ -658,34 +810,41 @@ class _CuponeraTicketCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final border = Palette.kBorder;
-    final muted = Palette.kMuted;
-
     final dias = _diasRestantes(c.expiraEl);
     final vencida = c.expiraEl != null && c.expiraEl!.isBefore(DateTime.now());
     final porExpirar = !vencida && dias != null && dias <= 7;
 
-    final statusLabel = vencida ? 'Vencida' : (porExpirar ? 'Por expirar' : 'Activa');
+    final statusLabel =
+        vencida ? 'Vencida' : (porExpirar ? 'Por expirar' : 'Activa');
     final statusColor =
-        vencida ? Colors.redAccent : (porExpirar ? Colors.amber.shade700 : Colors.green);
+        vencida
+            ? Colors.redAccent
+            : (porExpirar ? Colors.amber.shade700 : const Color(0xFF27AE60));
 
     final String? lastUse = c.scans.isNotEmpty
-        ? _fmt((List.of(c.scans)..sort((a, b) => b.fecha.compareTo(a.fecha))).first.fecha)
+        ? _fmt(
+            (List.of(c.scans)..sort((a, b) => b.fecha.compareTo(a.fecha)))
+                .first
+                .fecha,
+          )
         : (c.lastScanAt != null ? _fmt(c.lastScanAt!) : null);
 
     final count = c.scans.isNotEmpty ? c.scans.length : c.totalEscaneos;
     final progress = _lifeProgress(c.emitidaEl, c.expiraEl);
+    final progressColor =
+        vencida
+            ? Colors.redAccent
+            : (porExpirar ? Colors.amber.shade700 : Palette.kAccent);
 
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
       child: Container(
         decoration: BoxDecoration(
           color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withOpacity(0.06),
               blurRadius: 20,
               offset: const Offset(0, 4),
             ),
@@ -694,45 +853,108 @@ class _CuponeraTicketCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Column(
           children: [
-            // Banda superior (gradiente)
+            // ── Header gradiente ──
             Container(
-              height: 52,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
+              padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+              decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    Palette.kAccent.withOpacity(0.95),
-                    Palette.kAccent.withOpacity(0.75),
-                  ],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
+                  colors: [Palette.kAccent, Palette.kAccentLight],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.local_activity_rounded, color: Colors.white),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      c.nombre,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                      ),
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.22),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.local_activity_rounded,
+                      color: Colors.white,
+                      size: 20,
                     ),
                   ),
-                  // 👇 NUEVO: badge con el secuencial
-                  _SecBadge(label: _secFmt(c.secuencial)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          c.nombre,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        // Secuencial pill
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.25),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            _secFmt(c.secuencial),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(width: 8),
-                  _StatusChip(label: statusLabel, color: statusColor),
+                  // Status badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          statusLabel,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
 
-            // “Mordidas” + divisor punteado
+            // ── Divisor tipo ticket ──
             SizedBox(
               height: 20,
               child: Stack(
@@ -746,7 +968,7 @@ class _CuponeraTicketCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: Palette.kBg,
                         shape: BoxShape.circle,
-                        border: Border.all(color: border, width: 1),
+                        border: Border.all(color: Palette.kBorder),
                       ),
                     ),
                   ),
@@ -758,7 +980,7 @@ class _CuponeraTicketCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: Palette.kBg,
                         shape: BoxShape.circle,
-                        border: Border.all(color: border, width: 1),
+                        border: Border.all(color: Palette.kBorder),
                       ),
                     ),
                   ),
@@ -766,82 +988,102 @@ class _CuponeraTicketCard extends StatelessWidget {
               ),
             ),
 
-            // Contenido
+            // ── Body ──
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Descripción
                   if (c.descripcion.trim().isNotEmpty) ...[
                     Text(
                       c.descripcion,
-                      maxLines: 3,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: muted),
+                      style: const TextStyle(
+                        color: Palette.kMuted,
+                        fontSize: 13,
+                        height: 1.5,
+                      ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                   ],
 
-                /*   // 👇 NUEVO: línea con el identificador visible
+                  // Stats row
                   Row(
                     children: [
-                      Icon(Icons.tag, color: muted, size: 18),
-                      const SizedBox(width: 6),
-                      Text('Identificador: ${_secFmt(c.secuencial)}',
-                          style: TextStyle(color: muted)),
-                    ],
-                  ), */
-
-                  const SizedBox(height: 10),
-
-                  Row(
-                    children: [
-                      Icon(Icons.confirmation_num_outlined, color: muted, size: 18),
-                      const SizedBox(width: 6),
-                      Text('$count ${count == 1 ? "escaneo" : "escaneos"}',
-                          style: TextStyle(color: muted)),
-                      const SizedBox(width: 14),
-                      if (lastUse != null) ...[
-                        Icon(Icons.history, color: muted, size: 18),
-                        const SizedBox(width: 6),
-                        Text('Último uso: $lastUse', style: TextStyle(color: muted)),
-                      ],
-                      const Spacer(),
-                      Icon(Icons.chevron_right_rounded, color: muted),
-                    ],
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  Row(
-                    children: [
-                      Icon(Icons.event_available, color: muted, size: 18),
-                      const SizedBox(width: 6),
-                      Text('Emitida: ${_fmt(c.emitidaEl)}', style: TextStyle(color: muted)),
-                      const SizedBox(width: 12),
-                      Icon(Icons.event_busy, color: muted, size: 18),
-                      const SizedBox(width: 6),
-                      Text(
-                        c.expiraEl != null
-                            ? 'Expira: ${_fmt(c.expiraEl!)}'
-                            : 'Sin fecha de expiración',
-                        style: TextStyle(color: muted),
+                      _statPill(
+                        icon: Icons.qr_code_scanner_rounded,
+                        label: '$count ${count == 1 ? "escaneo" : "escaneos"}',
+                        color: Palette.kPrimary,
                       ),
+                      if (lastUse != null) ...[
+                        const SizedBox(width: 8),
+                        _statPill(
+                          icon: Icons.history_rounded,
+                          label: 'Último: $lastUse',
+                          color: Palette.kMuted,
+                        ),
+                      ],
                     ],
                   ),
 
+                  const SizedBox(height: 12),
+
+                  // Fechas
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Palette.kField,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Palette.kBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        _dateItem(
+                          icon: Icons.event_available_rounded,
+                          label: 'Emitida',
+                          value: _fmt(c.emitidaEl),
+                          color: const Color(0xFF27AE60),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 32,
+                          margin: const EdgeInsets.symmetric(horizontal: 12),
+                          color: Palette.kBorder,
+                        ),
+                        _dateItem(
+                          icon: Icons.event_busy_rounded,
+                          label: 'Expira',
+                          value: c.expiraEl != null
+                              ? _fmt(c.expiraEl!)
+                              : 'Sin límite',
+                          color: vencida
+                              ? Colors.redAccent
+                              : (porExpirar
+                                  ? Colors.amber.shade700
+                                  : Palette.kMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Barra de progreso
                   if (progress != null) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 6,
-                        backgroundColor: Palette.kField,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          vencida
-                              ? Colors.redAccent
-                              : (porExpirar ? Colors.amber : Palette.kAccent),
+                      child: SizedBox(
+                        height: 8,
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          backgroundColor: Palette.kField,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            progressColor,
+                          ),
                         ),
                       ),
                     ),
@@ -849,30 +1091,71 @@ class _CuponeraTicketCard extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Inicio', style: TextStyle(color: Palette.kMuted, fontSize: 12)),
-                        Text(
-                          dias == null
-                              ? 'Sin límite'
-                              : (vencida ? 'Vencida' : 'Restan $dias días'),
-                          style: TextStyle(color: Palette.kMuted, fontSize: 12),
+                        const Text(
+                          'Inicio',
+                          style: TextStyle(
+                            color: Palette.kMuted,
+                            fontSize: 11,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: progressColor.withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            dias == null
+                                ? 'Sin límite'
+                                : (vencida
+                                    ? 'Vencida'
+                                    : 'Restan $dias días'),
+                            style: TextStyle(
+                              color: progressColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ],
+
+                  // Botón mapa
                   if (onMapTap != null) ...[
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: onMapTap,
-                        icon: const Icon(Icons.map_outlined, size: 16),
-                        label: const Text('Ver locales en el mapa'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Palette.kPrimary,
-                          side: BorderSide(color: Palette.kPrimary.withOpacity(0.4)),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    GestureDetector(
+                      onTap: onMapTap,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Palette.kPrimary.withOpacity(0.07),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Palette.kPrimary.withOpacity(0.15),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.map_rounded,
+                              size: 16,
+                              color: Palette.kPrimary,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Ver locales en el mapa',
+                              style: TextStyle(
+                                color: Palette.kPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -885,29 +1168,78 @@ class _CuponeraTicketCard extends StatelessWidget {
       ),
     );
   }
-}
 
-class _StatusChip extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _StatusChip({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _statPill({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(999),
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(
-        label,
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dateItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 13, color: color),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Palette.kTitle,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
+// ══════════════════════════════════════════════════════════════════
+// Divisor punteado (estilo ticket)
+// ══════════════════════════════════════════════════════════════════
 class _DashedDivider extends StatelessWidget {
   const _DashedDivider();
 
@@ -934,7 +1266,11 @@ class _DashedPainter extends CustomPainter {
     final endX = size.width - 28;
     final y = size.height / 2;
     while (startX < endX) {
-      canvas.drawLine(Offset(startX, y), Offset(startX + dashWidth, y), paint);
+      canvas.drawLine(
+        Offset(startX, y),
+        Offset(startX + dashWidth, y),
+        paint,
+      );
       startX += dashWidth + dashSpace;
     }
   }
@@ -943,6 +1279,9 @@ class _DashedPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+// ══════════════════════════════════════════════════════════════════
+// Página de escáner QR
+// ══════════════════════════════════════════════════════════════════
 class _QrScanPage extends StatefulWidget {
   const _QrScanPage();
 
@@ -966,7 +1305,6 @@ class _QrScanPageState extends State<_QrScanPage> {
     if (codes.isEmpty) return;
     final raw = codes.first.rawValue ?? '';
     if (raw.isEmpty) return;
-
     _handled = true;
     Navigator.pop(context, raw);
   }
@@ -979,6 +1317,7 @@ class _QrScanPageState extends State<_QrScanPage> {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         title: const Text('Escanear cuponera'),
+        elevation: 0,
       ),
       body: Stack(
         children: [
@@ -987,27 +1326,35 @@ class _QrScanPageState extends State<_QrScanPage> {
             onDetect: _onDetect,
             fit: BoxFit.cover,
           ),
-          // máscara simple
-          Align(
-            alignment: Alignment.center,
+          // Marco de escaneo
+          Center(
             child: Container(
-              width: MediaQuery.of(context).size.width * 0.75,
-              height: MediaQuery.of(context).size.width * 0.75,
+              width: MediaQuery.of(context).size.width * 0.72,
+              height: MediaQuery.of(context).size.width * 0.72,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.white70, width: 2),
+                border: Border.all(color: Palette.kAccent, width: 2.5),
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
           ),
           const Positioned(
-            bottom: 24,
+            bottom: 40,
             left: 0,
             right: 0,
-            child: Center(
-              child: Text(
-                'Apunta al código QR',
-                style: TextStyle(color: Colors.white70),
-              ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.qr_code_scanner_rounded,
+                  color: Colors.white54,
+                  size: 28,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Apunta al código QR de tu cuponera',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
         ],
@@ -1015,38 +1362,10 @@ class _QrScanPageState extends State<_QrScanPage> {
     );
   }
 }
-class _SecBadge extends StatelessWidget {
-  final String label;
-  const _SecBadge({required this.label});
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,                 // contraste sobre el gradiente azul
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.black87,             // texto oscuro legible
-          fontWeight: FontWeight.w800,
-          fontSize: 12,
-          letterSpacing: 0.2,
-        ),
-      ),
-    );
-  }
-}
-
+// ══════════════════════════════════════════════════════════════════
+// Opción de adquisición
+// ══════════════════════════════════════════════════════════════════
 class _AdquirirOptionCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -1067,25 +1386,22 @@ class _AdquirirOptionCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
-            ),
-          ],
+          color: Palette.kField,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Palette.kBorder),
         ),
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                color: Palette.kAccent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(14),
+                gradient: const LinearGradient(
+                  colors: [Palette.kAccent, Palette.kAccentLight],
+                ),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: Palette.kAccent, size: 26),
+              child: Icon(icon, color: Colors.white, size: 22),
             ),
             const SizedBox(height: 10),
             Text(
@@ -1099,11 +1415,8 @@ class _AdquirirOptionCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               subtitle,
+              style: const TextStyle(color: Palette.kMuted, fontSize: 12),
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Palette.kMuted,
-                fontSize: 12,
-              ),
             ),
           ],
         ),

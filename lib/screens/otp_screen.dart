@@ -33,8 +33,10 @@ class OtpVerifyScreen extends StatefulWidget {
 }
 
 class OtpVerifyScreenState extends State<OtpVerifyScreen> {
-  late final List<FocusNode> _nodes = List.generate(widget.length, (_) => FocusNode());
-  late final List<TextEditingController> _ctrs = List.generate(widget.length, (_) => TextEditingController());
+  late final List<FocusNode> _nodes =
+      List.generate(widget.length, (_) => FocusNode());
+  late final List<TextEditingController> _ctrs =
+      List.generate(widget.length, (_) => TextEditingController());
 
   bool _validating = false;
   bool _resending = false;
@@ -50,6 +52,10 @@ class OtpVerifyScreenState extends State<OtpVerifyScreen> {
     super.initState();
     if (widget.canResend) _startResendCooldown();
     _startSessionCountdown();
+    // rebuild on focus change para colorear boxes
+    for (final n in _nodes) {
+      n.addListener(() { if (mounted) setState(() {}); });
+    }
   }
 
   @override
@@ -89,6 +95,7 @@ class OtpVerifyScreenState extends State<OtpVerifyScreen> {
   }
 
   String get _code => _ctrs.map((c) => c.text).join();
+  int get _filled => _ctrs.where((c) => c.text.isNotEmpty).length;
 
   String _fmt(int secs) {
     final m = (secs ~/ 60).toString().padLeft(2, '0');
@@ -110,7 +117,6 @@ class OtpVerifyScreenState extends State<OtpVerifyScreen> {
       _snack('Ingresa los ${widget.length} dígitos');
       return;
     }
-
     setState(() => _validating = true);
     try {
       final ok = await widget.otpService.verifyOtp(widget.email, _code);
@@ -133,18 +139,20 @@ class OtpVerifyScreenState extends State<OtpVerifyScreen> {
       Navigator.pop(context, false);
       return;
     }
-
     setState(() {
       _resending = true;
       _resendCount++;
     });
-
     try {
       await widget.otpService.sendOtp(widget.email);
       if (!mounted) return;
       _snack('Código reenviado ($_resendCount/${widget.maxResends})');
       _startResendCooldown();
       _startSessionCountdown();
+      // limpiar boxes
+      for (final c in _ctrs) c.clear();
+      _nodes[0].requestFocus();
+      setState(() {});
     } catch (e) {
       if (!mounted) return;
       _snack('No se pudo reenviar: $e');
@@ -158,73 +166,145 @@ class OtpVerifyScreenState extends State<OtpVerifyScreen> {
       SnackBar(
         content: Text(msg),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final sessionCritical = _sessionLeft < 60;
+    final canConfirm = _filled == widget.length && !_validating;
+    final canResendNow = _remaining == 0 && !_resending && !_validating;
+
     return Scaffold(
       backgroundColor: Palette.kBg,
       appBar: AppBar(
-        title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        backgroundColor: Palette.kPrimary,
-        foregroundColor: Colors.white,
+        backgroundColor: Palette.kSurface,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        foregroundColor: Palette.kPrimary,
+        title: Text(
+          widget.title,
+          style: const TextStyle(
+            color: Palette.kTitle,
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+          ),
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            color: Palette.kSurface,
+            border: Border(
+              bottom: BorderSide(color: Palette.kBorder, width: 1),
+            ),
+          ),
+        ),
       ),
+
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── Header card ──
+
+              // ── Header card ───────────────────────────────────
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  color: Palette.kSurface,
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4)),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
                   ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      Container(
-                        width: 36, height: 36,
-                        decoration: BoxDecoration(color: Palette.kAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                        child: const Icon(Icons.shield_outlined, size: 18, color: Palette.kAccent),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text('Confirma tu identidad', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Palette.kTitle)),
-                      ),
-                    ]),
-                    const SizedBox(height: 10),
-                    Text(
-                      widget.subtitle ?? 'Ingresa el código de ${widget.length} dígitos enviado a tu correo.',
-                      style: const TextStyle(color: Palette.kMuted, fontSize: 13, height: 1.4),
+                    // Ícono + título
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Palette.kAccent, Palette.kAccentLight],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Palette.kAccent.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.shield_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Confirma tu identidad',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Palette.kTitle,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
+
+                    const SizedBox(height: 12),
+
+                    // Subtítulo
+                    Text(
+                      widget.subtitle ??
+                          'Ingresa el código de ${widget.length} dígitos enviado a tu correo.',
+                      style: const TextStyle(
+                        color: Palette.kMuted,
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Email pill
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
-                        color: Palette.kBg,
-                        borderRadius: BorderRadius.circular(8),
+                        color: Palette.kPrimary.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: Palette.kPrimary.withOpacity(0.15)),
                       ),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text('Expira en:', style: TextStyle(color: Palette.kMuted, fontSize: 13)),
+                          const Icon(Icons.alternate_email_rounded,
+                              color: Palette.kPrimary, size: 13),
+                          const SizedBox(width: 5),
                           Text(
-                            _fmt(_sessionLeft),
-                            style: TextStyle(
-                              color: _sessionLeft < 60 ? Colors.redAccent : Palette.kTitle,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
+                            widget.email,
+                            style: const TextStyle(
+                              color: Palette.kPrimary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -234,52 +314,196 @@ class OtpVerifyScreenState extends State<OtpVerifyScreen> {
                 ),
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 32),
 
-              // ── OTP boxes ──
+              // ── OTP boxes ─────────────────────────────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(widget.length, (i) => _OtpBox(
-                  controller: _ctrs[i],
-                  focusNode: _nodes[i],
-                  onChanged: (v) => _onChanged(i, v),
-                )),
+                children: List.generate(
+                  widget.length,
+                  (i) => _OtpBox(
+                    controller: _ctrs[i],
+                    focusNode: _nodes[i],
+                    onChanged: (v) => _onChanged(i, v),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // ── Progreso + timer ──────────────────────────────
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Progreso
+                  Text(
+                    '$_filled de ${widget.length} dígitos',
+                    style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+                  ),
+                  // Timer pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: sessionCritical
+                          ? Colors.redAccent.withOpacity(0.08)
+                          : Palette.kField,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: sessionCritical
+                            ? Colors.redAccent.withOpacity(0.25)
+                            : Palette.kBorder,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.timer_outlined,
+                          size: 13,
+                          color: sessionCritical
+                              ? Colors.redAccent
+                              : Palette.kMuted,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _fmt(_sessionLeft),
+                          style: TextStyle(
+                            color: sessionCritical
+                                ? Colors.redAccent
+                                : Palette.kTitle,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
 
               const SizedBox(height: 16),
 
-              // ── Reenviar ──
+              // ── Reenviar ──────────────────────────────────────
               if (widget.canResend)
                 Center(
-                  child: TextButton.icon(
-                    onPressed: (_remaining > 0 || _resending || _validating) ? null : _resend,
-                    icon: Icon(Icons.refresh, size: 18, color: _remaining > 0 ? Palette.kMuted : Palette.kAccent),
-                    label: Text(
-                      _remaining > 0
-                          ? 'Reenviar en ${_fmt(_remaining)}'
-                          : (_resending ? 'Enviando...' : 'Reenviar código'),
-                      style: TextStyle(color: _remaining > 0 ? Palette.kMuted : Palette.kAccent, fontWeight: FontWeight.w600),
+                  child: GestureDetector(
+                    onTap: canResendNow ? _resend : null,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: canResendNow
+                            ? Palette.kAccent.withOpacity(0.08)
+                            : Palette.kField,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: canResendNow
+                              ? Palette.kAccent.withOpacity(0.25)
+                              : Palette.kBorder,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_resending)
+                            const SizedBox(
+                              width: 13,
+                              height: 13,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: Palette.kAccent,
+                              ),
+                            )
+                          else
+                            Icon(
+                              Icons.refresh_rounded,
+                              size: 15,
+                              color: canResendNow
+                                  ? Palette.kAccent
+                                  : Palette.kMuted,
+                            ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _remaining > 0
+                                ? 'Reenviar en ${_fmt(_remaining)}'
+                                : (_resending
+                                    ? 'Enviando...'
+                                    : 'Reenviar código'),
+                            style: TextStyle(
+                              color: canResendNow
+                                  ? Palette.kAccent
+                                  : Palette.kMuted,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
 
               const Spacer(),
 
-              // ── Confirmar ──
-              SizedBox(
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _validating ? null : _confirm,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Palette.kAccent,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Palette.kAccent.withOpacity(0.5),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              // ── Botón confirmar ───────────────────────────────
+              GestureDetector(
+                onTap: canConfirm ? _confirm : null,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: canConfirm
+                        ? const LinearGradient(
+                            colors: [Palette.kAccent, Palette.kAccentLight],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: canConfirm ? null : Palette.kBorder,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: canConfirm
+                        ? [
+                            BoxShadow(
+                              color: Palette.kAccent.withOpacity(0.35),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : null,
                   ),
+                  alignment: Alignment.center,
                   child: _validating
-                      ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Confirmar', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.check_rounded,
+                              color: canConfirm ? Colors.white : Palette.kMuted,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Confirmar',
+                              style: TextStyle(
+                                color: canConfirm
+                                    ? Colors.white
+                                    : Palette.kMuted,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
                 ),
               ),
             ],
@@ -290,38 +514,68 @@ class OtpVerifyScreenState extends State<OtpVerifyScreen> {
   }
 }
 
+// ── OTP Box ────────────────────────────────────────────────────────────
 class _OtpBox extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
 
-  const _OtpBox({required this.controller, required this.focusNode, required this.onChanged});
+  const _OtpBox({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 52,
+    final filled = controller.text.isNotEmpty;
+    final focused = focusNode.hasFocus;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: 54,
+      height: 58,
+      decoration: BoxDecoration(
+        color: filled
+            ? Palette.kAccent.withOpacity(0.06)
+            : Palette.kSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: focused
+              ? Palette.kAccent
+              : filled
+                  ? Palette.kAccent.withOpacity(0.35)
+                  : Palette.kBorder,
+          width: focused ? 2 : 1.2,
+        ),
+        boxShadow: focused
+            ? [
+                BoxShadow(
+                  color: Palette.kAccent.withOpacity(0.15),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+      ),
       child: TextField(
         controller: controller,
         focusNode: focusNode,
         maxLength: 1,
         textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Palette.kTitle),
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+          color: filled ? Palette.kAccent : Palette.kTitle,
+        ),
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        decoration: InputDecoration(
+        decoration: const InputDecoration(
           counterText: '',
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Palette.kBorder),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Palette.kAccent, width: 2),
-          ),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
         ),
         onChanged: onChanged,
       ),

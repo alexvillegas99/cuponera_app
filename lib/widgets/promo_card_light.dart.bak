@@ -35,22 +35,24 @@ class PromoCardLight extends StatelessWidget {
   Widget build(BuildContext context) {
     final isFlash = style == CardStyle.flash;
     return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ComercioDetalleMiniScreen(usuarioId: promo.id),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(16),
+     onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ComercioDetalleMiniScreen(
+                    usuarioId: promo.id,
+                  ), // <--- usa el id real del usuario
+                ),
+              );
+            },
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         decoration: BoxDecoration(
           color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withOpacity(0.05),
               blurRadius: 20,
               offset: const Offset(0, 4),
             ),
@@ -59,10 +61,13 @@ class PromoCardLight extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Imagen + badges
+            // Imagen + badges (CON LOGO), usando AdaptiveNetworkImage
+            // Imagen + badges (CON LOGO)
             ClipRRect(
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+                topLeft: Radius.circular(8),
+                topRight: Radius.circular(8),
               ),
               child: Stack(
                 children: [
@@ -104,35 +109,10 @@ class PromoCardLight extends StatelessWidget {
 
                   // Badge 2x1
                   if (promo.isTwoForOne)
-                    Positioned(
+                    const Positioned(
                       right: 10,
                       top: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Palette.kAccent, Palette.kAccentLight],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Palette.kAccent.withOpacity(0.35),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.local_offer_rounded, color: Colors.white, size: 11),
-                            SizedBox(width: 4),
-                            Text('2x1', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-                          ],
-                        ),
-                      ),
+                      child: PillLight(label: '2x1', icon: Icons.local_offer),
                     ),
 
                   // Countdown Flash
@@ -148,7 +128,7 @@ class PromoCardLight extends StatelessWidget {
 
             // Contenido
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -212,45 +192,18 @@ class PromoCardLight extends StatelessWidget {
                         label: promo.scheduleLabel,
                       ),
                       const Spacer(),
-                      GestureDetector(
-                        onTap: onFavorite,
-                        child: Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: isFavorite
-                                ? Colors.redAccent.withOpacity(0.08)
-                                : Palette.kField,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: isFavorite
-                                  ? Colors.redAccent.withOpacity(0.25)
-                                  : Palette.kBorder,
-                            ),
-                          ),
-                          child: Icon(
-                            isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                            color: isFavorite ? Colors.redAccent : Palette.kMuted,
-                            size: 17,
-                          ),
+                      IconButton(
+                        onPressed: onFavorite,
+                        icon: Icon(
+                          isFavorite ? Icons.favorite : Icons.favorite_border,
+                          color: isFavorite ? Colors.redAccent : Palette.kMuted,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: onShare,
-                        child: Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: Palette.kField,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Palette.kBorder),
-                          ),
-                          child: const Icon(
-                            Icons.ios_share,
-                            color: Palette.kMuted,
-                            size: 17,
-                          ),
+                      IconButton(
+                        onPressed: onShare,
+                        icon: const Icon(
+                          Icons.ios_share,
+                          color: Palette.kMuted,
                         ),
                       ),
                     ],
@@ -296,17 +249,17 @@ class _LogoBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 40,
-      height: 40,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: Colors.white,
-        border: Border.all(color: Colors.white, width: 2),
+        border: Border.all(color: Palette.kBorder, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.12),
+            color: Colors.black.withOpacity(0.08),
             blurRadius: 8,
-            offset: const Offset(0, 3),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -315,8 +268,8 @@ class _LogoBadge extends StatelessWidget {
         url,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => const Icon(
-          Icons.storefront_outlined,
-          size: 20,
+          Icons.image_not_supported_outlined,
+          size: 18,
           color: Palette.kMuted,
         ),
       ),

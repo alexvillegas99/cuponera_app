@@ -8,8 +8,7 @@ import 'package:enjoy/services/cupones_service.dart';
 import 'package:enjoy/mappers/detalle_cupon.dart';
 
 class CuponDetalleScreen extends StatefulWidget {
-  final String cuponId; // <- SOLO el id/code/uuid del cupón
-
+  final String cuponId;
   const CuponDetalleScreen({super.key, required this.cuponId});
 
   @override
@@ -22,7 +21,6 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
   DetalleCupon? _data;
   bool _loading = true;
   String? _error;
-
   late TabController _tab;
   String _qPend = '';
   String _qScan = '';
@@ -34,11 +32,14 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
     _load();
   }
 
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() { _loading = true; _error = null; });
     try {
       final res = await _svc.obtenerDetallePorCupon(widget.cuponId);
       if (!mounted) return;
@@ -51,33 +52,29 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
     }
   }
 
-  String _fmtFull(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} '
-      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  String _fmt(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/'
+      '${d.month.toString().padLeft(2, '0')}/'
+      '${d.year}';
 
   Future<void> _verMapa() async {
     final versionId = _data?.version.id;
     if (versionId == null || versionId.isEmpty) return;
-
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+      builder: (_) => const Center(child: CircularProgressIndicator(color: Palette.kAccent)),
     );
-
     try {
       final locales = await VersionesService.listarLocales(versionId);
       if (!mounted) return;
       Navigator.pop(context);
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => MapaVersionScreen(
-            versionNombre: _data!.version.nombre,
-            locales: locales,
-          ),
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => MapaVersionScreen(
+          versionNombre: _data!.version.nombre,
+          locales: locales,
         ),
-      );
+      ));
     } catch (_) {
       if (!mounted) return;
       Navigator.pop(context);
@@ -87,251 +84,499 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
     }
   }
 
+  // ─────────────────────────── BUILD
   @override
   Widget build(BuildContext context) {
-    final muted = Palette.kMuted;
-    final title = Palette.kTitle;
-    final border = Palette.kBorder;
-
     return Scaffold(
+      backgroundColor: Palette.kBg,
       appBar: AppBar(
-        title: Text(_data?.version.nombre ?? 'Detalle cuponera'),
-         backgroundColor: Palette.kPrimary,
-        foregroundColor: Colors.white,
+        backgroundColor: Palette.kSurface,
+        foregroundColor: Palette.kTitle,
         elevation: 0,
-        bottom: TabBar(
-          controller: _tab,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white54,
-           indicatorColor: Palette.kAccent,
-          tabs: const [
-            Tab(text: 'Por escanear'),
-            Tab(text: 'Escaneados'),
-          ],
+        scrolledUnderElevation: 0,
+        title: Text(
+          _data?.version.nombre ?? 'Detalle cuponera',
+          style: const TextStyle(
+            color: Palette.kTitle,
+            fontWeight: FontWeight.w700,
+            fontSize: 17,
+          ),
         ),
         actions: [
           IconButton(
-            tooltip: 'Refrescar',
+            icon: const Icon(Icons.refresh_rounded, color: Palette.kMuted),
             onPressed: _load,
-            icon: const Icon(Icons.refresh),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            color: Palette.kSurface,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(height: 1, color: Palette.kBorder),
+                TabBar(
+                  controller: _tab,
+                  labelColor: Palette.kAccent,
+                  unselectedLabelColor: Palette.kMuted,
+                  indicatorColor: Palette.kAccent,
+                  indicatorWeight: 2.5,
+                  labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                  tabs: const [
+                    Tab(text: 'Por escanear'),
+                    Tab(text: 'Escaneados'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      backgroundColor: Palette.kBg,
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Palette.kAccent))
-          : _error != null
-          ? Center(child: Text(_error!, textAlign: TextAlign.center))
-          : _data == null
-          ? const Center(child: Text('Sin datos'))
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: TabBarView(
-                controller: _tab,
-                children: [
-                  // TAB 1: PENDIENTES
-                  ListView(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                    children: [
-                      _HeaderCupon(
-                        cuponId: widget.cuponId,
-                        versionNombre: _data!.version.nombre,
-                        ciudades: _data!.version.ciudadesDisponibles,
-                        cupon: _data!.cupon,
-                      ),
-                      const SizedBox(height: 14),
-                      if (_data?.version.id != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: OutlinedButton.icon(
-                            onPressed: _verMapa,
-                            icon: const Icon(Icons.map_outlined, size: 18),
-                            label: const Text('Ver locales en el mapa'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Palette.kAccent,
-                              side: const BorderSide(color: Palette.kAccent),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          ),
-                        ),
-                      _SearchBox(
-                        hint: 'Buscar local por escanear…',
-                        onChanged: (v) => setState(() => _qPend = v),
-                      ),
-                      const SizedBox(height: 8),
-                      ..._buildPendientesList(
-                        _data!,
-                        _qPend,
-                        title,
-                        muted,
-                        border,
-                      ),
-                    ],
-                  ),
+      body: _buildBody(),
+    );
+  }
 
-                  // TAB 2: ESCANEADOS
-                  ListView(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                    children: [
-                      _HeaderCupon(
-                        cuponId: widget.cuponId,
-                        versionNombre: _data!.version.nombre,
-                        ciudades: _data!.version.ciudadesDisponibles,
-                        cupon: _data!.cupon,
-                      ),
-                      const SizedBox(height: 14),
-                      if (_data?.version.id != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: OutlinedButton.icon(
-                            onPressed: _verMapa,
-                            icon: const Icon(Icons.map_outlined, size: 18),
-                            label: const Text('Ver locales en el mapa'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Palette.kAccent,
-                              side: const BorderSide(color: Palette.kAccent),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          ),
-                        ),
-                      _SearchBox(
-                        hint: 'Buscar local escaneado…',
-                        onChanged: (v) => setState(() => _qScan = v),
-                      ),
-                      const SizedBox(height: 8),
-                      ..._buildScaneadosList(
-                        _data!,
-                        _qScan,
-                        title,
-                        muted,
-                        border,
-                      ),
-                    ],
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: Palette.kAccent));
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56, height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 28),
+              ),
+              const SizedBox(height: 14),
+              Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Palette.kMuted)),
+            ],
+          ),
+        ),
+      );
+    }
+    if (_data == null) {
+      return const Center(child: Text('Sin datos'));
+    }
+
+    return RefreshIndicator(
+      color: Palette.kAccent,
+      onRefresh: _load,
+      child: TabBarView(
+        controller: _tab,
+        children: [
+          _buildTabContent(isPendiente: true),
+          _buildTabContent(isPendiente: false),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────── TAB CONTENT
+  Widget _buildTabContent({required bool isPendiente}) {
+    final d = _data!;
+
+    final pendientes = d.lugaresSinScannear.where((x) {
+      final s = '${x.nombre} ${x.email} ${x.title} ${x.scheduleLabel}'.toLowerCase();
+      return s.contains(_qPend.trim().toLowerCase());
+    }).toList();
+
+    final escaneados = d.lugaresScaneados.where((x) {
+      final s = '${x.nombre} ${x.email} ${x.title} ${x.scheduleLabel}'.toLowerCase();
+      return s.contains(_qScan.trim().toLowerCase());
+    }).toList();
+
+    final list = isPendiente ? pendientes : escaneados;
+    final query = isPendiente ? _qPend : _qScan;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: [
+        // ── Info card (cuponera) ──
+        _buildInfoCard(d),
+        const SizedBox(height: 12),
+
+        // ── Stats ──
+        _buildStatsRow(d),
+        const SizedBox(height: 12),
+
+        // ── Mapa ──
+        if (d.version.id != null) ...[
+          GestureDetector(
+            onTap: _verMapa,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Palette.kPrimary.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Palette.kPrimary.withOpacity(0.15)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.map_rounded, size: 17, color: Palette.kPrimary),
+                  SizedBox(width: 7),
+                  Text(
+                    'Ver locales en el mapa',
+                    style: TextStyle(color: Palette.kPrimary, fontWeight: FontWeight.w600, fontSize: 14),
                   ),
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // ── Buscador ──
+        _buildSearchBox(
+          hint: isPendiente ? 'Buscar local por escanear…' : 'Buscar local escaneado…',
+          onChanged: (v) => setState(() => isPendiente ? _qPend = v : _qScan = v),
+        ),
+        const SizedBox(height: 10),
+
+        // ── Lista vacía ──
+        if (list.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 28),
+            child: Column(
+              children: [
+                Container(
+                  width: 52, height: 52,
+                  decoration: BoxDecoration(color: Palette.kField, borderRadius: BorderRadius.circular(14)),
+                  child: Icon(
+                    isPendiente ? Icons.store_mall_directory_outlined : Icons.check_circle_outline_rounded,
+                    color: Palette.kMuted, size: 24,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  query.isNotEmpty
+                      ? 'Sin resultados para "$query"'
+                      : isPendiente
+                          ? '¡Ya escaneaste todos los locales!'
+                          : 'Aún no has escaneado ningún local',
+                  style: const TextStyle(color: Palette.kMuted, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+
+        // ── Cards de locales ──
+        if (isPendiente)
+          ...pendientes.map((l) => _LocalTile(
+            nombre: l.nombre,
+            title: l.title,
+            logoUrl: l.logoUrl,
+            rating: l.rating,
+            scheduleLabel: l.scheduleLabel,
+            ciudades: l.ciudades,
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ComercioDetalleMiniScreen(usuarioId: l.usuarioId),
+            )),
+          ))
+        else
+          ...escaneados.map((l) => _LocalTile(
+            nombre: l.nombre,
+            title: l.title,
+            logoUrl: l.logoUrl,
+            rating: l.rating,
+            scheduleLabel: l.scheduleLabel,
+            ciudades: l.ciudades,
+            scanCount: l.count,
+            lastScan: l.lastScan,
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ComercioDetalleMiniScreen(usuarioId: l.usuarioId),
+            )),
+          )),
+      ],
     );
   }
 
-  List<Widget> _buildPendientesList(
-    DetalleCupon d,
-    String q,
-    Color title,
-    Color muted,
-    Color border,
-  ) {
-    final list = d.lugaresSinScannear.where((x) {
-      final s = '$x ${x.nombre} ${x.email} ${x.title} ${x.scheduleLabel}'
-          .toLowerCase();
-      return s.contains(q.trim().toLowerCase());
-    }).toList();
+  // ─────────────────────────── INFO CARD
+  Widget _buildInfoCard(DetalleCupon d) {
+    final c = d.cupon;
+    final v = d.version;
 
-    if (list.isEmpty) {
-      return [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Text('No hay coincidencias', style: TextStyle(color: muted)),
-        ),
-      ];
+    Color estadoColor;
+    switch (c.estado.toLowerCase()) {
+      case 'activo':  estadoColor = const Color(0xFF27AE60); break;
+      case 'vencido': estadoColor = Colors.redAccent; break;
+      default:        estadoColor = Colors.amber.shade700;
     }
 
-    return list
-        .map(
-          (l) => _LocalCard(
-            nombre: l.nombre,
-            email: l.email,
-            ciudades: l.ciudades,
-            title: l.title,
-            logoUrl: l.logoUrl,
-            rating: l.rating,
-            scheduleLabel: l.scheduleLabel,
-            border: border,
-            titleColor: title,
-            muted: muted,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ComercioDetalleMiniScreen(
-                    usuarioId: l.usuarioId,
-                  ), // <--- usa el id real del usuario
+    return Container(
+      decoration: BoxDecoration(
+        color: Palette.kSurface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 20, offset: const Offset(0, 4))],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header gradiente
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Palette.kAccent, Palette.kAccentLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.22),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.local_activity_rounded, color: Colors.white, size: 20),
                 ),
-              );
-            },
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        v.nombre,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+                      ),
+                      if (c.secuencial != null) ...[
+                        const SizedBox(height: 3),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.25),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'Nº ${c.secuencial.toString().padLeft(3, '0')}',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 6, height: 6, decoration: BoxDecoration(color: estadoColor, shape: BoxShape.circle)),
+                      const SizedBox(width: 5),
+                      Text(c.estado, style: TextStyle(color: estadoColor, fontWeight: FontWeight.w700, fontSize: 11)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        )
-        .toList();
+
+          // Body con QR + info
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // QR
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 4))],
+                  ),
+                  child: QrImageView(data: widget.cuponId, version: QrVersions.auto, size: 110),
+                ),
+                const SizedBox(width: 14),
+
+                // Info rows
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _infoRow(icon: Icons.qr_code_scanner_rounded, iconColor: Palette.kAccent, label: 'Escaneos', value: '${c.numeroDeEscaneos}'),
+                      if (c.fechaActivacion != null) ...[
+                        const SizedBox(height: 8),
+                        _infoRow(icon: Icons.event_available_rounded, iconColor: const Color(0xFF27AE60), label: 'Activación', value: _fmt(c.fechaActivacion!)),
+                      ],
+                      if (c.fechaVencimiento != null) ...[
+                        const SizedBox(height: 8),
+                        _infoRow(icon: Icons.event_busy_rounded, iconColor: Colors.redAccent, label: 'Vence', value: _fmt(c.fechaVencimiento!)),
+                      ],
+                      if (c.ultimoScaneo != null) ...[
+                        const SizedBox(height: 8),
+                        _infoRow(icon: Icons.history_rounded, iconColor: Palette.kMuted, label: 'Último uso', value: _fmt(c.ultimoScaneo!)),
+                      ],
+                      if (v.ciudadesDisponibles.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 5, runSpacing: 4,
+                          children: v.ciudadesDisponibles.map((ci) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Palette.kAccent.withOpacity(0.09),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(ci, style: const TextStyle(color: Palette.kAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                          )).toList(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Descripción
+          if ((v.descripcion ?? '').isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Palette.kField,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Palette.kBorder),
+                ),
+                child: Text(v.descripcion!, style: const TextStyle(color: Palette.kMuted, fontSize: 13, height: 1.5)),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
-  List<Widget> _buildScaneadosList(
-    DetalleCupon d,
-    String q,
-    Color title,
-    Color muted,
-    Color border,
-  ) {
-    final list = d.lugaresScaneados.where((x) {
-      final s = '${x.nombre} ${x.email} ${x.title} ${x.scheduleLabel}'
-          .toLowerCase();
-      return s.contains(q.trim().toLowerCase());
-    }).toList();
-
-    if (list.isEmpty) {
-      return [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Text('No hay coincidencias', style: TextStyle(color: muted)),
+  Widget _infoRow({required IconData icon, required Color iconColor, required String label, required String value}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 26, height: 26,
+          decoration: BoxDecoration(color: iconColor.withOpacity(0.10), borderRadius: BorderRadius.circular(7)),
+          child: Icon(icon, size: 14, color: iconColor),
         ),
-      ];
-    }
-
-    return list
-        .map(
-          (l) => _LocalCard(
-            nombre: l.nombre,
-            email: l.email,
-            ciudades: l.ciudades,
-            title: l.title,
-            logoUrl: l.logoUrl,
-            rating: l.rating,
-            scheduleLabel: l.scheduleLabel,
-            count: l.count,
-            lastScan: l.lastScan,
-            border: border,
-            titleColor: title,
-            muted: muted,
-             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ComercioDetalleMiniScreen(
-                    usuarioId: l.usuarioId,
-                  ), // <--- usa el id real del usuario
-                ),
-              );
-            },
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Palette.kMuted, fontSize: 10, fontWeight: FontWeight.w500)),
+              Text(value, style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 13)),
+            ],
           ),
-        )
-        .toList();
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────── STATS ROW
+  Widget _buildStatsRow(DetalleCupon d) {
+    final esc = d.totalLugaresScaneados;
+    final total = d.candidatosTotal;
+    final pct = total > 0 ? (esc / total * 100).round() : 0;
+    final pctColor = pct >= 70 ? const Color(0xFF27AE60) : (pct >= 30 ? Colors.amber.shade700 : Palette.kMuted);
+
+    return Row(
+      children: [
+        _statCard(icon: Icons.store_rounded, iconColor: Palette.kPrimary, value: '$esc / $total', label: 'Locales'),
+        const SizedBox(width: 10),
+        _statCard(icon: Icons.qr_code_scanner_rounded, iconColor: Palette.kAccent, value: '${d.totalEscaneos}', label: 'Escaneos'),
+        const SizedBox(width: 10),
+        _statCard(icon: Icons.percent_rounded, iconColor: pctColor, value: '$pct%', label: 'Completado'),
+      ],
+    );
+  }
+
+  Widget _statCard({required IconData icon, required Color iconColor, required String value, required String label}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+        decoration: BoxDecoration(
+          color: Palette.kSurface,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 4))],
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 32, height: 32,
+              decoration: BoxDecoration(color: iconColor.withOpacity(0.10), borderRadius: BorderRadius.circular(9)),
+              child: Icon(icon, size: 17, color: iconColor),
+            ),
+            const SizedBox(height: 6),
+            Text(value, style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w800, fontSize: 15)),
+            Text(label, style: const TextStyle(color: Palette.kMuted, fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────── SEARCH BOX
+  Widget _buildSearchBox({required String hint, required ValueChanged<String> onChanged}) {
+    return TextField(
+      onChanged: onChanged,
+      style: const TextStyle(fontSize: 14),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
+        prefixIcon: const Icon(Icons.search_rounded, color: Palette.kMuted, size: 20),
+        isDense: true,
+        filled: true,
+        fillColor: Palette.kSurface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kBorder)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kBorder)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kAccent, width: 1.4)),
+      ),
+    );
   }
 }
 
-class _HeaderCupon extends StatelessWidget {
-  final String cuponId; // para QR
-  final String versionNombre;
+// ══════════════════════════════════════════════════════════════════
+// Tile de local
+// ══════════════════════════════════════════════════════════════════
+class _LocalTile extends StatelessWidget {
+  final String nombre;
+  final String? title;
+  final String? logoUrl;
+  final double? rating;
+  final String? scheduleLabel;
   final List<String> ciudades;
-  final CuponMeta cupon;
+  final int? scanCount;
+  final DateTime? lastScan;
+  final VoidCallback? onTap;
 
-  const _HeaderCupon({
-    required this.cuponId,
-    required this.versionNombre,
+  const _LocalTile({
+    required this.nombre,
     required this.ciudades,
-    required this.cupon,
+    this.title,
+    this.logoUrl,
+    this.rating,
+    this.scheduleLabel,
+    this.scanCount,
+    this.lastScan,
+    this.onTap,
   });
 
   String _fmt(DateTime d) =>
@@ -339,327 +584,130 @@ class _HeaderCupon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final border = Palette.kBorder;
-    final muted = Palette.kMuted;
-    final title = Palette.kTitle;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  versionNombre,
-                  style: TextStyle(
-                    color: title,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Palette.kField,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: border),
-                ),
-                child: Text(
-                  cupon.estado,
-                  style: TextStyle(color: muted, fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // QR desde el cuponId (uuid/id)
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: border),
-                ),
-                padding: const EdgeInsets.all(10),
-                child: QrImageView(
-                  data: cuponId,
-                  version: QrVersions.auto,
-                  size: 110,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: -6,
-                      children: ciudades
-                          .map(
-                            (c) => Chip(
-                              label: Text(
-                                c,
-                                style: const TextStyle(fontSize: 12, color: Palette.kAccent),
-                              ),
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                              side: BorderSide.none,
-                              backgroundColor: Palette.kAccent.withOpacity(0.1),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Escaneos: ${cupon.numeroDeEscaneos}',
-                      style: TextStyle(
-                        color: title,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Activación: ${cupon.fechaActivacion != null ? _fmt(cupon.fechaActivacion!) : '—'}',
-                      style: TextStyle(color: muted),
-                    ),
-                    Text(
-                      'Vence: ${cupon.fechaVencimiento != null ? _fmt(cupon.fechaVencimiento!) : '—'}',
-                      style: TextStyle(color: muted),
-                    ),
-                    Text(
-                      'Último uso: ${cupon.ultimoScaneo != null ? _fmt(cupon.ultimoScaneo!) : '—'}',
-                      style: TextStyle(color: muted),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SearchBox extends StatelessWidget {
-  final String hint;
-  final ValueChanged<String> onChanged;
-  const _SearchBox({required this.hint, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      onChanged: onChanged,
-      decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: const Icon(Icons.search),
-        isDense: true,
-        filled: true,
-        fillColor: Palette.kField,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 10,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Palette.kBorder),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Palette.kAccent),
-        ),
-      ),
-    );
-  }
-}
-
-class _LocalCard extends StatelessWidget {
-  final String nombre;
-  final String email;
-  final List<String> ciudades;
-  final String? title;
-  final String? logoUrl;
-  final double? rating;
-  final String? scheduleLabel;
-  final int? count; // solo para escaneados
-  final DateTime? lastScan; // solo para escaneados
-
-  final Color border;
-  final Color titleColor;
-  final Color muted;
-
-  // 👇 NUEVO: callback para navegar
-  final VoidCallback? onTap;
-
-  const _LocalCard({
-    required this.nombre,
-    required this.email,
-    required this.ciudades,
-    required this.title,
-    required this.logoUrl,
-    required this.rating,
-    required this.scheduleLabel,
-    this.count,
-    this.lastScan,
-    required this.border,
-    required this.titleColor,
-    required this.muted,
-    this.onTap, // 👈 NUEVO
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap, // 👈 hace el card “tappable”
-      borderRadius: BorderRadius.circular(14),
+    return GestureDetector(
+      onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 14, offset: const Offset(0, 4))],
         ),
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: Palette.kField,
-              backgroundImage: (logoUrl != null && logoUrl!.isNotEmpty)
-                  ? NetworkImage(logoUrl!)
-                  : null,
-              child: (logoUrl == null || logoUrl!.isEmpty)
-                  ? const Icon(Icons.store_mall_directory_outlined)
-                  : null,
+            // Logo
+            Container(
+              width: 52, height: 52,
+              decoration: BoxDecoration(
+                color: Palette.kField,
+                shape: BoxShape.circle,
+                border: Border.all(color: Palette.kBorder),
+              ),
+              child: ClipOval(
+                child: (logoUrl != null && logoUrl!.isNotEmpty)
+                    ? Image.network(logoUrl!, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.store_mall_directory_outlined, color: Palette.kMuted, size: 24))
+                    : const Icon(Icons.store_mall_directory_outlined, color: Palette.kMuted, size: 24),
+              ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Nombre + chevron
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          nombre,
-                          style: TextStyle(
-                            color: titleColor,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                        child: Text(nombre, style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 14)),
                       ),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        color: Colors.grey,
-                      ), // hint visual de navegación
+                      const Icon(Icons.chevron_right_rounded, color: Palette.kMuted, size: 20),
                     ],
                   ),
-                  if (title != null && title!.trim().isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        title!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: muted),
-                      ),
-                    ),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: -6,
-                    children: ciudades
-                        .map(
-                          (c) => Chip(
-                            label: Text(
-                              c,
-                              style: const TextStyle(fontSize: 11, color: Palette.kAccent),
+
+                  if ((title ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(title!, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Palette.kMuted, fontSize: 12)),
+                  ],
+
+                  const SizedBox(height: 5),
+
+                  // Rating + horario
+                  if ((rating != null && rating! > 0) || (scheduleLabel ?? '').isNotEmpty)
+                    Row(
+                      children: [
+                        if (rating != null && rating! > 0) ...[
+                          _Stars(rating: rating),
+                          const SizedBox(width: 6),
+                        ],
+                        if ((scheduleLabel ?? '').isNotEmpty)
+                          Expanded(
+                            child: Row(
+                              children: [
+                                const Icon(Icons.access_time_rounded, size: 12, color: Palette.kMuted),
+                                const SizedBox(width: 3),
+                                Expanded(
+                                  child: Text(scheduleLabel!, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(color: Palette.kMuted, fontSize: 11)),
+                                ),
+                              ],
                             ),
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                            side: BorderSide.none,
-                            backgroundColor: Palette.kAccent.withOpacity(0.1),
                           ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 6),
-                 /*  Row(
-                    children: [
-                      _Stars(rating: rating),
-                      const SizedBox(width: 8),
-                      if (scheduleLabel != null && scheduleLabel!.isNotEmpty)
-                        Flexible(
-                          child: Text(
-                            scheduleLabel!,
-                            style: TextStyle(color: muted, fontSize: 12),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                      ],
+                    ),
+
+                  // Ciudades
+                  if (ciudades.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Wrap(
+                      spacing: 5, runSpacing: 3,
+                      children: ciudades.map((c) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Palette.kAccent.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                    ],
-                  ), */
-                /*   if (count != null || lastScan != null) ...[
+                        child: Text(c, style: const TextStyle(color: Palette.kAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                      )).toList(),
+                    ),
+                  ],
+
+                  // Badge escaneado
+                  if (scanCount != null) ...[
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        if (count != null) ...[
-                          const Icon(
-                            Icons.qr_code_2,
-                            size: 16,
-                            color: Colors.grey,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF27AE60).withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Escaneos: $count',
-                            style: TextStyle(color: muted, fontSize: 12),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.check_circle_rounded, size: 13, color: Color(0xFF27AE60)),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$scanCount ${scanCount == 1 ? "escaneo" : "escaneos"}',
+                                style: const TextStyle(color: Color(0xFF27AE60), fontSize: 11, fontWeight: FontWeight.w700),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 10),
-                        ],
+                        ),
                         if (lastScan != null) ...[
-                          const Icon(
-                            Icons.history,
-                            size: 16,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Último: '
-                            '${lastScan!.day.toString().padLeft(2, '0')}/'
-                            '${lastScan!.month.toString().padLeft(2, '0')}/'
-                            '${lastScan!.year} '
-                            '${lastScan!.hour.toString().padLeft(2, '0')}:'
-                            '${lastScan!.minute.toString().padLeft(2, '0')}',
-                            style: TextStyle(color: muted, fontSize: 12),
-                          ),
+                          const SizedBox(width: 6),
+                          Text('Último: ${_fmt(lastScan!)}',
+                              style: const TextStyle(color: Palette.kMuted, fontSize: 11)),
                         ],
                       ],
                     ),
                   ],
-               */  ],
+                ],
               ),
             ),
           ],
@@ -669,23 +717,24 @@ class _LocalCard extends StatelessWidget {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════
+// Estrellas
+// ══════════════════════════════════════════════════════════════════
 class _Stars extends StatelessWidget {
   final double? rating;
   const _Stars({this.rating});
 
   @override
   Widget build(BuildContext context) {
-    final r = (rating ?? 0).clamp(0, 5).toDouble();
+    final r = (rating ?? 0.0).clamp(0.0, 5.0);
     final full = r.floor();
     final half = (r - full) >= 0.5;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(5, (i) {
-        if (i < full)
-          return const Icon(Icons.star, size: 16, color: Palette.kAccentLight);
-        if (i == full && half)
-          return const Icon(Icons.star_half, size: 16, color: Palette.kAccentLight);
-        return const Icon(Icons.star_border, size: 16, color: Palette.kAccentLight);
+        if (i < full) return const Icon(Icons.star_rounded, size: 14, color: Colors.amber);
+        if (i == full && half) return const Icon(Icons.star_half_rounded, size: 14, color: Colors.amber);
+        return const Icon(Icons.star_border_rounded, size: 14, color: Colors.amber);
       }),
     );
   }

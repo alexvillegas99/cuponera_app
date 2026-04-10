@@ -1,4 +1,3 @@
-// lib/screens/profile/profile_screen_light.dart
 import 'package:enjoy/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,29 +34,19 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
     });
     try {
       final info = await _svc.fetch();
-      setState(() {
-        _data = info;
-      });
-    } catch (e) {
-      setState(() {
-        _error = 'No se pudo cargar tu perfil';
-      });
+      setState(() => _data = info);
+    } catch (_) {
+      setState(() => _error = 'No se pudo cargar tu perfil');
     } finally {
-      if (mounted)
-        setState(() {
-          _loading = false;
-        });
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _refresh() => _load();
-
-  String _greeting(ProfileInfo? p) {
-    final n = p?.name.trim();
-    if (n == null || n.isEmpty) return '¡Bienvenido!';
-    final first = n.split(' ').first;
-    return '¡Hola, $first! 👋';
-    // Si prefieres: return '¡Bienvenido, $first!';
+  String _initials(String name) {
+    final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
 
   @override
@@ -67,165 +56,86 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
     return Scaffold(
       backgroundColor: Palette.kBg,
       appBar: AppBar(
-        title: const Text('Mi perfil'),
-        backgroundColor: Palette.kAccent,
-        foregroundColor: Colors.white,
+        backgroundColor: Palette.kSurface,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        foregroundColor: Palette.kPrimary,
+        title: const Text(
+          'Mi perfil',
+          style: TextStyle(
+            color: Palette.kTitle,
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+          ),
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            color: Palette.kSurface,
+            border: Border(bottom: BorderSide(color: Palette.kBorder, width: 1)),
+          ),
+        ),
       ),
 
       body: RefreshIndicator(
-        onRefresh: _refresh,
+        onRefresh: _load,
         color: Palette.kAccent,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
-            if (_loading) _loadingShimmer(),
-            if (!_loading && _error != null)
-              _errorCard(_error!, onRetry: _load),
+            if (_loading) _buildLoadingState(),
+            if (!_loading && _error != null) _buildErrorCard(_error!),
             if (!_loading && _error == null && p != null) ...[
-              // ===== Header (saludo + nombre+email) =====
-              // ===== Header (saludo + nombre+email) =====
-              _HeroHeader(
-                greeting: _greeting(p),
-                name: p.name.isEmpty ? 'Invitado' : p.name,
-                email: p.email,
-                onEdit: () => context.push('/perfil/editar'),
-              ),
+
+              // ── Hero header ─────────────────────────────────────
+              _buildHeroHeader(p),
 
               const SizedBox(height: 12),
 
-              // ===== Stats =====
-              Container(
-                decoration: _cardBox(),
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _StatTile(
-                        label: 'Favoritos',
-                        value: p.favoritos,
-                        icon: Icons.favorite,
-                      ),
-                    ),
-                    _vDivider(),
-                    Expanded(
-                      child: _StatTile(
-                        label: 'Cuponeras',
-                        value: p.cuponeras,
-                        icon: Icons.qr_code_2,
-                      ),
-                    ),
-                    _vDivider(),
-                    Expanded(
-                      child: _StatTile(
-                        label: 'Escaneos',
-                        value: p.escaneos,
-                        icon: Icons.history,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // ── Stats ────────────────────────────────────────────
+              _buildStats(p),
 
               const SizedBox(height: 12),
 
-              // ===== Ciudades preferidas =====
-              Container(
-                decoration: _cardBox(),
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _sectionTitle(Icons.location_on_outlined, 'Mis ciudades'),
-                    const SizedBox(height: 10),
-                    if (p.ciudades.isEmpty)
-                      const Text(
+              // ── Ciudades ─────────────────────────────────────────
+              _buildSection(
+                icon: Icons.location_on_outlined,
+                iconColor: Palette.kPrimary,
+                title: 'Mis ciudades',
+                child: p.ciudades.isEmpty
+                    ? const Text(
                         'Aún no configuras ciudades',
-                        style: TextStyle(color: Palette.kMuted),
+                        style: TextStyle(color: Palette.kMuted, fontSize: 13),
                       )
-                    else
-                      Wrap(
+                    : Wrap(
                         spacing: 8,
-                        runSpacing: -6,
+                        runSpacing: 8,
                         children: [for (final c in p.ciudades) _Chip(c)],
                       ),
-                  ],
-                ),
               ),
 
               const SizedBox(height: 12),
 
-              // ===== Categorías favoritas =====
-              Container(
-                decoration: _cardBox(),
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _sectionTitle(
-                      Icons.category_outlined,
-                      'Categorías favoritas',
-                    ),
-                    const SizedBox(height: 10),
-                    if (p.categoriasFav.isEmpty)
-                      const Text(
+              // ── Categorías ───────────────────────────────────────
+              _buildSection(
+                icon: Icons.category_outlined,
+                iconColor: Palette.kAccent,
+                title: 'Categorías favoritas',
+                child: p.categoriasFav.isEmpty
+                    ? const Text(
                         'Aún no seleccionas categorías',
-                        style: TextStyle(color: Palette.kMuted),
+                        style: TextStyle(color: Palette.kMuted, fontSize: 13),
                       )
-                    else
-                      Wrap(
+                    : Wrap(
                         spacing: 8,
-                        runSpacing: -6,
+                        runSpacing: 8,
                         children: [for (final t in p.categoriasFav) _Chip(t)],
                       ),
-                  ],
-                ),
               ),
 
               const SizedBox(height: 12),
 
-              // ===== Cuenta =====
-              Container(
-                decoration: _cardBox(),
-                child: Column(
-                  children: [
-                    _SettingTile(
-                      icon: Icons.person_outline,
-                      title: 'Editar perfil',
-                      subtitle: 'Nombre y correo',
-                      onTap: () => context.push('/perfil/editar'),
-                    ),
-                    _divider(),
-                    _SettingTile(
-                      icon: Icons.notifications_active_outlined,
-                      title: 'Notificaciones',
-                      subtitle: 'Promociones y alertas',
-                      onTap: () => context.push('/perfil/notificaciones'),
-                    ),
-                    _divider(),
-                    _SettingTile(
-                      icon: Icons.logout,
-                      title: 'Cerrar sesión',
-                      subtitle: 'Salir de tu cuenta',
-                      danger: true,
-                      onTap: () async {
-                        final confirmar = await showConfirmBottomSheet(
-                          context,
-                          title: '¿Cerrar sesión?',
-                          message: 'Se cerrará tu sesión en esta aplicación.',
-                          confirmLabel: 'Cerrar sesión',
-                          cancelLabel: 'Cancelar',
-                          icon: Icons.logout,
-                        );
-                        if (confirmar == true) {
-                          await authService.logout();
-                          if (context.mounted) context.go('/login');
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
+              // ── Cuenta ───────────────────────────────────────────
+              _buildAccountCard(p),
             ],
           ],
         ),
@@ -233,7 +143,342 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
     );
   }
 
-  Future<bool?> showConfirmBottomSheet(
+  // ── Hero header ────────────────────────────────────────────────────
+  Widget _buildHeroHeader(ProfileInfo p) {
+    final initials = _initials(p.name.isEmpty ? 'U' : p.name);
+    final displayName = p.name.isEmpty ? 'Invitado' : p.name;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 20),
+      decoration: BoxDecoration(
+        color: Palette.kSurface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Avatar
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Palette.kAccent, Palette.kAccentLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Palette.kAccent.withOpacity(0.35),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              initials,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Nombre
+          Text(
+            displayName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Palette.kTitle,
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+            ),
+          ),
+
+          if (p.email != null && p.email!.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Text(
+              p.email!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Palette.kMuted, fontSize: 13),
+            ),
+          ],
+
+          const SizedBox(height: 16),
+
+          // Botón editar
+          GestureDetector(
+            onTap: () => context.push('/perfil/editar'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Palette.kAccent, Palette.kAccentLight],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Palette.kAccent.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.edit_rounded, color: Colors.white, size: 14),
+                  SizedBox(width: 6),
+                  Text(
+                    'Editar perfil',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Stats ──────────────────────────────────────────────────────────
+  Widget _buildStats(ProfileInfo p) {
+    return Row(
+      children: [
+        Expanded(
+          child: _StatCard(
+            icon: Icons.favorite_rounded,
+            iconColor: Colors.redAccent,
+            value: p.favoritos,
+            label: 'Favoritos',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatCard(
+            icon: Icons.qr_code_2_rounded,
+            iconColor: Palette.kPrimary,
+            value: p.cuponeras,
+            label: 'Cuponeras',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatCard(
+            icon: Icons.history_rounded,
+            iconColor: Palette.kAccent,
+            value: p.escaneos,
+            label: 'Escaneos',
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Section card ───────────────────────────────────────────────────
+  Widget _buildSection({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required Widget child,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Palette.kSurface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: iconColor, size: 16),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Palette.kTitle,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
+  }
+
+  // ── Account card ───────────────────────────────────────────────────
+  Widget _buildAccountCard(ProfileInfo p) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Palette.kSurface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          _SettingTile(
+            icon: Icons.person_outline_rounded,
+            iconColor: Palette.kPrimary,
+            title: 'Editar perfil',
+            subtitle: 'Nombre y correo',
+            onTap: () => context.push('/perfil/editar'),
+          ),
+          const Divider(height: 1, color: Palette.kBorder, indent: 56),
+          _SettingTile(
+            icon: Icons.notifications_outlined,
+            iconColor: Palette.kAccent,
+            title: 'Notificaciones',
+            subtitle: 'Promociones y alertas',
+            onTap: () => context.push('/perfil/notificaciones'),
+          ),
+          const Divider(height: 1, color: Palette.kBorder, indent: 56),
+          _SettingTile(
+            icon: Icons.logout_rounded,
+            iconColor: Colors.redAccent,
+            title: 'Cerrar sesión',
+            subtitle: 'Salir de tu cuenta',
+            danger: true,
+            onTap: () async {
+              final ok = await _showConfirmSheet(
+                context,
+                title: '¿Cerrar sesión?',
+                message: 'Se cerrará tu sesión en esta aplicación.',
+                confirmLabel: 'Cerrar sesión',
+                icon: Icons.logout_rounded,
+              );
+              if (ok == true) {
+                await authService.logout();
+                if (mounted) context.go('/login');
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Loading ────────────────────────────────────────────────────────
+  Widget _buildLoadingState() {
+    return Container(
+      height: 160,
+      decoration: BoxDecoration(
+        color: Palette.kSurface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: const CircularProgressIndicator(color: Palette.kAccent, strokeWidth: 2),
+    );
+  }
+
+  // ── Error ──────────────────────────────────────────────────────────
+  Widget _buildErrorCard(String msg) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Palette.kSurface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withOpacity(0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.error_outline, color: Colors.redAccent),
+          ),
+          const SizedBox(height: 12),
+          Text(msg, style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: _load,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+              decoration: BoxDecoration(
+                color: Palette.kAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'Reintentar',
+                style: TextStyle(
+                  color: Palette.kAccent,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Confirm bottom sheet ───────────────────────────────────────────
+  Future<bool?> _showConfirmSheet(
     BuildContext context, {
     required String title,
     required String message,
@@ -261,7 +506,7 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
               Container(
                 width: 44,
                 height: 5,
-                margin: const EdgeInsets.only(bottom: 12),
+                margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
                   color: Colors.black12,
                   borderRadius: BorderRadius.circular(999),
@@ -273,41 +518,44 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Palette.kAccent.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(14),
+                      color: Colors.redAccent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(icon, color: Palette.kAccent),
+                    child: Icon(icon, color: Colors.redAccent, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        color: Palette.kTitle,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 18,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: Palette.kTitle,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          message,
+                          style: const TextStyle(color: Palette.kMuted, fontSize: 13),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  message,
-                  style: const TextStyle(color: Palette.kMuted),
-                ),
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(ctx, false),
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Palette.kBorder),
+                        side: const BorderSide(color: Palette.kBorder),
                         foregroundColor: Palette.kMuted,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -320,8 +568,9 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Palette.kAccent,
+                        backgroundColor: Colors.redAccent,
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -339,122 +588,70 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
       },
     );
   }
-
-  // ==== helpers UI ====
-  Widget _loadingShimmer() {
-    return Container(
-      height: 140,
-      decoration: _cardBox(),
-      alignment: Alignment.center,
-      child: const Padding(
-        padding: EdgeInsets.all(20),
-        child: CircularProgressIndicator(
-          color: Palette.kAccent,
-          strokeWidth: 2,
-        ),
-      ),
-    );
-  }
-
-  Widget _errorCard(String msg, {required VoidCallback onRetry}) {
-    return Container(
-      decoration: _cardBox(),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          const Icon(Icons.error_outline, color: Colors.redAccent),
-          const SizedBox(height: 8),
-          Text(msg, style: const TextStyle(color: Palette.kTitle)),
-          const SizedBox(height: 8),
-          TextButton(onPressed: onRetry, child: const Text('Reintentar')),
-        ],
-      ),
-    );
-  }
-
-  BoxDecoration _cardBox() {
-    return BoxDecoration(
-      color: Palette.kSurface,
-      borderRadius: BorderRadius.circular(8),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 20,
-          offset: const Offset(0, 4),
-        ),
-      ],
-    );
-  }
-
-  Widget _sectionTitle(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, color: Palette.kAccent, size: 18),
-        const SizedBox(width: 6),
-        Text(
-          text,
-          style: const TextStyle(
-            color: Palette.kTitle,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _vDivider() => Container(
-    width: 1,
-    height: 38,
-    margin: const EdgeInsets.symmetric(horizontal: 8),
-    color: Palette.kBorder,
-  );
-
-  Widget _divider() => const Divider(height: 1, color: Palette.kBorder);
 }
 
-class _StatTile extends StatelessWidget {
-  final String label;
-  final int value;
+// ── Stat card ──────────────────────────────────────────────────────────
+class _StatCard extends StatelessWidget {
   final IconData icon;
+  final Color iconColor;
+  final int value;
+  final String label;
 
-  const _StatTile({
-    required this.label,
-    required this.value,
+  const _StatCard({
     required this.icon,
+    required this.iconColor,
+    required this.value,
+    required this.label,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: 16,
-          backgroundColor: Palette.kAccent,
-          child: Icon(icon, color: Colors.white, size: 18),
-        ),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '$value',
-              style: const TextStyle(
-                color: Palette.kAccent,
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-              ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+      decoration: BoxDecoration(
+        color: Palette.kSurface,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
             ),
-            Text(
-              label,
-              style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+            child: Icon(icon, color: iconColor, size: 18),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$value',
+            style: TextStyle(
+              color: iconColor,
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
             ),
-          ],
-        ),
-      ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(color: Palette.kMuted, fontSize: 11),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 }
 
+// ── Chip ───────────────────────────────────────────────────────────────
 class _Chip extends StatelessWidget {
   final String text;
   const _Chip(this.text);
@@ -462,24 +659,28 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Palette.kAccent.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(24),
+        color: Palette.kAccent.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Palette.kAccent.withOpacity(0.2)),
       ),
       child: Text(
         text,
         style: const TextStyle(
           color: Palette.kAccent,
           fontWeight: FontWeight.w600,
+          fontSize: 12,
         ),
       ),
     );
   }
 }
 
+// ── Setting tile ───────────────────────────────────────────────────────
 class _SettingTile extends StatelessWidget {
   final IconData icon;
+  final Color iconColor;
   final String title;
   final String? subtitle;
   final bool danger;
@@ -487,6 +688,7 @@ class _SettingTile extends StatelessWidget {
 
   const _SettingTile({
     required this.icon,
+    required this.iconColor,
     required this.title,
     this.subtitle,
     this.danger = false,
@@ -495,107 +697,54 @@ class _SettingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconBg = danger
-        ? Colors.redAccent.withOpacity(0.12)
-        : Palette.kAccent.withOpacity(0.12);
-    final iconColor = danger ? Colors.redAccent : Palette.kAccent;
-    final titleColor = danger ? Colors.redAccent : Palette.kTitle;
-    final sub = danger ? Colors.redAccent.shade200 : Palette.kMuted;
-
-    return ListTile(
+    return InkWell(
       onTap: onTap,
-      leading: CircleAvatar(
-        radius: 18,
-        backgroundColor: iconBg,
-        child: Icon(icon, color: iconColor),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(color: titleColor, fontWeight: FontWeight.w700),
-      ),
-      subtitle: subtitle != null
-          ? Text(subtitle!, style: TextStyle(color: sub))
-          : null,
-      trailing: Icon(
-        Icons.chevron_right,
-        color: danger ? Colors.redAccent : Palette.kMuted,
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-    );
-  }
-}
-
-class _HeroHeader extends StatelessWidget {
-  final String greeting;
-  final String name;
-  final String? email;
-  final VoidCallback onEdit;
-
-  const _HeroHeader({
-    required this.greeting,
-    required this.name,
-    required this.email,
-    required this.onEdit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-      
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  greeting,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Palette.kAccent,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Palette.kTitle),
-                ),
-                if (email != null && email!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    email!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Palette.kMuted),
-                  ),
-                ],
-              ],
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: iconColor, size: 18),
             ),
-          ),
-          IconButton(
-            tooltip: 'Editar',
-            onPressed: onEdit,
-            icon: const Icon(Icons.edit_outlined, color: Palette.kAccent),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: danger ? Colors.redAccent : Palette.kTitle,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        color: danger
+                            ? Colors.redAccent.withOpacity(0.7)
+                            : Palette.kMuted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (!danger)
+              Icon(Icons.chevron_right_rounded, color: Palette.kMuted, size: 20),
+          ],
+        ),
       ),
     );
   }
