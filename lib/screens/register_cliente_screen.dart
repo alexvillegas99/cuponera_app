@@ -10,7 +10,12 @@ import 'package:url_launcher/url_launcher.dart';
 enum TipoIdentificacion { CEDULA, RUC, PASAPORTE }
 
 class RegisterClienteScreen extends StatefulWidget {
-  const RegisterClienteScreen({super.key});
+  /// Datos pre-llenados cuando el usuario viene desde Google Sign-In.
+  /// Contiene: nombres, apellidos, email, googleId (opcional).
+  final Map<String, dynamic>? googleData;
+
+  const RegisterClienteScreen({super.key, this.googleData});
+
   @override
   State<RegisterClienteScreen> createState() => _RegisterClienteScreenState();
 }
@@ -32,8 +37,22 @@ class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
   bool _emailOk = false;
   bool _obscure = true;
   bool _aceptaTerminos = false;
+  bool _fromGoogle = false;
 
   static const int _otpLen = 5;
+
+  @override
+  void initState() {
+    super.initState();
+    final g = widget.googleData;
+    if (g != null) {
+      _nombres.text = g['nombres'] ?? '';
+      _apellidos.text = g['apellidos'] ?? '';
+      _email.text = g['email'] ?? '';
+      _fromGoogle = true;
+      _emailOk = true; // Email verificado por Google, saltar OTP
+    }
+  }
 
   @override
   void dispose() {
@@ -107,24 +126,28 @@ class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
     setState(() => _loading = true);
     try {
       final correo = _email.text.trim();
-      await _otp.sendOtp(correo);
 
-      if (!mounted) return;
-      final ok = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => OtpVerifyScreen(
-            length: _otpLen,
-            email: correo,
-            otpService: _otp,
-            title: 'Verificación',
-            subtitle: 'Ingresa el código de $_otpLen dígitos enviado a $correo.',
-            canResend: true,
-            resendSeconds: 45,
+      // Si viene de Google, el email ya está verificado — saltar OTP
+      if (!_fromGoogle) {
+        await _otp.sendOtp(correo);
+
+        if (!mounted) return;
+        final ok = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OtpVerifyScreen(
+              length: _otpLen,
+              email: correo,
+              otpService: _otp,
+              title: 'Verificación',
+              subtitle: 'Ingresa el código de $_otpLen dígitos enviado a $correo.',
+              canResend: true,
+              resendSeconds: 45,
+            ),
           ),
-        ),
-      );
-      if (ok != true) return;
+        );
+        if (ok != true) return;
+      }
 
       final dto = {
         "nombres": _nombres.text.trim(),
@@ -226,15 +249,15 @@ class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
                         Expanded(
                           child: TextField(
                             controller: _email,
-                            readOnly: _emailOk,
+                            readOnly: _emailOk || _fromGoogle,
                             keyboardType: TextInputType.emailAddress,
                             cursorColor: Palette.kAccent,
                             style: const TextStyle(color: Palette.kTitle, fontSize: 14),
                             decoration: _inputDec('email@ejemplo.com', icon: Icons.alternate_email),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        SizedBox(
+                        if (!_fromGoogle) const SizedBox(width: 10),
+                        if (!_fromGoogle) SizedBox(
                           height: 48,
                           child: ElevatedButton(
                             onPressed: _loading || _emailOk ? null : _checkEmail,

@@ -83,7 +83,9 @@ class ComercioMini {
   final List<String> categorias;
   final double promedioCalificacion;
   final int totalComentarios;
-  final String? telefono;                 // 👈 AÑADIR
+  final String? telefono;
+  final double? lat;
+  final double? lng;
   final List<ComentarioMini> comentarios;
 
   ComercioMini({
@@ -93,29 +95,36 @@ class ComercioMini {
     required this.promedioCalificacion,
     required this.totalComentarios,
     required this.comentarios,
-    this.telefono,                        // 👈 AÑADIR
+    this.telefono,
+    this.lat,
+    this.lng,
   });
 
-  factory ComercioMini.fromJson(Map<String, dynamic> j) => ComercioMini(
-        promoPrincipal: j['promoPrincipal'] == null
-            ? null
-            : PromoPrincipal.fromJson(j['promoPrincipal']),
-        ciudades: ((j['ciudades'] as List?) ?? const [])
-            .map((e) => e?.toString() ?? '')
-            .where((s) => s.isNotEmpty)
-            .toList(),
-        categorias: ((j['categorias'] as List?) ?? const [])
-            .map((e) => e?.toString() ?? '')
-            .where((s) => s.isNotEmpty)
-            .toList(),
-        promedioCalificacion: (j['promedioCalificacion'] ?? 0).toDouble(),
-        totalComentarios: (j['totalComentarios'] ?? 0) as int,
-        telefono: j['telefono']?.toString(),        // 👈 AÑADIR
-        comentarios: ((j['comentarios'] as List?) ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .map(ComentarioMini.fromJson)
-            .toList(),
-      );
+  factory ComercioMini.fromJson(Map<String, dynamic> j) {
+    final ub = j['ubicacion'] as Map<String, dynamic>?;
+    return ComercioMini(
+      promoPrincipal: j['promoPrincipal'] == null
+          ? null
+          : PromoPrincipal.fromJson(j['promoPrincipal']),
+      ciudades: ((j['ciudades'] as List?) ?? const [])
+          .map((e) => e?.toString() ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList(),
+      categorias: ((j['categorias'] as List?) ?? const [])
+          .map((e) => e?.toString() ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList(),
+      promedioCalificacion: (j['promedioCalificacion'] ?? 0).toDouble(),
+      totalComentarios: (j['totalComentarios'] ?? 0) as int,
+      telefono: j['telefono']?.toString(),
+      lat: ub != null ? (ub['lat'] as num?)?.toDouble() : null,
+      lng: ub != null ? (ub['lng'] as num?)?.toDouble() : null,
+      comentarios: ((j['comentarios'] as List?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(ComentarioMini.fromJson)
+          .toList(),
+    );
+  }
 }
 
 DateTime? _d(dynamic v) => v == null ? null : DateTime.tryParse(v.toString());

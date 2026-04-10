@@ -13,10 +13,14 @@ import 'package:enjoy/services/categorias_service.dart';
 import 'package:enjoy/services/ciudades_service.dart';
 import 'package:enjoy/services/cupones_service.dart';
 import 'package:enjoy/services/promotions_service.dart';
+import 'package:enjoy/screens/clientes/detalle_version_screen.dart';
+import 'package:enjoy/screens/clientes/mapa_version_screen.dart';
+import 'package:enjoy/services/versiones_service.dart';
 import 'package:enjoy/state/favorites_store.dart';
 import 'package:enjoy/widgets/promo_card_light.dart' show CardStyle;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -35,7 +39,8 @@ const _kNotifPromos = 'notif_promos_v1';
 const _kCityTopicsPrefs = 'notif_city_topics_v2';
 
 class PromotionsHomeScreen extends StatefulWidget {
-  const PromotionsHomeScreen({super.key});
+  final bool guestMode;
+  const PromotionsHomeScreen({super.key, this.guestMode = false});
 
   @override
   State<PromotionsHomeScreen> createState() => _PromotionsHomeScreenState();
@@ -268,8 +273,10 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
       await _restoreSavedCitySelection();
       await _syncCityTopics();
       await _loadPromosByCities();
-      await _loadCuponeras();
-      await _initFavoritesOnce();
+      if (!widget.guestMode) {
+        await _loadCuponeras();
+        await _initFavoritesOnce();
+      }
     } catch (_) {}
   }
 
@@ -921,6 +928,11 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   Widget _buildBodyByIndex() {
     if (_bottomIndex == 0) return _buildHomeBody();
 
+    // ── Modo invitado: tab 1 = versiones para comprar ──
+    if (widget.guestMode && _bottomIndex == 1) {
+      return _GuestCuponerasView(onLogin: _goLogin);
+    }
+
     if (_bottomIndex == 1) {
       final favsStore = context.watch<FavoritesStore>();
       final favs = _allPromos.where((p) => favsStore.isFav(p.id)).toList();
@@ -968,6 +980,12 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     return const SizedBox.shrink();
   }
 
+  void _goLogin() {
+    AuthService().exitGuestMode().then((_) {
+      if (mounted) context.go('/login');
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -980,61 +998,83 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
         titleSpacing: 12,
 
         // 👇 AQUÍ MISMO: Hola + nombre
-        title: FutureBuilder<Map<String, dynamic>?>(
-          future: AuthService().getUser(),
-          builder: (context, snapshot) {
-            final user = snapshot.data;
-            String nombre = 'Invitado';
-
-            if (user != null) {
-              if (user['nombres'] != null) {
-                nombre = '${user['nombres']} ${user['apellidos'] ?? ''}'.trim();
-              } else if (user['nombre'] != null) {
-                nombre = user['nombre'];
-              }
-            }
-
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Hola,',
-                  style: TextStyle(fontSize: 11, color: Palette.kMuted),
-                ),
-                Text(
-                  nombre,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: Palette.kTitle,
+        title: widget.guestMode
+            ? const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Hola,', style: TextStyle(fontSize: 11, color: Palette.kMuted)),
+                  Text(
+                    'Invitado',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Palette.kTitle),
                   ),
-                ),
-              ],
-            );
-          },
-        ),
+                ],
+              )
+            : FutureBuilder<Map<String, dynamic>?>(
+                future: AuthService().getUser(),
+                builder: (context, snapshot) {
+                  final user = snapshot.data;
+                  String nombre = 'Invitado';
+
+                  if (user != null) {
+                    if (user['nombres'] != null) {
+                      nombre = '${user['nombres']} ${user['apellidos'] ?? ''}'.trim();
+                    } else if (user['nombre'] != null) {
+                      nombre = user['nombre'];
+                    }
+                  }
+
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Hola,',
+                        style: TextStyle(fontSize: 11, color: Palette.kMuted),
+                      ),
+                      Text(
+                        nombre,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Palette.kTitle,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
 
         actions: [
-          // 👤 PERFIL
+          // 👤 PERFIL o INICIAR SESIÓN (invitado)
           Padding(
             padding: const EdgeInsets.only(right: 4),
-            child: IconButton(
-              tooltip: 'Perfil',
-              icon: const Icon(
-                Icons.account_circle_outlined,
-                size: 26,
-                color: Palette.kPrimary,
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfileScreenLight()),
-                );
-              },
-            ),
+            child: widget.guestMode
+                ? TextButton(
+                    onPressed: _goLogin,
+                    child: const Text(
+                      'Iniciar sesión',
+                      style: TextStyle(color: Palette.kAccent, fontWeight: FontWeight.w600),
+                    ),
+                  )
+                : IconButton(
+                    tooltip: 'Perfil',
+                    icon: const Icon(
+                      Icons.account_circle_outlined,
+                      size: 26,
+                      color: Palette.kPrimary,
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ProfileScreenLight()),
+                      );
+                    },
+                  ),
           ),
 
           // 📍 FILTRO DE CIUDAD
@@ -1069,13 +1109,383 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
       ),
 
       body: _buildBodyByIndex(),
+
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         child: FloatingBottomBarLight(
           index: _bottomIndex,
           onTap: (i) => setState(() => _bottomIndex = i),
+          items: widget.guestMode
+              ? const [
+                  NavItem(icon: Icons.home_filled, label: 'Inicio'),
+                  NavItem(icon: Icons.local_activity_outlined, label: 'Cuponeras'),
+                ]
+              : null,
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Widget de cuponeras disponibles para invitados
+// ─────────────────────────────────────────────────────────────
+class _GuestCuponerasView extends StatefulWidget {
+  final VoidCallback onLogin;
+  const _GuestCuponerasView({required this.onLogin});
+
+  @override
+  State<_GuestCuponerasView> createState() => _GuestCuponerasViewState();
+}
+
+class _GuestCuponerasViewState extends State<_GuestCuponerasView> {
+  List<Map<String, dynamic>> _versiones = [];
+  bool _loading = true;
+  String? _error;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await VersionesService.listarActivas();
+      if (!mounted) return;
+      setState(() {
+        _versiones = data;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _verLocales(Map<String, dynamic> v) {
+    final id = v['_id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DetalleVersionScreen(versionId: id, versionData: v),
+      ),
+    );
+  }
+
+  Future<void> _verMapa(Map<String, dynamic> v) async {
+    final id = v['_id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    final nombre = v['nombre'] ?? 'Cuponera';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: Palette.kAccent)),
+    );
+
+    try {
+      final locales = await VersionesService.listarLocales(id);
+      if (!mounted) return;
+      Navigator.pop(context);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MapaVersionScreen(versionNombre: nombre, locales: locales),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo cargar el mapa.')),
+      );
+    }
+  }
+
+  void _showLoginDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            // Ícono
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: Palette.kAccent.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.local_activity_outlined, color: Palette.kAccent, size: 32),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '¡Crea tu cuenta para adquirir!',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Palette.kTitle,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Para comprar una cuponera necesitas una cuenta. Es rápido y gratis.',
+              style: TextStyle(color: Palette.kMuted, fontSize: 14, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  widget.onLogin();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Palette.kAccent,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Iniciar sesión', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Palette.kMuted,
+                  side: BorderSide(color: Palette.kBorder),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Seguir explorando'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> get _filtered {
+    if (_query.isEmpty) return _versiones;
+    final q = _query.toLowerCase();
+    return _versiones.where((v) {
+      final nombre = (v['nombre'] ?? '').toString().toLowerCase();
+      final desc = (v['descripcion'] ?? '').toString().toLowerCase();
+      return nombre.contains(q) || desc.contains(q);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator(color: Palette.kAccent));
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Error al cargar cuponeras', style: TextStyle(color: Colors.redAccent)),
+            const SizedBox(height: 8),
+            TextButton(onPressed: _load, child: const Text('Reintentar')),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+          child: TextField(
+            onChanged: (v) => setState(() => _query = v),
+            decoration: InputDecoration(
+              hintText: 'Buscar cuponera…',
+              prefixIcon: const Icon(Icons.search),
+              isDense: true,
+              filled: true,
+              fillColor: Palette.kField,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Palette.kBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Palette.kAccent),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: _filtered.isEmpty
+              ? Center(
+                  child: Text(
+                    'No hay cuponeras disponibles',
+                    style: TextStyle(color: Palette.kMuted),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                  itemCount: _filtered.length,
+                  itemBuilder: (context, i) {
+                    final v = _filtered[i];
+                    final nombre = v['nombre'] ?? 'Cuponera';
+                    final precio = v['precio'];
+                    final descripcion = v['descripcion'] ?? '';
+                    final imageUrl = v['imageUrl'] ?? '';
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Palette.kSurface,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (imageUrl.isNotEmpty)
+                            ClipRRect(
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                              child: Image.network(
+                                imageUrl,
+                                height: 140,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                              ),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  nombre,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Palette.kTitle,
+                                  ),
+                                ),
+                                if (descripcion.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    descripcion,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(color: Palette.kMuted, fontSize: 13),
+                                  ),
+                                ],
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    if (precio != null)
+                                      Text(
+                                        '\$${double.tryParse(precio.toString())?.toStringAsFixed(2) ?? precio}',
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                          color: Palette.kAccent,
+                                        ),
+                                      ),
+                                    const Spacer(),
+                                    ElevatedButton(
+                                      onPressed: _showLoginDialog,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Palette.kAccent,
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                      ),
+                                      child: const Text('Adquirir'),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _verLocales(v),
+                                        icon: const Icon(Icons.storefront_outlined, size: 16),
+                                        label: const Text('Ver locales'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Palette.kPrimary,
+                                          side: BorderSide(color: Palette.kPrimary.withOpacity(0.35)),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _verMapa(v),
+                                        icon: const Icon(Icons.map_outlined, size: 16),
+                                        label: const Text('Ver en mapa'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Palette.kPrimary,
+                                          side: BorderSide(color: Palette.kPrimary.withOpacity(0.35)),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }

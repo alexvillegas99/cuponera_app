@@ -14,6 +14,7 @@ import '../../services/solicitud_cuponera_service.dart';
 import '../../services/versiones_service.dart';
 import '../../services/pagos_service.dart';
 import 'detalle_version_screen.dart';
+import 'mapa_version_screen.dart';
 
 class ComprarCuponeraScreen extends StatefulWidget {
   final String clienteId;
@@ -348,6 +349,39 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
     );
   }
 
+  Future<void> _verMapa(Map<String, dynamic> version) async {
+    final versionId = version['_id']?.toString() ?? '';
+    final nombre = version['nombre']?.toString() ?? 'Mapa';
+    if (versionId.isEmpty) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final locales = await VersionesService.listarLocales(versionId);
+      if (!mounted) return;
+      Navigator.pop(context); // cerrar loading
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MapaVersionScreen(
+            versionNombre: nombre,
+            locales: locales,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo cargar el mapa.')),
+      );
+    }
+  }
+
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
@@ -503,20 +537,36 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
               ),
               if (selected) ...[
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _verLocales(c),
-                    icon: const Icon(Icons.store_outlined, size: 18),
-                    label: const Text('Ver locales disponibles'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Palette.kAccent,
-                      side: BorderSide(color: Palette.kAccent.withValues(alpha: 0.4)),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _verLocales(c),
+                        icon: const Icon(Icons.store_outlined, size: 18),
+                        label: const Text('Ver locales'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Palette.kAccent,
+                          side: BorderSide(color: Palette.kAccent.withValues(alpha: 0.4)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => _verMapa(c),
+                      icon: const Icon(Icons.map_outlined, size: 18),
+                      label: const Text('Mapa'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Palette.kPrimary,
+                        side: BorderSide(color: Palette.kPrimary.withValues(alpha: 0.4)),
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ],

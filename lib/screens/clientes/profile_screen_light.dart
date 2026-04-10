@@ -276,7 +276,7 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
                       color: Palette.kAccent.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Icon(icon, color: Palette.kPrimary),
+                    child: Icon(icon, color: Palette.kAccent),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -306,10 +306,8 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(ctx, false),
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                          color: Palette.kPrimary.withOpacity(0.25),
-                        ),
-                        foregroundColor: Palette.kPrimary,
+                        side: BorderSide(color: Palette.kBorder),
+                        foregroundColor: Palette.kMuted,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -322,7 +320,7 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Palette.kPrimary,
+                        backgroundColor: Palette.kAccent,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -391,12 +389,12 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
   Widget _sectionTitle(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, color: Palette.kPrimary, size: 18),
+        Icon(icon, color: Palette.kAccent, size: 18),
         const SizedBox(width: 6),
         Text(
           text,
           style: const TextStyle(
-            color: Palette.kPrimary,
+            color: Palette.kTitle,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -431,7 +429,7 @@ class _StatTile extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 16,
-          backgroundColor: Palette.kPrimary,
+          backgroundColor: Palette.kAccent,
           child: Icon(icon, color: Colors.white, size: 18),
         ),
         const SizedBox(width: 8),
@@ -441,7 +439,7 @@ class _StatTile extends StatelessWidget {
             Text(
               '$value',
               style: const TextStyle(
-                color: Palette.kPrimary, // resalta el número en azul
+                color: Palette.kAccent,
                 fontWeight: FontWeight.w800,
                 fontSize: 16,
               ),

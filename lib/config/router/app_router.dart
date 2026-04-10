@@ -17,18 +17,21 @@ import 'package:go_router/go_router.dart';
 Future<String> getInitialRoute() async {
   final auth = AuthService();
 
-  // 1) ¿Hay token?
+  // 1) ¿Modo invitado?
+  if (await auth.isGuest()) return '/home_guest';
+
+  // 2) ¿Hay token?
   final hasToken = await auth.hasToken();
   if (!hasToken) return '/login';
 
-  // 2) Refrescar token para validar que la sesión esté vigente
+  // 3) Refrescar token para validar que la sesión esté vigente
   final tokenValido = await auth.renewToken();
   if (!tokenValido) {
     await auth.logout();
     return '/login';
   }
 
-  // 3) Decidir home por rol/kind
+  // 4) Decidir home por rol/kind
   return auth.getTargetHomeRoute();
 }
 
@@ -42,8 +45,12 @@ GoRouter buildRouter(String initialRoute) {
       ),
       GoRoute(
         path: '/registro-cliente',
-        pageBuilder: (context, state) =>
-            _slidePage(state, const RegisterClienteScreen()),
+        pageBuilder: (context, state) => _slidePage(
+          state,
+          RegisterClienteScreen(
+            googleData: state.extra as Map<String, dynamic>?,
+          ),
+        ),
       ),
       GoRoute(
         path: '/solicitud-empresa',
@@ -58,6 +65,11 @@ GoRouter buildRouter(String initialRoute) {
         path: '/home_user',
         pageBuilder: (context, state) =>
             _slidePage(state, const PromotionsHomeScreen()),
+      ),
+      GoRoute(
+        path: '/home_guest',
+        pageBuilder: (context, state) =>
+            _slidePage(state, const PromotionsHomeScreen(guestMode: true)),
       ),
       GoRoute(
         path: '/scanner',

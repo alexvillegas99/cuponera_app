@@ -31,14 +31,15 @@ class Cuponera {
   final String id;
   final String nombre;
   final String descripcion;
-  final String codigo;        // lo usas arriba, también como qrData
+  final String codigo;
   final DateTime emitidaEl;
   final DateTime? expiraEl;
   final String qrData;
   final int totalEscaneos;
-  final DateTime? lastScanAt; // soporta ultimoScaneo/lastScanAt
+  final DateTime? lastScanAt;
   final List<ScanRecord> scans;
   final String secuencial;
+  final String? versionId;
 
   Cuponera({
     required this.id,
@@ -52,7 +53,7 @@ class Cuponera {
     required this.lastScanAt,
     required this.scans,
     required this.secuencial,
-
+    this.versionId,
   });
 
   factory Cuponera.fromJson(Map<String, dynamic> j) {
@@ -87,7 +88,8 @@ class Cuponera {
       totalEscaneos: (j['totalEscaneos'] is num) ? (j['totalEscaneos'] as num).toInt() : 0,
       lastScanAt: lastScanAt,
       scans: scans,
-      secuencial:secuencial
+      secuencial: secuencial,
+      versionId: j['versionId']?.toString(),
     );
   }
 }

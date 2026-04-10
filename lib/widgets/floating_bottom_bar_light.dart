@@ -10,16 +10,17 @@ class NavItem {
 class FloatingBottomBarLight extends StatelessWidget {
   final int index;
   final ValueChanged<int> onTap;
+  final List<NavItem>? items;
 
-  const FloatingBottomBarLight({super.key, required this.index, required this.onTap});
+  const FloatingBottomBarLight({super.key, required this.index, required this.onTap, this.items});
 
   @override
   Widget build(BuildContext context) {
-    final items = const [
+    final items = this.items ?? const [
       NavItem(icon: Icons.home_filled, label: 'Inicio'),
       NavItem(icon: Icons.favorite, label: 'Favoritos'),
       NavItem(icon: Icons.search, label: 'Buscar'),
-      NavItem(icon: Icons.qr_code_2, label: 'Cuponeras'), // renombrado
+      NavItem(icon: Icons.qr_code_2, label: 'Cuponeras'),
     ];
     return Container(
       height: 64,

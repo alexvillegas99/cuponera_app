@@ -58,6 +58,9 @@ dependencies:
   connectivity_plus: ^6.1.5
   internet_connection_checker_plus: ^2.7.2
   webview_flutter: ^4.10.0
+  google_sign_in: ^6.2.1
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:

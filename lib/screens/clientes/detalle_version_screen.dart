@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../ui/palette.dart';
 import '../../services/versiones_service.dart';
 import 'comercio_detalle_mini_screen.dart';
+import 'mapa_version_screen.dart';
 
 class DetalleVersionScreen extends StatefulWidget {
   final String versionId;
@@ -30,12 +31,19 @@ class _DetalleVersionScreenState extends State<DetalleVersionScreen> {
   Future<void> _fetchLocales() async {
     try {
       final result = await VersionesService.listarLocales(widget.versionId);
+      print('[MAPA] Total locales recibidos: ${result.length}');
+      for (final l in result) {
+        final nombre = l['detallePromocion']?['placeName'] ?? l['nombre'] ?? '?';
+        final ub = l['ubicacion'];
+        print('[MAPA] Local: $nombre | ubicacion: $ub');
+      }
       if (!mounted) return;
       setState(() {
         _locales = result;
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
+      print('[MAPA] Error al cargar locales: $e');
       if (!mounted) return;
       setState(() => _loading = false);
     }
@@ -389,6 +397,24 @@ class _DetalleVersionScreenState extends State<DetalleVersionScreen> {
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         elevation: 0,
+        actions: [
+          if (!_loading)
+            IconButton(
+              tooltip: 'Ver en mapa',
+              icon: const Icon(Icons.map_outlined),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MapaVersionScreen(
+                      versionNombre: nombre,
+                      locales: _locales,
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

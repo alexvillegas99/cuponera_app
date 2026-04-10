@@ -1,26 +1,59 @@
 {
   "project_info": {
-    "project_number": "407188672000",
-    "project_id": "cuponera-5f06a",
-    "storage_bucket": "cuponera-5f06a.firebasestorage.app"
+    "project_number": "193436032832",
+    "project_id": "mi-cuponera",
+    "storage_bucket": "mi-cuponera.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:407188672000:android:dd8b4f60eba26871d8d2e5",
+        "mobilesdk_app_id": "1:193436032832:android:98c8cb13baef61778be4a5",
         "android_client_info": {
           "package_name": "com.pixelsmart.cuponera_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "193436032832-kag3dtapm905tbd0cvbrie7od6917ooi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pixelsmart.cuponera_app",
+            "certificate_hash": "bffaf49146e41bf3fb8015037345c21dcb57804a"
+          }
+        },
+        {
+          "client_id": "193436032832-l2k7qcuu953i28uds30gjnrqoql2esu7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pixelsmart.cuponera_app",
+            "certificate_hash": "4b4d594b06d22773e6b3fc509aa6abf77c57f79f"
+          }
+        },
+        {
+          "client_id": "193436032832-fsvvca9fu0lqkacgmt1gc0dqef5ac44p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyDnfwU06qTLEAnXM4GTxKXhCUQMbO8I1VQ"
+          "current_key": "AIzaSyBG0RKMOKNqUeNnoQzIHd1Uw1iDHQfP6Ds"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "193436032832-fsvvca9fu0lqkacgmt1gc0dqef5ac44p.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "193436032832-vh14a827kih2btbbk9ck1t7ov8in9ovo.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.pixelsmart.cuponeraapp"
+              }
+            }
+          ]
         }
       }
     }

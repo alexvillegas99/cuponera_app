@@ -10,6 +10,8 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:enjoy/services/cupones_service.dart';
 import 'package:enjoy/services/core/api_exception.dart';
 import 'package:enjoy/services/auth_service.dart';
+import 'package:enjoy/services/versiones_service.dart';
+import 'mapa_version_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../ui/palette.dart';
 import '../../services/configuracion_service.dart';
@@ -42,6 +44,38 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
     super.initState();
     _items = List.of(widget.cuponeras);
     _cargarConfigWhatsApp();
+  }
+
+  Future<void> _verMapa(BuildContext context, Cuponera c) async {
+    final versionId = c.versionId;
+    if (versionId == null || versionId.isEmpty) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final locales = await VersionesService.listarLocales(versionId);
+      if (!context.mounted) return;
+      Navigator.pop(context);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MapaVersionScreen(
+            versionNombre: c.nombre,
+            locales: locales,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo cargar el mapa.')),
+      );
+    }
   }
 
   Future<void> _cargarConfigWhatsApp() async {
@@ -565,6 +599,9 @@ Widget _buildFab(BuildContext context) {
                   ),
                 );
               },
+              onMapTap: _items[i].versionId != null
+                  ? () => _verMapa(context, _items[i])
+                  : null,
             ),
           ),
         ),
@@ -590,7 +627,8 @@ Widget _buildFab(BuildContext context) {
 class _CuponeraTicketCard extends StatelessWidget {
   final Cuponera c;
   final VoidCallback onTap;
-  const _CuponeraTicketCard({required this.c, required this.onTap});
+  final VoidCallback? onMapTap;
+  const _CuponeraTicketCard({required this.c, required this.onTap, this.onMapTap});
 
   String _fmt(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
@@ -819,6 +857,24 @@ class _CuponeraTicketCard extends StatelessWidget {
                           style: TextStyle(color: Palette.kMuted, fontSize: 12),
                         ),
                       ],
+                    ),
+                  ],
+                  if (onMapTap != null) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: onMapTap,
+                        icon: const Icon(Icons.map_outlined, size: 16),
+                        label: const Text('Ver locales en el mapa'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Palette.kPrimary,
+                          side: BorderSide(color: Palette.kPrimary.withOpacity(0.4)),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
                     ),
                   ],
                 ],

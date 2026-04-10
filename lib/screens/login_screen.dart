@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   LoginMode _mode = LoginMode.cliente;
   bool _obscure = true;
   bool _loading = false;
+  bool _googleLoading = false;
 
   @override
   void dispose() {
@@ -51,6 +52,29 @@ class _LoginScreenState extends State<LoginScreen> {
       _snack('Credenciales inválidas. Inténtalo nuevamente.');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _continueAsGuest() async {
+    await _auth.continueAsGuest();
+    if (mounted) context.go('/home_guest');
+  }
+
+  Future<void> _doGoogleLogin() async {
+    setState(() => _googleLoading = true);
+    try {
+      if (_mode == LoginMode.cliente) {
+        final result = await _auth.loginClienteWithGoogle(context);
+        if (result['registered'] == false && mounted) {
+          context.push('/registro-cliente', extra: result);
+        }
+      } else {
+        await _auth.loginUsuarioWithGoogle(context);
+      }
+    } catch (e) {
+      if (mounted) _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _googleLoading = false);
     }
   }
 
@@ -244,6 +268,104 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                           ),
                         ),
+
+                        // ── Google Sign-In ──
+                        ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              const Expanded(child: Divider(color: Palette.kBg)),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                child: Text('o', style: TextStyle(color: Palette.kMuted, fontSize: 13)),
+                              ),
+                              const Expanded(child: Divider(color: Palette.kBg)),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: OutlinedButton(
+                              onPressed: (_loading || _googleLoading) ? null : _doGoogleLogin,
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFFDDDDDD)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                backgroundColor: Colors.white,
+                              ),
+                              child: _googleLoading
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Palette.kAccent),
+                                    )
+                                  : Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 20,
+                                          height: 20,
+                                          alignment: Alignment.center,
+                                          decoration: const BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: Color(0xFF4285F4),
+                                          ),
+                                          child: const Text(
+                                            'G',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Text(
+                                          'Continuar con Google',
+                                          style: TextStyle(
+                                            color: Palette.kTitle,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          ),
+                        ],
+
+                        // ── Invitado (solo modo cliente) ──
+                        if (_mode == LoginMode.cliente) ...[
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(child: Divider(color: Palette.kMuted.withOpacity(0.3))),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                child: Text('o explora sin cuenta', style: TextStyle(color: Palette.kMuted, fontSize: 12)),
+                              ),
+                              Expanded(child: Divider(color: Palette.kMuted.withOpacity(0.3))),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: OutlinedButton.icon(
+                              onPressed: _loading ? null : _continueAsGuest,
+                              icon: const Icon(Icons.explore_outlined, size: 20),
+                              label: const Text(
+                                'Continuar como invitado',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Palette.kPrimary,
+                                side: BorderSide(color: Palette.kPrimary.withOpacity(0.4), width: 1.5),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                            ),
+                          ),
+                        ],
 
                         const SizedBox(height: 20),
 

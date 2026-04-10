@@ -1,4 +1,6 @@
 import 'dart:ui' show ImageFilter;
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/comentarios_service.dart';
 import 'package:enjoy/services/compartidos_service.dart';
@@ -487,6 +489,16 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
     return parts.join('\n');
   }
 
+  Future<void> _abrirGoogleMaps(double lat, double lng) async {
+    final native = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
+    final web = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
+    if (await canLaunchUrl(native)) {
+      await launchUrl(native);
+    } else {
+      await launchUrl(web, mode: LaunchMode.externalApplication);
+    }
+  }
+
   Future<void> _openPhone(String phone) async {
     final uri = Uri.parse('tel:${_sanitizePhone(phone)}');
     await launchUrl(uri);
@@ -777,6 +789,80 @@ class _ComercioDetalleMiniScreenState extends State<ComercioDetalleMiniScreen> {
                             ),
                           ),
                         ],
+                      ),
+                    ],
+
+                    if (_data!.lat != null && _data!.lng != null) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        'Ubicación',
+                        style: TextStyle(
+                          color: Palette.kTitle,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () => _abrirGoogleMaps(_data!.lat!, _data!.lng!),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Stack(
+                            children: [
+                              SizedBox(
+                                height: 180,
+                                child: FlutterMap(
+                                  options: MapOptions(
+                                    initialCenter: LatLng(_data!.lat!, _data!.lng!),
+                                    initialZoom: 15,
+                                    interactionOptions: const InteractionOptions(
+                                      flags: InteractiveFlag.none,
+                                    ),
+                                  ),
+                                  children: [
+                                    TileLayer(
+                                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                      userAgentPackageName: 'com.enjoy.app',
+                                    ),
+                                    MarkerLayer(
+                                      markers: [
+                                        Marker(
+                                          point: LatLng(_data!.lat!, _data!.lng!),
+                                          width: 40,
+                                          height: 40,
+                                          child: const Icon(
+                                            Icons.location_pin,
+                                            color: Palette.kAccent,
+                                            size: 40,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Positioned(
+                                bottom: 8,
+                                right: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.directions, size: 14, color: Colors.blue),
+                                      SizedBox(width: 4),
+                                      Text('Cómo llegar', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
 

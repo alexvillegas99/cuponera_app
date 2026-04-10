@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
 class AuthService {
@@ -55,6 +56,7 @@ class AuthService {
 
         if (userId != null && userId.isNotEmpty) {
           myFirebaseService?.subscribeToTopic(userId);
+          _guardarFcmTokenUsuario(userId);
         }
 
         if (usuarioCreacion != null && usuarioCreacion.isNotEmpty) {
@@ -118,6 +120,89 @@ class AuthService {
       debugPrint('Error login cliente: $e');
       rethrow;
     }
+  }
+
+  Future<String?> _getGoogleIdToken() async {
+    final googleSignIn = GoogleSignIn(
+      scopes: ['email', 'profile'],
+      serverClientId: '193436032832-fsvvca9fu0lqkacgmt1gc0dqef5ac44p.apps.googleusercontent.com',
+    );
+    await googleSignIn.signOut();
+    final account = await googleSignIn.signIn();
+    if (account == null) return null;
+    final auth = await account.authentication;
+    return auth.idToken;
+  }
+
+  /// Para clientes: si ya existe → navega a home_user y retorna `{'registered': true}`.
+  /// Si no existe → retorna los datos de Google para pre-llenar el registro.
+  Future<Map<String, dynamic>> loginClienteWithGoogle(BuildContext context) async {
+    debugPrint('🔵 [Google] Obteniendo idToken...');
+    final idToken = await _getGoogleIdToken();
+    debugPrint('🔵 [Google] idToken: ${idToken != null ? 'OK (${idToken.length} chars)' : 'NULL'}');
+    if (idToken == null) throw Exception('Inicio de sesión cancelado');
+
+    debugPrint('🔵 [Google] Llamando backend: $baseUrl/auth/google/cliente');
+    final resp = await http.post(
+      Uri.parse('$baseUrl/auth/google/cliente'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'idToken': idToken}),
+    );
+
+    debugPrint('🔵 [Google] Respuesta: ${resp.statusCode} — ${resp.body}');
+    if (resp.statusCode != 200) throw Exception(_serverErrorMessage(resp));
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    debugPrint('🔵 [Google] registered: ${data['registered']}');
+
+    if (data['registered'] == true) {
+      final accessToken = data['accessToken'] as String;
+      final cliente = data['cliente'] as Map<String, dynamic>;
+      final user = {...cliente, 'kind': 'CLIENTE'};
+      await saveUserData(accessToken, user);
+      final userId = user['_id']?.toString();
+      if (userId != null && userId.isNotEmpty) {
+        myFirebaseService?.subscribeToTopic(userId);
+        _guardarFcmToken(userId);
+      }
+      if (context.mounted) context.go('/home_user');
+      return {'registered': true};
+    }
+
+    return {'registered': false, ...data['googleData'] as Map<String, dynamic>};
+  }
+
+  /// Para usuarios/empresa: solo permite si ya existe la cuenta en el sistema.
+  Future<void> loginUsuarioWithGoogle(BuildContext context) async {
+    final idToken = await _getGoogleIdToken();
+    if (idToken == null) throw Exception('Inicio de sesión cancelado');
+
+    final resp = await http.post(
+      Uri.parse('$baseUrl/auth/google/usuario'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'idToken': idToken}),
+    );
+
+    if (resp.statusCode != 200) throw Exception(_serverErrorMessage(resp));
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    final accessToken = data['accessToken'] as String;
+    final user = data['user'] as Map<String, dynamic>;
+    user['kind'] = 'USUARIO';
+
+    final userId = user['_id']?.toString();
+    final usuarioCreacion = user['usuarioCreacion']?.toString();
+
+    if (userId != null && userId.isNotEmpty) {
+      myFirebaseService?.subscribeToTopic(userId);
+      _guardarFcmTokenUsuario(userId);
+    }
+    if (usuarioCreacion != null && usuarioCreacion.isNotEmpty) {
+      myFirebaseService?.subscribeToTopic(usuarioCreacion);
+    }
+
+    await saveUserData(accessToken, user);
+    if (context.mounted) context.go('/home');
   }
 
   Future<void> loginEmpresa(
@@ -190,7 +275,7 @@ class AuthService {
         myFirebaseService?.unsubscribeFromTopic(usuarioCreacion);
       }
 
-      await _storage.deleteAll();
+      await _storage.deleteAll(); // borra también guest_mode
     } catch (e) {
       debugPrint('Error logout: $e');
     }
@@ -198,6 +283,19 @@ class AuthService {
 
   Future<bool> hasToken() async =>
       (await _storage.read(key: 'accessToken')) != null;
+
+  // ── Modo invitado ──
+  Future<void> continueAsGuest() async {
+    await _storage.write(key: 'guest_mode', value: 'true');
+  }
+
+  Future<bool> isGuest() async {
+    return (await _storage.read(key: 'guest_mode')) == 'true';
+  }
+
+  Future<void> exitGuestMode() async {
+    await _storage.delete(key: 'guest_mode');
+  }
 
   String _serverErrorMessage(http.Response resp) {
     try {
@@ -308,19 +406,28 @@ class AuthService {
     await saveUserData(token, updated);
   }
 
-  /// Guarda el FCM token del cliente en el backend para notificaciones personalizadas
+  /// Guarda el FCM token del cliente en el backend
   Future<void> _guardarFcmToken(String clienteId) async {
+    await _enviarFcmToken('/clientes/$clienteId/fcm-token');
+  }
+
+  /// Guarda el FCM token del usuario (local/staff) en el backend
+  Future<void> _guardarFcmTokenUsuario(String usuarioId) async {
+    await _enviarFcmToken('/usuarios/$usuarioId/fcm-token');
+  }
+
+  Future<void> _enviarFcmToken(String path) async {
     if (!isPushEnabled) return;
     try {
       final fcmToken = await MyFirebaseMessagingService().getTokenWithRetry();
       if (fcmToken == null || fcmToken.isEmpty) return;
 
       await http.patch(
-        Uri.parse('$baseUrl/clientes/$clienteId/fcm-token'),
+        Uri.parse('$baseUrl$path'),
         headers: _jsonHeaders,
         body: jsonEncode({'fcmToken': fcmToken}),
       );
-      debugPrint('✅ FCM token guardado para cliente $clienteId');
+      debugPrint('✅ FCM token guardado: $path');
     } catch (e) {
       debugPrint('⚠️ No se pudo guardar FCM token: $e');
     }

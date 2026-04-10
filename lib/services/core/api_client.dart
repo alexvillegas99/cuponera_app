@@ -43,9 +43,15 @@ class ApiClient {
       },
       onError: (error, handler) async {
         if (error.response?.statusCode == 401) {
-          debugPrint('[ApiClient] 401 - Sesión expirada');
-          await _clearSession();
-          onSessionExpired?.call();
+          final path = error.requestOptions.path;
+          final esRenovacion = path.contains('/auth/refresh-token');
+          if (esRenovacion) {
+            debugPrint('[ApiClient] 401 en refresh-token — cerrando sesión');
+            await _clearSession();
+            onSessionExpired?.call();
+          } else {
+            debugPrint('[ApiClient] 401 en $path — ignorado, no cierra sesión');
+          }
         }
         handler.next(error);
       },

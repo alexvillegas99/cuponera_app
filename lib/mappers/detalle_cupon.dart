@@ -62,6 +62,7 @@ class CuponMeta {
 }
 
 class VersionMeta {
+  final String? id;
   final String nombre;
   final bool estado;
   final List<String> ciudadesDisponibles;
@@ -70,6 +71,7 @@ class VersionMeta {
   final String? precio;
 
   VersionMeta({
+    this.id,
     required this.nombre,
     required this.estado,
     required this.ciudadesDisponibles,
@@ -79,6 +81,7 @@ class VersionMeta {
   });
 
   factory VersionMeta.fromJson(Map<String, dynamic> j) => VersionMeta(
+    id: j['_id']?.toString(),
     nombre: (j['nombre'] ?? '') as String,
     estado: (j['estado'] ?? false) as bool,
     ciudadesDisponibles: ((j['ciudadesDisponibles'] as List?) ?? const [])

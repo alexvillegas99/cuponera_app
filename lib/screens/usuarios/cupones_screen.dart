@@ -5,9 +5,10 @@ import 'package:intl/intl.dart';
 import 'package:enjoy/ui/palette.dart';
 
 class CuponesScreen extends StatefulWidget {
-  const CuponesScreen({super.key, required this.cupones, this.onAfterScan});
+  const CuponesScreen({super.key, required this.cupones, this.onScanSuccess});
   final List<Map<String, dynamic>> cupones;
-  final Future<void> Function()? onAfterScan; // 👈 NUEVO
+  final void Function(Map<String, dynamic> item)? onScanSuccess;
+
   @override
   State<CuponesScreen> createState() => _CuponesScreenState();
 }
@@ -15,7 +16,7 @@ class CuponesScreen extends StatefulWidget {
 class _CuponesScreenState extends State<CuponesScreen> {
   final _qCtrl = TextEditingController();
   String _q = '';
-  String? _versionId; // filtro por versión
+  String? _versionId;
 
   @override
   void dispose() {
@@ -27,13 +28,11 @@ class _CuponesScreenState extends State<CuponesScreen> {
     if (iso == null || iso.trim().isEmpty) return '—';
     final parsed = DateTime.tryParse(iso);
     if (parsed == null) return '—';
-    // Quito UTC-5
     final ec = parsed.toUtc().subtract(const Duration(hours: 5));
     return DateFormat('dd/MM/yyyy hh:mm a', 'es').format(ec);
   }
 
   List<Map<String, String>> get _versiones {
-    // Construye lista única de versiones presentes: [{id, nombre}]
     final set = <String, Map<String, String>>{};
     for (final item in widget.cupones) {
       final version = (item['cupon']?['version'] as Map?) ?? const {};
@@ -60,101 +59,197 @@ class _CuponesScreenState extends State<CuponesScreen> {
     }).toList();
   }
 
+  Future<void> _pickVersion() async {
+    final versiones = _versiones;
+    final selected = await showModalBottomSheet<String?>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      barrierColor: Colors.black.withOpacity(0.25),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 44,
+              height: 5,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            // Título
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Filtrar por versión',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 17,
+                  color: Palette.kTitle,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Opción "Todas"
+            _VersionOption(
+              label: 'Todas las versiones',
+              icon: Icons.layers_outlined,
+              selected: _versionId == null,
+              onTap: () => Navigator.pop(ctx, '__all__'),
+            ),
+            if (versiones.isNotEmpty) const Divider(height: 8),
+            ...versiones.map((v) => _VersionOption(
+                  label: v['nombre'] ?? '—',
+                  icon: Icons.bookmark_outline_rounded,
+                  selected: _versionId == v['id'],
+                  onTap: () => Navigator.pop(ctx, v['id']),
+                )),
+          ],
+        ),
+      ),
+    );
+
+    if (selected != null) {
+      setState(() => _versionId = selected == '__all__' ? null : selected);
+    }
+  }
+
+  Future<void> _goScan() async {
+    final newItem = await context.push<Map<String, dynamic>>('/scanner');
+    if (newItem != null && widget.onScanSuccess != null) {
+      widget.onScanSuccess!(newItem);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = _filtered;
-    final isEmpty = data.isEmpty;
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final total = widget.cupones.length;
 
     return Scaffold(
       backgroundColor: Palette.kBg,
-      resizeToAvoidBottomInset: true,
-
       body: Column(
         children: [
-          // ——— Filtros ———
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          // ── Barra de filtros ──
+          Container(
+            color: Palette.kSurface,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             child: Row(
               children: [
-                // Buscar por secuencial
+                // Buscar
                 Expanded(
-                  flex: 2,
+                  flex: 5,
                   child: Container(
-                    height: 48,
+                    height: 44,
                     decoration: BoxDecoration(
                       color: Palette.kField,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Palette.kBorder),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
                       children: [
-                        const Icon(Icons.search, color: Palette.kMuted),
+                        const Icon(Icons.search_rounded,
+                            color: Palette.kMuted, size: 18),
                         const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
                             controller: _qCtrl,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
-                              hintText: 'Buscar por secuencial…',
-                              hintStyle: TextStyle(color: Palette.kMuted),
+                              hintText: 'Secuencial…',
+                              hintStyle: TextStyle(
+                                  color: Palette.kMuted, fontSize: 13),
                               border: InputBorder.none,
                               isCollapsed: true,
                             ),
+                            style: const TextStyle(fontSize: 13),
                             onChanged: (v) => setState(() => _q = v.trim()),
                           ),
                         ),
                         if (_q.isNotEmpty)
-                          IconButton(
-                            tooltip: 'Limpiar',
-                            icon: const Icon(
-                              Icons.close,
-                              size: 18,
-                              color: Palette.kMuted,
-                            ),
-                            onPressed: () {
+                          GestureDetector(
+                            onTap: () {
                               _qCtrl.clear();
                               setState(() => _q = '');
                             },
+                            child: const Icon(Icons.close_rounded,
+                                size: 16, color: Palette.kMuted),
                           ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                // Filtro por versión
+                const SizedBox(width: 8),
+                // Filtro versión — bottom sheet
                 Expanded(
-                  flex: 2,
-                  child: Container(
-                    height: 48,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Palette.kField,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Palette.kBorder),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String?>(
-                        value: _versionId,
-                        icon: const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: Palette.kMuted,
+                  flex: 5,
+                  child: GestureDetector(
+                    onTap: _pickVersion,
+                    child: Container(
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: _versionId != null
+                            ? Palette.kAccent.withOpacity(0.08)
+                            : Palette.kField,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _versionId != null
+                              ? Palette.kAccent.withOpacity(0.4)
+                              : Palette.kBorder,
                         ),
-                        isExpanded: true,
-                        items: [
-                          const DropdownMenuItem(
-                            value: null,
-                            child: Text('Todas las versiones'),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.bookmark_outline_rounded,
+                            size: 16,
+                            color: _versionId != null
+                                ? Palette.kAccent
+                                : Palette.kMuted,
                           ),
-                          ..._versiones.map(
-                            (v) => DropdownMenuItem(
-                              value: v['id'] as String?,
-                              child: Text((v['nombre'] ?? '—').toString()),
+                          const SizedBox(width: 7),
+                          Expanded(
+                            child: Text(
+                              _versionId != null
+                                  ? (_versiones.firstWhere(
+                                      (v) => v['id'] == _versionId,
+                                      orElse: () => {'nombre': '—'},
+                                    )['nombre'] ??
+                                      '—')
+                                  : 'Versión',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: _versionId != null
+                                    ? Palette.kAccent
+                                    : Palette.kMuted,
+                                fontWeight: _versionId != null
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                              ),
                             ),
                           ),
+                          if (_versionId != null)
+                            GestureDetector(
+                              onTap: () => setState(() => _versionId = null),
+                              child: const Icon(Icons.close_rounded,
+                                  size: 15, color: Palette.kAccent),
+                            )
+                          else
+                            const Icon(Icons.expand_more_rounded,
+                                size: 17, color: Palette.kMuted),
                         ],
-                        onChanged: (v) => setState(() => _versionId = v),
                       ),
                     ),
                   ),
@@ -163,250 +258,243 @@ class _CuponesScreenState extends State<CuponesScreen> {
             ),
           ),
 
-          const SizedBox(height: 6),
-
-          // ——— Lista / Empty ———
-          Expanded(
-            child: isEmpty
-                ? AnimatedPadding(
-                    padding: EdgeInsets.only(bottom: bottomInset),
-                    duration: const Duration(milliseconds: 150),
-                    child: SingleChildScrollView(
-                      physics: const ClampingScrollPhysics(),
-                      child: _EmptyState(
-                        onScan: () async {
-                          // 👈 puede ser async sin cambiar la firma
-                          final ok = await context.push<bool>('/scanner');
-                          if (ok == true && widget.onAfterScan != null) {
-                            await widget.onAfterScan!();
-                          }
-                        },
-                      ),
+          // ── Contador ──
+          if (total > 0)
+            Container(
+              color: Palette.kSurface,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Palette.kAccent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                  )
-                : ListView.builder(
-                    padding: EdgeInsets.fromLTRB(16, 8, 16, 100 + bottomInset),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.confirmation_num_rounded,
+                            size: 13, color: Palette.kAccent),
+                        const SizedBox(width: 5),
+                        Text(
+                          '${data.length} de $total cupón${total != 1 ? 'es' : ''}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Palette.kAccent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          const Divider(height: 1, color: Palette.kBorder),
+
+          // ── Lista ──
+          Expanded(
+            child: data.isEmpty
+                ? _EmptyState(onScan: _goScan)
+                : ListView.separated(
+                    padding:
+                        const EdgeInsets.fromLTRB(16, 16, 16, 100),
                     itemCount: data.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: 10),
                     itemBuilder: (_, i) {
-                      final item = data[i] as Map<String, dynamic>;
+                      final item =
+                          data[i] as Map<String, dynamic>;
                       final cupon =
-                          (item['cupon'] as Map?)?.cast<String, dynamic>() ??
+                          (item['cupon'] as Map?)
+                              ?.cast<String, dynamic>() ??
                           const {};
                       final usuario =
-                          (item['usuario'] as Map?)?['nombre']?.toString() ??
+                          (item['usuario'] as Map?)?['nombre']
+                              ?.toString() ??
                           'Desconocido';
-                      final sec = cupon['secuencial']?.toString() ?? 'N/A';
+                      final escaneadoPor =
+                          (item['escaneadoPor'] as Map?)?['nombre']
+                              ?.toString();
+                      final sec =
+                          cupon['secuencial']?.toString() ?? 'N/A';
                       final version =
-                          (cupon['version'] as Map?)?['nombre']?.toString() ??
+                          (cupon['version'] as Map?)?['nombre']
+                              ?.toString() ??
                           '—';
-                      final estado = cupon['estado']?.toString();
-                      final fechaEscaneo = item['fechaEscaneo']?.toString();
+                      final fechaEscaneo =
+                          item['fechaEscaneo']?.toString();
 
                       return _CouponCard(
                         secuencial: sec,
                         version: version,
-                        estado: estado,
                         usuario: usuario,
-                        // Fecha en 2 líneas (por si se alarga)
-                        escaneoLabel:
-                            'Escaneado el ${_formatEcuador(fechaEscaneo)}',
+                        escaneadoPor: escaneadoPor,
+                        fechaLabel: _formatEcuador(fechaEscaneo),
                       );
                     },
                   ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final ok = await context.push<bool>('/scanner'); // 👈 esperamos bool
-          if (ok == true && widget.onAfterScan != null) {
-            await widget.onAfterScan!(); // 👈 recarga real desde backend
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Listado actualizado')),
-            );
-          }
-        },
-        backgroundColor: Palette.kPrimary,
-        child: const Icon(Icons.qr_code_scanner, color: Colors.white),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _goScan,
+        backgroundColor: Palette.kAccent,
+        foregroundColor: Colors.white,
+        elevation: 3,
+        icon: const Icon(Icons.qr_code_scanner_rounded),
+        label: const Text('Escanear',
+            style: TextStyle(fontWeight: FontWeight.w700)),
       ),
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Card de cupón
+// ─────────────────────────────────────────────────────────────────
 
 class _CouponCard extends StatelessWidget {
   const _CouponCard({
     required this.secuencial,
     required this.version,
-    required this.estado,
     required this.usuario,
-    required this.escaneoLabel,
+    required this.fechaLabel,
+    this.escaneadoPor,
   });
 
   final String secuencial;
   final String version;
-  final String? estado;
   final String usuario;
-  final String escaneoLabel;
+  final String? escaneadoPor;
+  final String fechaLabel;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Palette.kBorder),
         boxShadow: [
           BoxShadow(
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.04),
           ),
         ],
       ),
       child: Row(
         children: [
-          // Franja
+          // Franja naranja izquierda
           Container(
-            width: 86,
-            height: 135,
+            width: 5,
+            height: 110,
             decoration: const BoxDecoration(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(16),
-                bottomLeft: Radius.circular(16),
-              ),
               gradient: LinearGradient(
-                colors: [Palette.kPrimary, Palette.kAccent],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+                colors: [Palette.kAccent, Palette.kAccentLight],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(14),
+                bottomLeft: Radius.circular(14),
               ),
             ),
-            child: const Center(
-              child: Icon(
+          ),
+
+          // Ícono central
+          Container(
+            width: 52,
+            height: 110,
+            alignment: Alignment.center,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Palette.kAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
                 Icons.local_offer_rounded,
-                size: 40,
-                color: Colors.white,
+                size: 20,
+                color: Palette.kAccent,
               ),
             ),
           ),
 
-          // separador punteado
-          SizedBox(
-            width: 14,
-            height: 120,
-            child: CustomPaint(painter: _DashPainter(color: Palette.kBorder)),
-          ),
-
-          // contenido
+          // Contenido
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(6, 12, 12, 12),
+              padding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Título + chips
+                  // Encabezado: número + check
                   Row(
                     children: [
                       Expanded(
                         child: Text(
                           'Cupón #$secuencial',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Palette.kTitle,
-                            fontSize: 16,
+                            fontSize: 15,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle_rounded,
+                                size: 12, color: Color(0xFF10B981)),
+                            SizedBox(width: 4),
+                            Text(
+                              'Canjeado',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF10B981),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 6),
 
                   // Versión
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.bookmarks_outlined,
-                        size: 16,
-                        color: Palette.kMuted,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          version,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Palette.kTitle,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
+                  _InfoRow(Icons.bookmarks_outlined, version),
+                  const SizedBox(height: 3),
 
-                  // Usuario
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.person_outline,
-                        size: 16,
-                        color: Palette.kMuted,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          usuario,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Palette.kTitle,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
+                  // Responsable
+                  _InfoRow(Icons.store_rounded, usuario),
+                  const SizedBox(height: 3),
 
-                  // Fecha de escaneo (hasta 2 líneas)
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.access_time,
-                        size: 16,
-                        color: Palette.kMuted,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          escaneoLabel,
-                          maxLines: 2, // 👈 hasta 2 líneas
-                          softWrap: true,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Palette.kTitle,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  // Quién escaneó (si difiere)
+                  if (escaneadoPor != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: _InfoRow(
+                          Icons.qr_code_scanner_rounded, 'Escaneó: $escaneadoPor'),
+                    ),
+
+                  // Fecha
+                  _InfoRow(Icons.access_time_rounded, fechaLabel,
+                      muted: false),
                 ],
               ),
-            ),
-          ),
-
-          const Padding(
-            padding: EdgeInsets.only(right: 12),
-            child: Icon(
-              Icons.check_circle_rounded,
-              color: Color(0xFF10B981),
-              size: 24,
             ),
           ),
         ],
@@ -415,26 +503,108 @@ class _CouponCard extends StatelessWidget {
   }
 }
 
-class _DashPainter extends CustomPainter {
-  _DashPainter({required this.color});
-  final Color color;
+class _InfoRow extends StatelessWidget {
+  const _InfoRow(this.icon, this.text, {this.muted = true});
+  final IconData icon;
+  final String text;
+  final bool muted;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1;
-    const dashHeight = 6.0, dashSpace = 4.0;
-    double y = 8, x = size.width / 2;
-    while (y < size.height - 8) {
-      canvas.drawLine(Offset(x, y), Offset(x, y + dashHeight), paint);
-      y += dashHeight + dashSpace;
-    }
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 13, color: Palette.kMuted),
+        const SizedBox(width: 5),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              color: muted ? Palette.kMuted : Palette.kTitle,
+              fontWeight: muted ? FontWeight.w400 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Opción de versión en bottom sheet
+// ─────────────────────────────────────────────────────────────────
+
+class _VersionOption extends StatelessWidget {
+  const _VersionOption({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? Palette.kAccent.withOpacity(0.08) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? Palette.kAccent.withOpacity(0.3) : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: selected
+                    ? Palette.kAccent.withOpacity(0.12)
+                    : Palette.kField,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(
+                icon,
+                size: 17,
+                color: selected ? Palette.kAccent : Palette.kMuted,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight:
+                      selected ? FontWeight.w700 : FontWeight.w400,
+                  color: selected ? Palette.kAccent : Palette.kTitle,
+                ),
+              ),
+            ),
+            if (selected)
+              const Icon(Icons.check_rounded,
+                  size: 18, color: Palette.kAccent),
+          ],
+        ),
+      ),
+    );
+  }
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Estado vacío
+// ─────────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.onScan});
@@ -444,63 +614,55 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              height: 120,
-              width: 120,
+              width: 90,
+              height: 90,
               decoration: BoxDecoration(
-                color: Palette.kSurface,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Palette.kBorder),
-                boxShadow: [
-                  BoxShadow(
-                    blurRadius: 24,
-                    color: Colors.black.withOpacity(0.05),
-                  ),
-                ],
+                color: Palette.kAccent.withOpacity(0.08),
+                shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.local_offer_outlined,
-                size: 56,
-                color: Palette.kPrimary,
+                Icons.confirmation_num_outlined,
+                size: 44,
+                color: Palette.kAccent,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             const Text(
-              'Sin resultados',
+              'Sin cupones',
               style: TextStyle(
                 color: Palette.kTitle,
                 fontWeight: FontWeight.w800,
-                fontSize: 18,
+                fontSize: 20,
               ),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Intenta con otro secuencial o cambia la versión.',
-              style: TextStyle(color: Palette.kSub),
+              'Aún no hay cupones canjeados.\nEscanea un QR para registrar el primero.',
+              style: TextStyle(color: Palette.kMuted, fontSize: 13, height: 1.5),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             FilledButton.icon(
+              onPressed: onScan,
               style: FilledButton.styleFrom(
-                backgroundColor: Palette.kPrimary,
+                backgroundColor: Palette.kAccent,
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 12,
-                ),
+                elevation: 0,
               ),
-              onPressed: onScan,
-              icon: const Icon(Icons.qr_code_scanner),
+              icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
               label: const Text(
                 'Escanear QR',
-                style: TextStyle(fontWeight: FontWeight.w800),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
               ),
             ),
           ],

@@ -1,4 +1,6 @@
 import 'package:enjoy/screens/clientes/comercio_detalle_mini_screen.dart';
+import 'package:enjoy/screens/clientes/mapa_version_screen.dart';
+import 'package:enjoy/services/versiones_service.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:enjoy/ui/palette.dart';
@@ -53,6 +55,38 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} '
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
+  Future<void> _verMapa() async {
+    final versionId = _data?.version.id;
+    if (versionId == null || versionId.isEmpty) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final locales = await VersionesService.listarLocales(versionId);
+      if (!mounted) return;
+      Navigator.pop(context);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MapaVersionScreen(
+            versionNombre: _data!.version.nombre,
+            locales: locales,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo cargar el mapa.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final muted = Palette.kMuted;
@@ -106,6 +140,22 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
                         cupon: _data!.cupon,
                       ),
                       const SizedBox(height: 14),
+                      if (_data?.version.id != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: OutlinedButton.icon(
+                            onPressed: _verMapa,
+                            icon: const Icon(Icons.map_outlined, size: 18),
+                            label: const Text('Ver locales en el mapa'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Palette.kAccent,
+                              side: const BorderSide(color: Palette.kAccent),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
                       _SearchBox(
                         hint: 'Buscar local por escanear…',
                         onChanged: (v) => setState(() => _qPend = v),
@@ -132,6 +182,22 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
                         cupon: _data!.cupon,
                       ),
                       const SizedBox(height: 14),
+                      if (_data?.version.id != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: OutlinedButton.icon(
+                            onPressed: _verMapa,
+                            icon: const Icon(Icons.map_outlined, size: 18),
+                            label: const Text('Ver locales en el mapa'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Palette.kAccent,
+                              side: const BorderSide(color: Palette.kAccent),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
                       _SearchBox(
                         hint: 'Buscar local escaneado…',
                         onChanged: (v) => setState(() => _qScan = v),
