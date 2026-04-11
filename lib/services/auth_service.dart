@@ -127,7 +127,10 @@ class AuthService {
   /// El backend usa `identitytoolkit.googleapis.com/v1/accounts:lookup` para validarlo,
   /// por lo que necesita el token de Firebase, no el de Google directamente.
   Future<String?> _getGoogleIdToken() async {
-    final googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+    final googleSignIn = GoogleSignIn(
+      scopes: ['email', 'profile'],
+      serverClientId: '193436032832-fsvvca9fu0lqkacgmt1gc0dqef5ac44p.apps.googleusercontent.com',
+    );
     await googleSignIn.signOut();
     final account = await googleSignIn.signIn();
     if (account == null) return null;
