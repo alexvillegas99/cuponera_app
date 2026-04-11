@@ -79,6 +79,10 @@
 		</dict>
 		<key>NSCameraUsageDescription</key>
 		<string>La aplicación utiliza la cámara para leer el código QR de los cupones.</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>Necesitamos tu ubicación para registrar las coordenadas GPS del establecimiento.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>Necesitamos tu ubicación para registrar las coordenadas GPS del establecimiento.</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>UIBackgroundModes</key>

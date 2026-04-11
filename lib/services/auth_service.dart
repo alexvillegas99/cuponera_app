@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
@@ -122,16 +123,26 @@ class AuthService {
     }
   }
 
+  /// Inicia sesión con Google, autentica en Firebase y devuelve el Firebase ID Token.
+  /// El backend usa `identitytoolkit.googleapis.com/v1/accounts:lookup` para validarlo,
+  /// por lo que necesita el token de Firebase, no el de Google directamente.
   Future<String?> _getGoogleIdToken() async {
-    final googleSignIn = GoogleSignIn(
-      scopes: ['email', 'profile'],
-      serverClientId: '193436032832-fsvvca9fu0lqkacgmt1gc0dqef5ac44p.apps.googleusercontent.com',
-    );
+    final googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
     await googleSignIn.signOut();
     final account = await googleSignIn.signIn();
     if (account == null) return null;
-    final auth = await account.authentication;
-    return auth.idToken;
+    final googleAuth = await account.authentication;
+
+    // Crear credencial de Firebase con el token de Google
+    final credential = GoogleAuthProvider.credential(
+      idToken: googleAuth.idToken,
+      accessToken: googleAuth.accessToken,
+    );
+
+    // Firmar en Firebase para obtener el Firebase ID Token
+    final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+    final firebaseIdToken = await userCredential.user?.getIdToken(true);
+    return firebaseIdToken;
   }
 
   /// Para clientes: si ya existe → navega a home_user y retorna `{'registered': true}`.
