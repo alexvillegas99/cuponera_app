@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +24,7 @@ class _LoginScreenState extends State<LoginScreen>
   bool _obscure = true;
   bool _loading = false;
   bool _googleLoading = false;
+  bool _appleLoading = false;
 
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
@@ -67,6 +70,24 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _continueAsGuest() async {
     await _auth.continueAsGuest();
     if (mounted) context.go('/home_guest');
+  }
+
+  Future<void> _doAppleLogin() async {
+    setState(() => _appleLoading = true);
+    try {
+      if (_mode == LoginMode.cliente) {
+        final result = await _auth.loginClienteWithApple(context);
+        if (result['registered'] == false && mounted) {
+          context.push('/registro-cliente', extra: result);
+        }
+      } else {
+        await _auth.loginUsuarioWithApple(context);
+      }
+    } catch (e) {
+      if (mounted) _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _appleLoading = false);
+    }
   }
 
   Future<void> _doGoogleLogin() async {
@@ -291,6 +312,12 @@ class _LoginScreenState extends State<LoginScreen>
           // ── Google ──
           _buildGoogleBtn(),
 
+          // ── Apple (solo iOS) ──
+          if (Platform.isIOS) ...[
+            const SizedBox(height: 10),
+            _buildAppleBtn(),
+          ],
+
           // ── Invitado ──
           if (_mode == LoginMode.cliente) ...[
             const SizedBox(height: 12),
@@ -425,6 +452,49 @@ class _LoginScreenState extends State<LoginScreen>
                       'Continuar con Google',
                       style: TextStyle(
                         color: Palette.kTitle,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppleBtn() {
+    return GestureDetector(
+      onTap: (_loading || _appleLoading) ? null : _doAppleLogin,
+      child: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: _appleLoading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                )
+              : const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.apple, color: Colors.white, size: 22),
+                    SizedBox(width: 10),
+                    Text(
+                      'Continuar con Apple',
+                      style: TextStyle(
+                        color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),

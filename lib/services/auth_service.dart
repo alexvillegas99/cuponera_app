@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:enjoy/main.dart' show isPushEnabled;
 import 'package:enjoy/services/my_firebase_messaging_service.dart';
@@ -9,6 +10,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
 class AuthService {
@@ -123,6 +126,111 @@ class AuthService {
     }
   }
 
+  // ── Helpers para nonce (requerido por Apple Sign-In) ──────────────────────
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(length, (_) => charset[random.nextInt(charset.length)]).join();
+  }
+
+  String _sha256ofString(String input) {
+    final bytes = utf8.encode(input);
+    return sha256.convert(bytes).toString();
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  /// Inicia sesión con Apple, autentica en Firebase y devuelve el Firebase ID Token.
+  /// Solo disponible en iOS / macOS.
+  Future<String?> _getAppleIdToken() async {
+    final rawNonce = _generateNonce();
+    final nonce = _sha256ofString(rawNonce);
+
+    final appleCredential = await SignInWithApple.getAppleIDCredential(
+      scopes: [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+      nonce: nonce,
+    );
+
+    final credential = OAuthProvider('apple.com').credential(
+      idToken: appleCredential.identityToken!,
+      rawNonce: rawNonce,
+    );
+
+    final userCredential =
+        await FirebaseAuth.instance.signInWithCredential(credential);
+    return await userCredential.user?.getIdToken(true);
+  }
+
+  /// Para clientes: si ya existe → navega a home_user.
+  /// Si no existe → retorna los datos de Apple para pre-llenar el registro.
+  Future<Map<String, dynamic>> loginClienteWithApple(BuildContext context) async {
+    final idToken = await _getAppleIdToken();
+    if (idToken == null) throw Exception('Inicio de sesión cancelado');
+
+    final resp = await http.post(
+      Uri.parse('$baseUrl/auth/apple/cliente'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'idToken': idToken}),
+    );
+
+    if (resp.statusCode != 200) throw Exception(_serverErrorMessage(resp));
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+
+    if (data['registered'] == true) {
+      final accessToken = data['accessToken'] as String;
+      final cliente = data['cliente'] as Map<String, dynamic>;
+      final user = {...cliente, 'kind': 'CLIENTE'};
+      await saveUserData(accessToken, user);
+      final userId = user['_id']?.toString();
+      if (userId != null && userId.isNotEmpty) {
+        myFirebaseService?.subscribeToTopic(userId);
+        _guardarFcmToken(userId);
+      }
+      if (context.mounted) context.go('/home_user');
+      return {'registered': true};
+    }
+
+    return {'registered': false, ...data['appleData'] as Map<String, dynamic>};
+  }
+
+  /// Para usuarios/empresa: solo permite si ya existe la cuenta en el sistema.
+  Future<void> loginUsuarioWithApple(BuildContext context) async {
+    final idToken = await _getAppleIdToken();
+    if (idToken == null) throw Exception('Inicio de sesión cancelado');
+
+    final resp = await http.post(
+      Uri.parse('$baseUrl/auth/apple/usuario'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'idToken': idToken}),
+    );
+
+    if (resp.statusCode != 200) throw Exception(_serverErrorMessage(resp));
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    final accessToken = data['accessToken'] as String;
+    final user = data['user'] as Map<String, dynamic>;
+    user['kind'] = 'USUARIO';
+
+    final userId = user['_id']?.toString();
+    final usuarioCreacion = user['usuarioCreacion']?.toString();
+
+    if (userId != null && userId.isNotEmpty) {
+      myFirebaseService?.subscribeToTopic(userId);
+      _guardarFcmTokenUsuario(userId);
+    }
+    if (usuarioCreacion != null && usuarioCreacion.isNotEmpty) {
+      myFirebaseService?.subscribeToTopic(usuarioCreacion);
+    }
+
+    await saveUserData(accessToken, user);
+    if (context.mounted) context.go('/home');
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
   /// Inicia sesión con Google, autentica en Firebase y devuelve el Firebase ID Token.
   /// El backend usa `identitytoolkit.googleapis.com/v1/accounts:lookup` para validarlo,
   /// por lo que necesita el token de Firebase, no el de Google directamente.
