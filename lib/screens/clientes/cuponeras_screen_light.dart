@@ -683,6 +683,16 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
                     style: TextStyle(color: Palette.kMuted, fontSize: 13, height: 1.5),
                     textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 24),
+                  TextButton.icon(
+                    onPressed: _reloadFromServer,
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('Actualizar'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Palette.kAccent,
+                      textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
+                  ),
                 ],
               ),
             ),
