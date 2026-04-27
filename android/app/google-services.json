@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "193436032832-8l8g7r9fsvssjho6d7hj4jc0aeupg43s.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pixelsmart.cuponera_app",
+            "certificate_hash": "eaae18ea98341d2be4caebd09a4e02ccffd5c75c"
+          }
+        },
+        {
           "client_id": "193436032832-kag3dtapm905tbd0cvbrie7od6917ooi.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

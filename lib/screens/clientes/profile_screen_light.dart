@@ -136,6 +136,11 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
 
               // ── Cuenta ───────────────────────────────────────────
               _buildAccountCard(p),
+
+              const SizedBox(height: 24),
+
+              // ── Zona peligrosa ───────────────────────────────────
+              _buildDangerZone(),
             ],
           ],
         ),
@@ -402,6 +407,167 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    // Paso 1: bottom sheet informativo
+    final paso1 = await _showConfirmSheet(
+      context,
+      title: '¿Eliminar tu cuenta?',
+      message:
+          'Perderás acceso a tu historial, cuponeras y datos guardados. Podrás crear una cuenta nueva con el mismo correo si cambias de opinión.',
+      confirmLabel: 'Continuar',
+      icon: Icons.no_accounts_rounded,
+    );
+    if (paso1 != true || !mounted) return;
+
+    // Paso 2: diálogo de confirmación final
+    final paso2 = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Colors.white,
+        icon: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.red.shade50,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.delete_forever_rounded, color: Colors.red.shade700, size: 28),
+        ),
+        title: const Text(
+          'Confirmación final',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+        ),
+        content: Text(
+          '¿Confirmas que deseas eliminar permanentemente tu cuenta? Esta acción no se puede deshacer.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              child: const Text('Sí, eliminar mi cuenta', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Palette.kBorder),
+                foregroundColor: Palette.kMuted,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Cancelar'),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (paso2 != true || !mounted) return;
+
+    try {
+      await authService.deleteAccount();
+      if (mounted) context.go('/login');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  // ── Danger zone ───────────────────────────────────────────────────
+  Widget _buildDangerZone() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 10),
+          child: Text(
+            'Zona de peligro',
+            style: TextStyle(
+              color: Colors.red.shade700,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.red.shade50,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.red.shade100, width: 1.5),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => _confirmDeleteAccount(context),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.no_accounts_rounded, color: Colors.red.shade700, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Eliminar cuenta',
+                            style: TextStyle(
+                              color: Colors.red.shade700,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Acción permanente e irreversible',
+                            style: TextStyle(color: Colors.red.shade400, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded, color: Colors.red.shade300, size: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

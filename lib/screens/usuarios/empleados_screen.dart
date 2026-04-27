@@ -1,3 +1,4 @@
+import 'package:enjoy/screens/usuarios/empleado_form_screen.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/usuarios_empresa_service.dart';
 import 'package:enjoy/ui/palette.dart';
@@ -18,6 +19,7 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
   bool _loading = true;
   String? _error;
   String _busqueda = '';
+  String? _userId;
 
   @override
   void initState() {
@@ -34,6 +36,7 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
       final user = await _auth.getUser();
       final userId = user?['_id']?.toString();
       if (userId == null) throw Exception('Sin ID de usuario');
+      _userId = userId;
       final data = await _svc.listarPorLocal(userId);
       if (mounted) {
         setState(() {
@@ -61,6 +64,33 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
     }).toList();
   }
 
+  void _abrirCrear() {
+    if (_userId == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EmpleadoFormScreen(localId: _userId!),
+      ),
+    ).then((ok) {
+      if (ok == true) _cargar();
+    });
+  }
+
+  void _abrirEditar(Map<String, dynamic> empleado) {
+    if (_userId == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EmpleadoFormScreen(
+          localId: _userId!,
+          empleado: empleado,
+        ),
+      ),
+    ).then((ok) {
+      if (ok == true) _cargar();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -71,71 +101,91 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
       return _ErrorState(message: _error!, onRetry: _cargar);
     }
 
-    return Column(
+    return Stack(
       children: [
-        // Barra de búsqueda
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: TextField(
-            onChanged: (v) => setState(() => _busqueda = v),
-            decoration: InputDecoration(
-              hintText: 'Buscar empleado...',
-              hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
-              prefixIcon: const Icon(Icons.search_rounded, color: Palette.kMuted, size: 20),
-              filled: true,
-              fillColor: Palette.kSurface,
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Palette.kBorder),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Palette.kBorder),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Palette.kAccent),
-              ),
-            ),
-          ),
-        ),
-
-        // Contador
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Row(
-            children: [
-              Text(
-                '${_filtrados.length} empleado${_filtrados.length != 1 ? 's' : ''}',
-                style: const TextStyle(
-                  color: Palette.kMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Lista
-        Expanded(
-          child: _filtrados.isEmpty
-              ? const _EmptyState(
-                  icon: Icons.people_outline_rounded,
-                  titulo: 'Sin empleados',
-                  subtitulo: 'No se encontraron empleados.',
-                )
-              : RefreshIndicator(
-                  color: Palette.kAccent,
-                  onRefresh: _cargar,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                    itemCount: _filtrados.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (_, i) => _EmpleadoCard(usuario: _filtrados[i]),
+        Column(
+          children: [
+            // Barra de búsqueda
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: TextField(
+                onChanged: (v) => setState(() => _busqueda = v),
+                decoration: InputDecoration(
+                  hintText: 'Buscar empleado...',
+                  hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
+                  prefixIcon: const Icon(Icons.search_rounded, color: Palette.kMuted, size: 20),
+                  filled: true,
+                  fillColor: Palette.kSurface,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Palette.kBorder),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Palette.kBorder),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Palette.kAccent),
                   ),
                 ),
+              ),
+            ),
+
+            // Contador
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  Text(
+                    '${_filtrados.length} empleado${_filtrados.length != 1 ? 's' : ''}',
+                    style: const TextStyle(
+                      color: Palette.kMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Lista
+            Expanded(
+              child: _filtrados.isEmpty
+                  ? const _EmptyState(
+                      icon: Icons.people_outline_rounded,
+                      titulo: 'Sin empleados',
+                      subtitulo: 'Toca + para agregar el primer empleado.',
+                    )
+                  : RefreshIndicator(
+                      color: Palette.kAccent,
+                      onRefresh: _cargar,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                        itemCount: _filtrados.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (_, i) => _EmpleadoCard(
+                          usuario: _filtrados[i],
+                          onTap: () => _abrirEditar(_filtrados[i]),
+                        ),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+
+        // FAB
+        Positioned(
+          right: 16,
+          bottom: 24,
+          child: FloatingActionButton(
+            onPressed: _abrirCrear,
+            backgroundColor: Palette.kAccent,
+            foregroundColor: Colors.white,
+            elevation: 4,
+            child: const Icon(Icons.add_rounded),
+          ),
         ),
       ],
     );
@@ -146,7 +196,8 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
 
 class _EmpleadoCard extends StatelessWidget {
   final Map<String, dynamic> usuario;
-  const _EmpleadoCard({required this.usuario});
+  final VoidCallback onTap;
+  const _EmpleadoCard({required this.usuario, required this.onTap});
 
   String get _nombre {
     final n = (usuario['nombre'] ?? usuario['nombres'] ?? '').toString().trim();
@@ -163,86 +214,89 @@ class _EmpleadoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final initial = _nombre.isNotEmpty ? _nombre[0].toUpperCase() : '?';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Palette.kBorder),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            // Avatar con inicial
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Palette.kAccent, Palette.kAccentLight],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Text(
-                  initial,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
-                ),
-              ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Palette.kSurface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Palette.kBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-            const SizedBox(width: 12),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _nombre,
-                    style: const TextStyle(
-                      color: Palette.kTitle,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _correo,
-                    style: const TextStyle(color: Palette.kMuted, fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      _Badge(label: _rolLabel(_rol), color: _rolColor(_rol)),
-                      const SizedBox(width: 6),
-                      _Badge(
-                        label: _activo ? 'Activo' : 'Inactivo',
-                        color: _activo ? Colors.green.shade700 : Colors.red.shade700,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            Icon(Icons.chevron_right_rounded, color: Palette.kBorder, size: 22),
           ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              // Avatar con inicial
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Palette.kAccent, Palette.kAccentLight],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(
+                    initial,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _nombre,
+                      style: const TextStyle(
+                        color: Palette.kTitle,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _correo,
+                      style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        _Badge(label: _rolLabel(_rol), color: _rolColor(_rol)),
+                        const SizedBox(width: 6),
+                        _Badge(
+                          label: _activo ? 'Activo' : 'Inactivo',
+                          color: _activo ? Colors.green.shade700 : Colors.red.shade700,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              Icon(Icons.chevron_right_rounded, color: Palette.kBorder, size: 22),
+            ],
+          ),
         ),
       ),
     );

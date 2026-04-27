@@ -406,6 +406,23 @@ class AuthService {
   Future<bool> hasToken() async =>
       (await _storage.read(key: 'accessToken')) != null;
 
+  Future<void> deleteAccount() async {
+    final token = await getToken();
+    if (token == null) throw Exception('No hay sesión activa');
+
+    final uri = Uri.parse('$baseUrl/clientes/me');
+    final resp = await http.delete(
+      uri,
+      headers: {..._jsonHeaders, 'Authorization': 'Bearer $token'},
+    );
+
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw Exception(_serverErrorMessage(resp));
+    }
+
+    await logout();
+  }
+
   // ── Modo invitado ──
   Future<void> continueAsGuest() async {
     await _storage.write(key: 'guest_mode', value: 'true');

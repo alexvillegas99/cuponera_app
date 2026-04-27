@@ -35,6 +35,14 @@ class UsuariosEmpresaService {
     return null;
   }
 
+  /// Crea un empleado (staff) bajo un admin-local.
+  /// Endpoint: POST /usuarios/users-local/:localId
+  Future<Map<String, dynamic>> crearParaLocal(String localId, Map<String, dynamic> data) async {
+    final resp = await _api.post('/usuarios/users-local/$localId', data: data);
+    if (resp.data is Map<String, dynamic>) return resp.data as Map<String, dynamic>;
+    return {};
+  }
+
   /// Actualiza un usuario. Endpoint: PATCH /usuarios/:id
   Future<void> actualizar(String id, Map<String, dynamic> data) async {
     await _api.patch('/usuarios/$id', data: data);

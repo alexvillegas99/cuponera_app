@@ -48,8 +48,6 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
   int? _selectedCuponera;
   String? _metodoPago; // 'transferencia' | 'payphone' | 'paypal'
   File? _comprobante;
-  final _montoCtrl = TextEditingController();
-  final _obsCtrl = TextEditingController();
   final _picker = ImagePicker();
 
   @override
@@ -60,8 +58,6 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
 
   @override
   void dispose() {
-    _montoCtrl.dispose();
-    _obsCtrl.dispose();
     super.dispose();
   }
 
@@ -100,7 +96,12 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final picked = await _picker.pickImage(source: source, imageQuality: 70);
+    final picked = await _picker.pickImage(
+      source: source,
+      imageQuality: 40,
+      maxWidth: 1000,
+      maxHeight: 1000,
+    );
     if (picked != null && mounted) {
       setState(() => _comprobante = File(picked.path));
     }
@@ -184,10 +185,6 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
       _showSnack('Sube tu comprobante de pago');
       return;
     }
-    if (_montoCtrl.text.trim().isEmpty) {
-      _showSnack('Ingresa el monto transferido');
-      return;
-    }
 
     setState(() => _submitting = true);
 
@@ -209,8 +206,6 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
       'telefonoCliente': widget.telefonoCliente ?? '',
       'cuponeraNombre': cuponera['nombre'] ?? '',
       'cuponeraPrecio': cuponera['precio'] ?? '0.00',
-      'montoTransferido': _montoCtrl.text.trim(),
-      'observaciones': _obsCtrl.text.trim(),
       'comprobanteBase64': base64Image,
     };
 
@@ -838,27 +833,6 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
     );
   }
 
-  Widget _buildFormFields() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionHeader(Icons.edit_note, 'Detalles del pago'),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _montoCtrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: _inputDecoration('Monto transferido (\$)', icon: Icons.attach_money),
-        ),
-        const SizedBox(height: 14),
-        TextField(
-          controller: _obsCtrl,
-          maxLines: 3,
-          decoration: _inputDecoration('Observaciones (opcional)', icon: Icons.notes),
-        ),
-      ],
-    );
-  }
-
   Widget _buildMetodoPagoSelector() {
     final metodos = <Map<String, dynamic>>[];
     if (_cuentas.isNotEmpty) {
@@ -948,8 +922,6 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
         _buildInstruccionesSection(),
         if (_instrucciones.isNotEmpty) const SizedBox(height: 24),
         _buildComprobanteSection(),
-        const SizedBox(height: 24),
-        _buildFormFields(),
         const SizedBox(height: 28),
         _buildSubmitButton(),
       ];
