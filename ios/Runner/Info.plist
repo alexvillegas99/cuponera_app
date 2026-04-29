@@ -26,6 +26,8 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>FirebaseAppDelegateProxyEnabled</key>
 		<true/>
+		<key>GIDClientID</key>
+		<string>193436032832-vh14a827kih2btbbk9ck1t7ov8in9ovo.apps.googleusercontent.com</string>
 		<key>LSApplicationQueriesSchemes</key>
 		<array>
 			<string>whatsapp</string>

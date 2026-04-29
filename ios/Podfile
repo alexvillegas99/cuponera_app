@@ -49,6 +49,8 @@ post_install do |installer|
       config.build_settings['OTHER_LDFLAGS'] = '$(inherited) -ObjC'
       # Asegura versión Swift si falta (Xcode 15)
       config.build_settings['SWIFT_VERSION'] ||= '5.0'
+      # GoogleMLKit (mobile_scanner) no soporta arm64 en simulador iOS 26+
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
     end
   end
 end

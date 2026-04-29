@@ -143,25 +143,48 @@ class AuthService {
   /// Inicia sesión con Apple, autentica en Firebase y devuelve el Firebase ID Token.
   /// Solo disponible en iOS / macOS.
   Future<String?> _getAppleIdToken() async {
-    final rawNonce = _generateNonce();
-    final nonce = _sha256ofString(rawNonce);
+    try {
+      final rawNonce = _generateNonce();
+      final nonce = _sha256ofString(rawNonce);
 
-    final appleCredential = await SignInWithApple.getAppleIDCredential(
-      scopes: [
-        AppleIDAuthorizationScopes.email,
-        AppleIDAuthorizationScopes.fullName,
-      ],
-      nonce: nonce,
-    );
+      debugPrint('🍎 [Apple] Solicitando credencial a Apple...');
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: nonce,
+      );
+      debugPrint('🍎 [Apple] identityToken recibido: '
+          '${appleCredential.identityToken != null ? 'OK (${appleCredential.identityToken!.length} chars)' : 'NULL'}');
+      debugPrint('🍎 [Apple] userIdentifier: ${appleCredential.userIdentifier}');
+      debugPrint('🍎 [Apple] email: ${appleCredential.email}');
 
-    final credential = OAuthProvider('apple.com').credential(
-      idToken: appleCredential.identityToken!,
-      rawNonce: rawNonce,
-    );
+      if (appleCredential.identityToken == null) {
+        throw Exception('Apple no devolvió identityToken');
+      }
 
-    final userCredential =
-        await FirebaseAuth.instance.signInWithCredential(credential);
-    return await userCredential.user?.getIdToken(true);
+      final credential = OAuthProvider('apple.com').credential(
+        idToken: appleCredential.identityToken!,
+        rawNonce: rawNonce,
+      );
+
+      debugPrint('🍎 [Apple] Llamando FirebaseAuth.signInWithCredential...');
+      final userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+      debugPrint('🍎 [Apple] Firebase user: ${userCredential.user?.uid}');
+
+      final firebaseIdToken = await userCredential.user?.getIdToken(true);
+      debugPrint('🍎 [Apple] firebaseIdToken: '
+          '${firebaseIdToken != null ? 'OK (${firebaseIdToken.length} chars)' : 'NULL'}');
+      return firebaseIdToken;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('🍎 [Apple] FirebaseAuthException code=${e.code} message=${e.message}');
+      rethrow;
+    } catch (e) {
+      debugPrint('🍎 [Apple] Error inesperado: $e');
+      rethrow;
+    }
   }
 
   /// Para clientes: si ya existe → navega a home_user.
@@ -237,6 +260,9 @@ class AuthService {
   Future<String?> _getGoogleIdToken() async {
     final googleSignIn = GoogleSignIn(
       scopes: ['email', 'profile'],
+      clientId: Platform.isIOS
+          ? '193436032832-vh14a827kih2btbbk9ck1t7ov8in9ovo.apps.googleusercontent.com'
+          : null,
       serverClientId: '193436032832-fsvvca9fu0lqkacgmt1gc0dqef5ac44p.apps.googleusercontent.com',
     );
     await googleSignIn.signOut();
