@@ -1,0 +1,14 @@
+#!/bin/sh
+# This is a generated file; do not edit or check into version control.
+export "FLUTTER_ROOT=/Users/afnaranjo/Development/flutter"
+export "FLUTTER_APPLICATION_PATH=/Users/afnaranjo/Desktop/AlexVillegas/cuponera_app"
+export "COCOAPODS_PARALLEL_CODE_SIGN=true"
+export "FLUTTER_TARGET=lib/main.dart"
+export "FLUTTER_BUILD_DIR=build"
+export "FLUTTER_BUILD_NAME=1.1.11"
+export "FLUTTER_BUILD_NUMBER=14"
+export "DART_DEFINES=RkxVVFRFUl9WRVJTSU9OPTMuNDEuNg==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049ZGI1MGUyMDE2OA==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049NDI1Y2ZiNTRkMA==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMS40"
+export "DART_OBFUSCATION=false"
+export "TRACK_WIDGET_CREATION=false"
+export "TREE_SHAKE_ICONS=true"
+export "PACKAGE_CONFIG=/Users/afnaranjo/Desktop/AlexVillegas/cuponera_app/.dart_tool/package_config.json"

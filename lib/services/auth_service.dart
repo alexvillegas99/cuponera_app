@@ -210,6 +210,9 @@ class AuthService {
   Future<String?> _getGoogleIdToken() async {
     final googleSignIn = GoogleSignIn(
       scopes: ['email', 'profile'],
+      clientId: Platform.isIOS
+          ? '193436032832-vh14a827kih2btbbk9ck1t7ov8in9ovo.apps.googleusercontent.com'
+          : null,
       serverClientId: '193436032832-fsvvca9fu0lqkacgmt1gc0dqef5ac44p.apps.googleusercontent.com',
     );
     await googleSignIn.signOut();
