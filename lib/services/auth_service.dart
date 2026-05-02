@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:enjoy/main.dart' show isPushEnabled;
 import 'package:enjoy/services/my_firebase_messaging_service.dart';
@@ -11,7 +10,6 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
 class AuthService {
@@ -126,42 +124,17 @@ class AuthService {
     }
   }
 
-  // ── Helpers para nonce (requerido por Apple Sign-In) ──────────────────────
-  String _generateNonce([int length = 32]) {
-    const charset =
-        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
-    final random = Random.secure();
-    return List.generate(length, (_) => charset[random.nextInt(charset.length)]).join();
-  }
-
-  String _sha256ofString(String input) {
-    final bytes = utf8.encode(input);
-    return sha256.convert(bytes).toString();
-  }
-
   // ──────────────────────────────────────────────────────────────────────────
-  /// Inicia sesión con Apple, autentica en Firebase y devuelve el Firebase ID Token.
+  /// Obtiene el identity token de Apple directamente (sin Firebase).
   /// Solo disponible en iOS / macOS.
   Future<String?> _getAppleIdToken() async {
-    final rawNonce = _generateNonce();
-    final nonce = _sha256ofString(rawNonce);
-
     final appleCredential = await SignInWithApple.getAppleIDCredential(
       scopes: [
         AppleIDAuthorizationScopes.email,
         AppleIDAuthorizationScopes.fullName,
       ],
-      nonce: nonce,
     );
-
-    final credential = OAuthProvider('apple.com').credential(
-      idToken: appleCredential.identityToken!,
-      rawNonce: rawNonce,
-    );
-
-    final userCredential =
-        await FirebaseAuth.instance.signInWithCredential(credential);
-    return await userCredential.user?.getIdToken(true);
+    return appleCredential.identityToken;
   }
 
   /// Para clientes: si ya existe → navega a home_user.
