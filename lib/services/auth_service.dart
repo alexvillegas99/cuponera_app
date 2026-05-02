@@ -128,20 +128,32 @@ class AuthService {
   /// Obtiene el identity token de Apple directamente (sin Firebase).
   /// Solo disponible en iOS / macOS.
   Future<String?> _getAppleIdToken() async {
+    debugPrint('🍎 [Apple] Solicitando credencial a Apple...');
     final appleCredential = await SignInWithApple.getAppleIDCredential(
       scopes: [
         AppleIDAuthorizationScopes.email,
         AppleIDAuthorizationScopes.fullName,
       ],
     );
+    debugPrint('🍎 [Apple] Credencial recibida');
+    debugPrint('🍎 [Apple] userIdentifier: ${appleCredential.userIdentifier}');
+    debugPrint('🍎 [Apple] email: ${appleCredential.email ?? "(no incluido, ya fue compartido antes)"}');
+    debugPrint('🍎 [Apple] givenName: ${appleCredential.givenName ?? "(vacío)"}');
+    debugPrint('🍎 [Apple] familyName: ${appleCredential.familyName ?? "(vacío)"}');
+    debugPrint('🍎 [Apple] identityToken: ${appleCredential.identityToken != null ? "OK (${appleCredential.identityToken!.length} chars)" : "NULL ❌"}');
     return appleCredential.identityToken;
   }
 
   /// Para clientes: si ya existe → navega a home_user.
   /// Si no existe → retorna los datos de Apple para pre-llenar el registro.
   Future<Map<String, dynamic>> loginClienteWithApple(BuildContext context) async {
+    debugPrint('🍎 [Apple/Cliente] Iniciando login con Apple...');
     final idToken = await _getAppleIdToken();
-    if (idToken == null) throw Exception('Inicio de sesión cancelado');
+    if (idToken == null) {
+      debugPrint('🍎 [Apple/Cliente] ❌ identityToken nulo, login cancelado');
+      throw Exception('Inicio de sesión cancelado');
+    }
+    debugPrint('🍎 [Apple/Cliente] Token obtenido, llamando backend: $baseUrl/auth/apple/cliente');
 
     final resp = await http.post(
       Uri.parse('$baseUrl/auth/apple/cliente'),
@@ -149,9 +161,13 @@ class AuthService {
       body: jsonEncode({'idToken': idToken}),
     );
 
+    debugPrint('🍎 [Apple/Cliente] Respuesta backend: ${resp.statusCode}');
+    debugPrint('🍎 [Apple/Cliente] Body: ${resp.body}');
+
     if (resp.statusCode != 200) throw Exception(_serverErrorMessage(resp));
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    debugPrint('🍎 [Apple/Cliente] registered: ${data['registered']}');
 
     if (data['registered'] == true) {
       final accessToken = data['accessToken'] as String;
@@ -159,6 +175,7 @@ class AuthService {
       final user = {...cliente, 'kind': 'CLIENTE'};
       await saveUserData(accessToken, user);
       final userId = user['_id']?.toString();
+      debugPrint('🍎 [Apple/Cliente] ✅ Cliente existente, userId: $userId → navegando a /home_user');
       if (userId != null && userId.isNotEmpty) {
         myFirebaseService?.subscribeToTopic(userId);
         _guardarFcmToken(userId);
@@ -167,19 +184,28 @@ class AuthService {
       return {'registered': true};
     }
 
+    debugPrint('🍎 [Apple/Cliente] Cliente no registrado → redirigir a registro con datos: ${data['appleData']}');
     return {'registered': false, ...data['appleData'] as Map<String, dynamic>};
   }
 
   /// Para usuarios/empresa: solo permite si ya existe la cuenta en el sistema.
   Future<void> loginUsuarioWithApple(BuildContext context) async {
+    debugPrint('🍎 [Apple/Usuario] Iniciando login con Apple...');
     final idToken = await _getAppleIdToken();
-    if (idToken == null) throw Exception('Inicio de sesión cancelado');
+    if (idToken == null) {
+      debugPrint('🍎 [Apple/Usuario] ❌ identityToken nulo, login cancelado');
+      throw Exception('Inicio de sesión cancelado');
+    }
+    debugPrint('🍎 [Apple/Usuario] Token obtenido, llamando backend: $baseUrl/auth/apple/usuario');
 
     final resp = await http.post(
       Uri.parse('$baseUrl/auth/apple/usuario'),
       headers: _jsonHeaders,
       body: jsonEncode({'idToken': idToken}),
     );
+
+    debugPrint('🍎 [Apple/Usuario] Respuesta backend: ${resp.statusCode}');
+    debugPrint('🍎 [Apple/Usuario] Body: ${resp.body}');
 
     if (resp.statusCode != 200) throw Exception(_serverErrorMessage(resp));
 
@@ -190,6 +216,7 @@ class AuthService {
 
     final userId = user['_id']?.toString();
     final usuarioCreacion = user['usuarioCreacion']?.toString();
+    debugPrint('🍎 [Apple/Usuario] ✅ Usuario autenticado, userId: $userId → navegando a /home');
 
     if (userId != null && userId.isNotEmpty) {
       myFirebaseService?.subscribeToTopic(userId);
