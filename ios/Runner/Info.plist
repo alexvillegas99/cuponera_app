@@ -79,6 +79,12 @@
 				</dict>
 			</dict>
 		</dict>
+		<key>NSBonjourServices</key>
+		<array>
+			<string>_dartobservatory._tcp</string>
+		</array>
+		<key>NSLocalNetworkUsageDescription</key>
+		<string>Permite conectar con las herramientas de desarrollo de Flutter durante la depuración.</string>
 		<key>NSCameraUsageDescription</key>
 		<string>La aplicación utiliza la cámara para leer el código QR de los cupones.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>

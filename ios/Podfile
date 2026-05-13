@@ -26,13 +26,8 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 flutter_ios_podfile_setup
 
 target 'Runner' do
-  # ❌ NO uses frameworks dinámicos:
-  # use_frameworks!
-
-  # ✅ Usa frameworks ESTÁTICOS (lo más compatible con Flutter/Firebase):
-  use_frameworks! :linkage => :static
-  # opcional si lo piden algunos pods:
-  # use_modular_headers!
+  use_frameworks!
+  use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
@@ -49,9 +44,19 @@ post_install do |installer|
       config.build_settings['OTHER_LDFLAGS'] = '$(inherited) -ObjC'
       # Asegura versión Swift si falta (Xcode 15)
       config.build_settings['SWIFT_VERSION'] ||= '5.0'
-      # GoogleMLKit (mobile_scanner) no soporta arm64 en simulador iOS 26+
-      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+      # Permitir arm64 en simulador (mobile_scanner y MLKit lo excluyen en su podspec,
+      # rompiendo simuladores Apple Silicon como iPhone 15)
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = ''
     end
+  end
+
+  # Algunos pods (mobile_scanner, MLKit*) escriben EXCLUDED_ARCHS=arm64 directamente
+  # en su .xcconfig, lo cual sobreescribe los build_settings de arriba. Hay que
+  # parchear esos archivos para que el simulador en Apple Silicon pueda compilar.
+  Dir.glob(File.join(installer.sandbox.target_support_files_root, '**', '*.xcconfig')).each do |xcconfig|
+    contents = File.read(xcconfig)
+    new_contents = contents.gsub(/^EXCLUDED_ARCHS\[sdk=iphonesimulator\*\].*$/, 'EXCLUDED_ARCHS[sdk=iphonesimulator*] = ')
+    File.write(xcconfig, new_contents) if new_contents != contents
   end
 end
 

@@ -102,3 +102,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 >>>>>>> 80aad14 (first commit)
+
+# FVM Version Cache
+.fvm/

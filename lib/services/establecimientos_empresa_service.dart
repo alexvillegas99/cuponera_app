@@ -25,6 +25,15 @@ class EstablecimientosEmpresaService {
     await _api.patch('/usuarios/$id', data: data);
   }
 
+  /// Crea un establecimiento. Endpoint: POST /usuarios
+  /// El backend auto-genera la clave si no se envía y manda mail de bienvenida.
+  Future<Map<String, dynamic>> crear(Map<String, dynamic> data) async {
+    final resp = await _api.post('/usuarios', data: data);
+    final body = resp.data;
+    if (body is Map<String, dynamic>) return body;
+    return <String, dynamic>{};
+  }
+
   List<Map<String, dynamic>> _parseList(dynamic data) {
     if (data is List) return List<Map<String, dynamic>>.from(data);
     if (data is Map) {

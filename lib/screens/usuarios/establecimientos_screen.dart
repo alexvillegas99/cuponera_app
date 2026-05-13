@@ -1,4 +1,5 @@
 import 'package:enjoy/screens/usuarios/establecimiento_detalle_screen.dart';
+import 'package:enjoy/screens/usuarios/establecimiento_form_screen.dart';
 import 'package:enjoy/services/establecimientos_empresa_service.dart';
 import 'package:enjoy/services/permissions_service.dart';
 import 'package:enjoy/ui/palette.dart';
@@ -22,6 +23,7 @@ class _EstablecimientosScreenState extends State<EstablecimientosScreen> {
   String? _filtroCiudad;
   bool _canEdit = false;
   bool _canEditFotos = false;
+  bool _canCrear = false;
 
   @override
   void initState() {
@@ -39,7 +41,21 @@ class _EstablecimientosScreenState extends State<EstablecimientosScreen> {
       permission: 'establecimientos.fotos',
       fallbackRoles: ['admin'],
     );
+    _canCrear = await _permissions.canAccess(
+      permission: 'establecimientos.crear',
+      fallbackRoles: ['admin'],
+    );
     await _cargar();
+  }
+
+  Future<void> _abrirNuevo() async {
+    final creado = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const EstablecimientoFormScreen()),
+    );
+    if (creado == true) {
+      await _cargar();
+    }
   }
 
   Future<void> _cargar() async {
@@ -131,7 +147,9 @@ class _EstablecimientosScreenState extends State<EstablecimientosScreen> {
 
     final ciudades = _ciudades;
 
-    return Column(
+    return Stack(
+      children: [
+        Column(
       children: [
         // ── Búsqueda ──
         Padding(
@@ -225,6 +243,24 @@ class _EstablecimientosScreenState extends State<EstablecimientosScreen> {
                   ),
                 ),
         ),
+      ],
+        ),
+        if (_canCrear)
+          Positioned(
+            right: 16,
+            bottom: 20,
+            child: FloatingActionButton.extended(
+              onPressed: _abrirNuevo,
+              backgroundColor: Palette.kAccent,
+              foregroundColor: Colors.white,
+              elevation: 4,
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text(
+                'Nuevo',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+            ),
+          ),
       ],
     );
   }
