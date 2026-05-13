@@ -10,6 +10,13 @@ set -e
 
 echo "==> [ci_post_clone] Starting Flutter setup for Xcode Cloud"
 
+# Resolve repo root relative to this script (script lives at ios/ci_scripts/).
+# Avoids relying on $CI_WORKSPACE / $CI_PRIMARY_REPOSITORY_PATH which can vary.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+echo "==> SCRIPT_DIR=$SCRIPT_DIR"
+echo "==> REPO_ROOT=$REPO_ROOT"
+
 # Clone Flutter SDK (stable channel) to a writable location
 FLUTTER_DIR="$HOME/flutter"
 if [ ! -d "$FLUTTER_DIR" ]; then
@@ -25,14 +32,12 @@ flutter --version
 echo "==> flutter precache --ios"
 flutter precache --ios
 
-# Move to the Flutter project root (one level up from ios/ci_scripts/)
-cd "$CI_WORKSPACE"
-
-echo "==> flutter pub get"
+echo "==> cd $REPO_ROOT && flutter pub get"
+cd "$REPO_ROOT"
 flutter pub get
 
-echo "==> pod install"
-cd ios
+echo "==> cd $REPO_ROOT/ios && pod install --repo-update"
+cd "$REPO_ROOT/ios"
 pod install --repo-update
 
 echo "==> [ci_post_clone] Done"
