@@ -85,8 +85,10 @@ GoRouter buildRouter(String initialRoute) {
       ),
       GoRoute(
         path: '/recuperar',
-        pageBuilder: (context, state) =>
-            _slidePage(state, const RecuperarCuentaScreen()),
+        pageBuilder: (context, state) => _slidePage(
+          state,
+          RecuperarCuentaScreen(initialEmpresa: state.extra == true),
+        ),
       ),
       GoRoute(
         path: '/restablecer',
