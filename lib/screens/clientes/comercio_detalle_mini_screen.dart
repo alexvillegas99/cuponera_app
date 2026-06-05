@@ -8,7 +8,11 @@ import 'package:enjoy/services/cupones_service.dart';
 import 'package:flutter/material.dart';
 import 'package:enjoy/ui/palette.dart';
 import 'package:enjoy/services/comercios_service.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:enjoy/mappers/comercio_mini.dart';
+import 'package:enjoy/models/producto.dart';
+import 'package:enjoy/utils/distancia.dart';
+import 'package:enjoy/widgets/galeria_media_view.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -42,12 +46,35 @@ class _ComercioDetalleMiniScreenState
   ComercioMini? _data;
   bool _loading = true;
   String? _error;
+  double? _userLat;
+  double? _userLng;
 
   @override
   void initState() {
     super.initState();
     _load();
     _loadElegibilidad();
+    _loadUserLocation();
+  }
+
+  Future<void> _loadUserLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
+      setState(() {
+        _userLat = pos.latitude;
+        _userLng = pos.longitude;
+      });
+    } catch (_) {}
   }
 
   @override
@@ -803,8 +830,14 @@ class _ComercioDetalleMiniScreenState
         background: Stack(
           fit: StackFit.expand,
           children: [
-            // ── Background ──
-            if (hasImage)
+            // ── Background: carrusel de la galería (imágenes primero; el video
+            // se reproduce muted con botón de audio). Fallback a imageUrl/inicial. ──
+            if ((p?.galeria ?? const []).isNotEmpty)
+              GaleriaHeroView(
+                items: p!.galeria,
+                fallbackImageUrl: hasImage ? p.imageUrl : null,
+              )
+            else if (hasImage)
               Image.network(
                 p!.imageUrl!,
                 fit: BoxFit.cover,
@@ -1118,6 +1151,12 @@ class _ComercioDetalleMiniScreenState
             _buildChipsCard(),
           ],
 
+          // ── Catálogo (productos/servicios del local) ──
+          if ((p?.productos ?? const []).isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildCatalogoCard(p!.productos),
+          ],
+
           // ── Ubicación ──
           if ((p?.address ?? '').isNotEmpty || _data?.lat != null) ...[
             const SizedBox(height: 12),
@@ -1338,7 +1377,10 @@ class _ComercioDetalleMiniScreenState
                   '(${_data!.totalComentarios})',
                   style: const TextStyle(color: Palette.kMuted, fontSize: 13),
                 ),
-                if ((p.distanceLabel ?? '').isNotEmpty) ...[
+                if ((distanciaLabel(_userLat, _userLng, _data?.lat, _data?.lng) ??
+                        p.distanceLabel ??
+                        '')
+                    .isNotEmpty) ...[
                   const SizedBox(width: 10),
                   Container(
                     width: 3,
@@ -1350,7 +1392,8 @@ class _ComercioDetalleMiniScreenState
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    p.distanceLabel!,
+                    distanciaLabel(_userLat, _userLng, _data?.lat, _data?.lng) ??
+                        p.distanceLabel!,
                     style: const TextStyle(
                       color: Palette.kMuted,
                       fontSize: 13,
@@ -1588,6 +1631,16 @@ class _ComercioDetalleMiniScreenState
             ),
         ],
       ),
+    );
+  }
+
+  // ─────────────────────────── CATÁLOGO CARD
+  Widget _buildCatalogoCard(List<Producto> productos) {
+    return _buildSectionCard(
+      icon: Icons.shopping_bag_rounded,
+      iconColor: Palette.kAccent,
+      title: 'Catálogo',
+      child: _CatalogoCarousel(productos: productos),
     );
   }
 
@@ -2509,6 +2562,221 @@ class _StarDisplay extends StatelessWidget {
           size: 22,
         ),
       ),
+    );
+  }
+}
+
+/// Carrusel del catálogo del cliente: 1 foto por producto con nombre y descripción.
+/// Vista grande de un producto del catálogo: imagen ampliable (zoom) +
+/// nombre + descripción completa scrolleable.
+void _abrirProductoGrande(BuildContext context, Producto p) {
+  showDialog(
+    context: context,
+    barrierColor: Colors.black87,
+    builder: (ctx) => Dialog(
+      backgroundColor: Palette.kSurface,
+      insetPadding: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+            child: Stack(
+              children: [
+                InteractiveViewer(
+                  maxScale: 4,
+                  child: Image.network(
+                    p.url,
+                    width: double.infinity,
+                    height: 240,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 240,
+                      color: const Color(0xFFEDEFF5),
+                      child: const Icon(Icons.broken_image_rounded,
+                          color: Colors.grey, size: 48),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(
+                          color: Colors.black54, shape: BoxShape.circle),
+                      child: const Icon(Icons.close_rounded,
+                          size: 18, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    p.nombre,
+                    style: const TextStyle(
+                        color: Palette.kTitle,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800),
+                  ),
+                  if ((p.descripcion ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      p.descripcion!,
+                      style: const TextStyle(
+                          color: Palette.kMuted, fontSize: 14, height: 1.4),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _CatalogoCarousel extends StatefulWidget {
+  final List<Producto> productos;
+  const _CatalogoCarousel({required this.productos});
+
+  @override
+  State<_CatalogoCarousel> createState() => _CatalogoCarouselState();
+}
+
+class _CatalogoCarouselState extends State<_CatalogoCarousel> {
+  final _controller = PageController();
+  int _index = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = widget.productos;
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 250,
+          child: PageView.builder(
+            controller: _controller,
+            itemCount: items.length,
+            onPageChanged: (i) => setState(() => _index = i),
+            itemBuilder: (_, i) {
+              final p = items[i];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: () => _abrirProductoGrande(context, p),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: SizedBox(
+                        height: 160,
+                        width: double.infinity,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.network(
+                              p.url,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: const Color(0xFFEDEFF5),
+                                child: const Icon(Icons.broken_image_rounded,
+                                    color: Colors.grey, size: 40),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 8,
+                              right: 8,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.zoom_out_map_rounded,
+                                    size: 16, color: Colors.white),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    p.nombre,
+                    style: const TextStyle(
+                      color: Palette.kTitle,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if ((p.descripcion ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      p.descripcion!,
+                      style: const TextStyle(color: Palette.kMuted, fontSize: 13, height: 1.3),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    GestureDetector(
+                      onTap: () => _abrirProductoGrande(context, p),
+                      child: const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: Text('Ver más',
+                            style: TextStyle(
+                                color: Palette.kAccent,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
+        if (items.length > 1) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(items.length, (i) {
+              final active = i == _index;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: active ? 18 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: active ? Palette.kAccent : Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              );
+            }),
+          ),
+        ],
+      ],
     );
   }
 }

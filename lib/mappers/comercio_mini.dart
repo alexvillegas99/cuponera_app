@@ -1,3 +1,6 @@
+import '../models/media_item.dart';
+import '../models/producto.dart';
+
 class PromoPrincipal {
   final String? id;
   final String? title;
@@ -5,6 +8,8 @@ class PromoPrincipal {
   final String? description;
   final String? imageUrl;
   final String? logoUrl;
+  final List<MediaItem> galeria;
+  final List<Producto> productos;
   final bool? isTwoForOne;
   final List<String> tags;
   final double? rating;
@@ -25,6 +30,8 @@ class PromoPrincipal {
     required this.description,
     required this.imageUrl,
     required this.logoUrl,
+    this.galeria = const [],
+    this.productos = const [],
     required this.isTwoForOne,
     required this.tags,
     required this.rating,
@@ -46,6 +53,8 @@ class PromoPrincipal {
     description: j['description']?.toString(),
     imageUrl: j['imageUrl']?.toString(),
     logoUrl: j['logoUrl']?.toString(),
+    galeria: MediaItem.listFrom(j['galeria']),
+    productos: Producto.listFrom(j['productos']),
     isTwoForOne: j['isTwoForOne'] as bool?,
     tags: ((j['tags'] as List?) ?? const []).map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList(),
     rating: j['rating'] == null ? null : (j['rating'] as num).toDouble(),

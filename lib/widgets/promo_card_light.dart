@@ -19,6 +19,10 @@ class PromoCardLight extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onFavorite;
   final VoidCallback onShare;
+
+  /// Distancia calculada con el GPS del cliente (ej. "1.2 km"). Si viene, se
+  /// muestra como indicador junto a la ubicación.
+  final String? distanceOverride;
   const PromoCardLight({
     super.key,
     required this.promo,
@@ -27,6 +31,7 @@ class PromoCardLight extends StatelessWidget {
     required this.onTap,
     required this.onFavorite,
     required this.onShare,
+    this.distanceOverride,
   });
 
   
@@ -75,7 +80,7 @@ class PromoCardLight extends StatelessWidget {
                       return AspectRatio(
                         aspectRatio: 16 / 9,
                         child: Image.network(
-                          promo.imageUrl,
+                          promo.coverUrl,
                           fit: BoxFit.cover,
                           cacheWidth: targetWidth,
                           loadingBuilder: (ctx, child, progress) {
@@ -277,6 +282,28 @@ class PromoCardLight extends StatelessWidget {
                           style: const TextStyle(color: Palette.kSub),
                         ),
                       ),
+                      if (distanceOverride != null) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Palette.kAccent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.near_me_rounded, size: 12, color: Palette.kAccent),
+                              const SizedBox(width: 3),
+                              Text(distanceOverride!,
+                                  style: const TextStyle(
+                                      color: Palette.kAccent,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],

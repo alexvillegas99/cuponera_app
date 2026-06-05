@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/promotion_models.dart';
 import '../ui/palette.dart';
+import '../utils/distancia.dart';
 import 'promo_card_light.dart';
 import '../screens/clientes/comercio_detalle_mini_screen.dart';
 
@@ -12,6 +13,8 @@ class PromosListLight extends StatelessWidget {
   final CardStyle cardStyle;
   final IsFav isFavorite;
   final OnFav onFavorite;
+  final double? userLat;
+  final double? userLng;
 
   const PromosListLight({
     super.key,
@@ -19,6 +22,8 @@ class PromosListLight extends StatelessWidget {
     required this.cardStyle,
     required this.isFavorite,
     required this.onFavorite,
+    this.userLat,
+    this.userLng,
   });
 
   @override
@@ -74,6 +79,7 @@ class PromosListLight extends StatelessWidget {
             promo: p,
             isFavorite: isFavorite(p),
             onFavorite: () => onFavorite(p),
+            distance: distanciaLabel(userLat, userLng, p.lat, p.lng),
           );
         }
 
@@ -85,6 +91,8 @@ class PromosListLight extends StatelessWidget {
           onTap: () {},
           onFavorite: () => onFavorite(p),
           onShare: () {},
+          distanceOverride:
+              distanciaLabel(userLat, userLng, p.lat, p.lng),
         );
       },
     );
@@ -99,11 +107,13 @@ class _PromoCompactTile extends StatelessWidget {
   final Promotion promo;
   final bool isFavorite;
   final VoidCallback onFavorite;
+  final String? distance;
 
   const _PromoCompactTile({
     required this.promo,
     required this.isFavorite,
     required this.onFavorite,
+    this.distance,
   });
 
   @override
@@ -148,7 +158,7 @@ class _PromoCompactTile extends StatelessWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.network(
-                      promo.imageUrl,
+                      promo.coverUrl,
                       width: 90,
                       height: 90,
                       fit: BoxFit.cover,
@@ -380,6 +390,16 @@ class _PromoCompactTile extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (distance != null) ...[
+                        const SizedBox(width: 6),
+                        Icon(Icons.near_me_rounded, size: 11, color: Palette.kAccent),
+                        const SizedBox(width: 2),
+                        Text(distance!,
+                            style: const TextStyle(
+                                color: Palette.kAccent,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700)),
+                      ],
                       const SizedBox(width: 8),
                       GestureDetector(
                         onTap: onFavorite,

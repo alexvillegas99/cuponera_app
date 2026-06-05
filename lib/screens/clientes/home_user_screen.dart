@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:geolocator/geolocator.dart';
 import 'package:enjoy/mappers/cuponera.dart';
 import 'package:enjoy/models/categoria.dart';
 import 'package:enjoy/models/ciudad.dart';
+import 'package:enjoy/models/provincia.dart';
 import 'package:enjoy/screens/clientes/cuponeras_screen_light.dart';
 import 'package:enjoy/screens/clientes/favorites_screen_light.dart';
 import 'package:enjoy/screens/clientes/profile_screen_light.dart';
@@ -17,6 +19,7 @@ import 'package:enjoy/screens/clientes/detalle_version_screen.dart';
 import 'package:enjoy/screens/clientes/mapa_version_screen.dart';
 import 'package:enjoy/services/versiones_service.dart';
 import 'package:enjoy/state/favorites_store.dart';
+import 'package:enjoy/utilities/categoria_icons.dart';
 import 'package:enjoy/widgets/promo_card_light.dart' show CardStyle;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -28,13 +31,14 @@ import '../../ui/palette.dart';
 import '../../models/promotion_models.dart';
 import '../../widgets/greeting_card.dart';
 import '../../widgets/city_filter_icon.dart';
-import '../../widgets/cities_sheet.dart';
+import '../../widgets/province_cities_picker.dart';
 import '../../widgets/segmented_tabs_light.dart';
 import '../../widgets/category_chip_light.dart';
 import '../../widgets/promos_list_light.dart';
 import '../../widgets/floating_bottom_bar_light.dart';
 
 const _kSelectedCityIdsKey = 'selected_city_ids_v1';
+const _kSelectedProvinciasKey = 'selected_provincia_ids_v1';
 const _kNotifPromos = 'notif_promos_v1';
 const _kCityTopicsPrefs = 'notif_city_topics_v2';
 
@@ -70,6 +74,14 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   List<Ciudad> _ciudades = [];
   bool _citiesLoading = true;
   String? _citiesError;
+
+  // Provincia seleccionada (filtra las ciudades disponibles)
+  List<Provincia> _provincias = [];
+  final Set<String> _selectedProvinciaIds = {};
+
+  // Ubicación del cliente (para calcular distancia a cada local)
+  double? _userLat;
+  double? _userLng;
 
   // IDs seleccionados (del backend)
   final Set<String> _selectedCityIds = {};
@@ -223,36 +235,23 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
 
   await _saveTopicsSet(desired);
 }
-  // ===== Persistencia de selección de ciudades =====
+  // ===== Persistencia de selección de provincia + ciudades =====
   Future<void> _saveSelectedCityIds() async {
     final prefs = await SharedPreferences.getInstance();
-    final list = _selectedCityIds.toList();
-    _log('SAVE -> ${list.length} ids: $list');
-    final ok = await prefs.setStringList(_kSelectedCityIdsKey, list);
-    _log('SAVE result: $ok');
+    await prefs.setStringList(
+        _kSelectedProvinciasKey, _selectedProvinciaIds.toList());
   }
 
   Future<void> _restoreSavedCitySelection() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList(_kSelectedCityIdsKey) ?? const [];
-    _log('RESTORE raw -> ${saved.length} ids: $saved');
-
+    final saved = prefs.getStringList(_kSelectedProvinciasKey) ?? const [];
     if (saved.isEmpty) return;
-
-    final validIds = _ciudades.map((c) => c.id).toSet();
-    final toApply = saved.where(validIds.contains).toSet();
-
-    _log('RESTORE valid -> ${toApply.length} ids');
-
-    if (toApply.isEmpty) return;
-
     setState(() {
-      _selectedCityIds
+      _selectedProvinciaIds
         ..clear()
-        ..addAll(toApply);
+        ..addAll(saved);
     });
-
-    _log('STATE after RESTORE -> $_selectedCityIds');
+    _log('STATE after RESTORE -> $_selectedProvinciaIds');
   }
 
   // ===== Orquestación =====
@@ -269,14 +268,43 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   Future<void> _initScreen() async {
     try {
       await _loadCategorias();
-      await _loadCiudades();
+      await _loadProvincias();
       await _restoreSavedCitySelection();
       await _syncCityTopics();
       await _loadPromosByCities();
+      _loadUserLocation(); // best-effort, no bloquea
       if (!widget.guestMode) {
         await _loadCuponeras();
         await _initFavoritesOnce();
       }
+    } catch (_) {}
+  }
+
+  Future<void> _loadProvincias() async {
+    try {
+      _provincias = await _ciudadesService.getProvincias();
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
+
+  /// Obtiene la ubicación del cliente (best-effort) para calcular distancias.
+  Future<void> _loadUserLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
+      setState(() {
+        _userLat = pos.latitude;
+        _userLng = pos.longitude;
+      });
     } catch (_) {}
   }
 
@@ -301,30 +329,6 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   }
 
   // ===== Cargas =====
-  Future<void> _loadCiudades() async {
-    try {
-      final cities = await _ciudadesService.getParaPromos();
-      _ciudades = cities;
-
-      _cityIdByName
-        ..clear()
-        ..addEntries(cities.map((c) => MapEntry(c.nombre, c.id)));
-      _cityNameById
-        ..clear()
-        ..addEntries(cities.map((c) => MapEntry(c.id, c.nombre)));
-
-      _citiesLoading = false;
-      if (mounted) setState(() {});
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _citiesError = e.toString();
-          _citiesLoading = false;
-        });
-      }
-    }
-  }
-
   Future<void> _loadCategorias() async {
     try {
       final cats = await _catService.getActivas();
@@ -345,12 +349,12 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   }
 
   Future<void> _loadPromosByCities() async {
-    // ✅ Si no hay ciudades seleccionadas, NO llames al backend
-    if (_selectedCityIds.isEmpty) {
+    // ✅ Multi-provincia: si no hay provincias elegidas, NO llames al backend
+    if (_selectedProvinciaIds.isEmpty) {
       if (mounted) {
         setState(() {
           _allPromos = [];
-          _promosError = null; // no mostrar error
+          _promosError = null;
           _loadingPromos = false;
         });
       }
@@ -359,9 +363,9 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
 
     try {
       setState(() => _loadingPromos = true);
-      final promos = await _promoService.getAllActivePromos(
-        cityIds: _selectedCityIds.toList(),
-      );
+      // Trae TODOS los locales de las provincias elegidas (backend expande a ciudades).
+      final promos =
+          await _promoService.getByProvincias(_selectedProvinciaIds.toList());
       if (mounted) {
         setState(() {
           _allPromos = promos;
@@ -417,14 +421,13 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   }
 
   // ===== Aplicadores =====
-  Future<void> _applyCitySelection(Set<String> ids) async {
+  Future<void> _aplicarProvincias(Set<String> ids) async {
     setState(() {
-      _selectedCityIds
+      _selectedProvinciaIds
         ..clear()
         ..addAll(ids);
     });
     await _saveSelectedCityIds();
-    await _syncCityTopics();
     await _loadPromosByCities();
   }
 
@@ -436,49 +439,13 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     );
   }
 
-  Future<Set<String>?> _pickCities() async {
-    final initialNames = {..._selectedCityNames};
-
-    final chosenNames = await showModalBottomSheet<Set<String>>(
-      context: context,
-      backgroundColor: Palette.kSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => SafeArea(
-        child: StatefulBuilder(
-          builder: (ctx, setModalState) {
-            final temp = {...initialNames};
-            return CitiesSheet(
-              cities: _cityNames,
-              selected: temp,
-              onToggle: (c, v) {
-                setModalState(() {
-                  if (v)
-                    temp.add(c);
-                  else
-                    temp.remove(c);
-                  initialNames
-                    ..clear()
-                    ..addAll(temp);
-                });
-              },
-              onClear: () => Navigator.pop(ctx, <String>{}),
-              onApply: () => Navigator.pop(ctx, initialNames),
-            );
-          },
-        ),
-      ),
+  /// Abre el selector multi-provincia. Devuelve los ids elegidos o null.
+  Future<Set<String>?> _pickProvincias() async {
+    return showProvincePicker(
+      context,
+      provincias: _provincias,
+      initialIds: {..._selectedProvinciaIds},
     );
-
-    if (chosenNames == null) return null;
-
-    final ids = <String>{};
-    for (final name in chosenNames) {
-      final id = _cityIdByName[name];
-      if (id != null) ids.add(id);
-    }
-    return ids;
   }
 
   // ===== Filtros en memoria =====
@@ -491,79 +458,12 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     return filtered;
   }
 
-  IconData _iconFor(String? icon) {
-    const Map<String, IconData> iconMap = {
-      'parrillada': Icons.outdoor_grill_outlined,
-      'bbq': Icons.outdoor_grill_outlined,
-      'grill': Icons.outdoor_grill_outlined,
-      'asado': Icons.outdoor_grill_outlined,
-      'restaurant': Icons.restaurant_outlined,
-      'utensils': Icons.restaurant_outlined,
-      'food': Icons.fastfood_outlined,
-      'fastfood': Icons.fastfood_outlined,
-      'pizza': Icons.local_pizza_outlined,
-      'burger': Icons.lunch_dining_outlined,
-      'dining': Icons.dining_outlined,
-      'coffee': Icons.coffee_outlined,
-      'cafe': Icons.coffee_outlined,
-      'tea': Icons.emoji_food_beverage_outlined,
-      'bar': Icons.wine_bar_outlined,
-      'beer': Icons.local_drink_outlined,
-      'cocktail': Icons.local_bar_outlined,
-      'shop': Icons.storefront_outlined,
-      'store': Icons.store_outlined,
-      'mall': Icons.shopping_bag_outlined,
-      'market': Icons.local_grocery_store_outlined,
-      'spa': Icons.spa_outlined,
-      'gym': Icons.fitness_center_outlined,
-      'wellness': Icons.self_improvement_outlined,
-      'pharmacy': Icons.local_pharmacy_outlined,
-      'cinema': Icons.movie_outlined,
-      'theater': Icons.theaters_outlined,
-      'music': Icons.music_note_outlined,
-      'karaoke': Icons.mic_outlined,
-      'game': Icons.sports_esports_outlined,
-      'bowling': Icons.sports_baseball_outlined,
-      'hotel': Icons.hotel_outlined,
-      'bed': Icons.bed_outlined,
-      'travel': Icons.flight_outlined,
-      'beach': Icons.beach_access_outlined,
-      'museum': Icons.account_balance_outlined,
-      'park': Icons.park_outlined,
-      'beauty': Icons.brush_outlined,
-      'hair': Icons.cut_outlined,
-      'nails': Icons.brush_outlined,
-      'car': Icons.directions_car_outlined,
-      'bike': Icons.pedal_bike_outlined,
-      'taxi': Icons.local_taxi_outlined,
-      'bus': Icons.directions_bus_outlined,
-      'tech': Icons.devices_outlined,
-      'computer': Icons.computer_outlined,
-      'phone': Icons.phone_android_outlined,
-      'office': Icons.apartment_outlined,
-      'education': Icons.school_outlined,
-      'book': Icons.menu_book_outlined,
-      'time': Icons.access_time_outlined,
-      'clock': Icons.schedule_outlined,
-    };
-
-    if (icon == null) return Icons.category_outlined;
-    final normalized = icon.toLowerCase().trim();
-    return iconMap[normalized] ?? Icons.category_outlined;
-  }
+  IconData _iconFor(String? icon) => iconForCategoria(icon);
 
   List<Promotion> _applyFilters(List<Promotion> input) {
     List<Promotion> list = input;
 
-    // 🔹 Filtrado por ciudades SOLO por nombre (no existe cityId en Promotion)
-    if (_selectedCityIds.isNotEmpty) {
-      final selectedNames = _selectedCityIds
-          .map((id) => _cityNameById[id])
-          .whereType<String>()
-          .toSet();
-
-      list = list.where((p) => selectedNames.contains(p.city)).toList();
-    }
+    // Las promos ya vienen filtradas por provincia(s) desde el backend.
 
     // 🔹 Búsqueda de texto
     if (_query.isNotEmpty) {
@@ -593,13 +493,9 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   }
 
   Future<void> _openCityPickerAndReload() async {
-    if (_citiesLoading) return;
-    if (_citiesError != null) {
-      await _loadCiudades();
-    }
-    final ids = await _pickCities();
-    if (ids != null) {
-      await _applyCitySelection(ids);
+    final result = await _pickProvincias();
+    if (result != null) {
+      await _aplicarProvincias(result);
     }
   }
 
@@ -639,7 +535,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
               ),
               const SizedBox(height: 16),
               const Text(
-                'Elige tu ciudad',
+                'Elige tus provincias',
                 style: TextStyle(
                   color: Palette.kTitle,
                   fontSize: 20,
@@ -648,103 +544,23 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
               ),
               const SizedBox(height: 6),
               const Text(
-                'Para ver las promociones disponibles, selecciona al menos una ciudad y continúa.',
+                'Para ver las promociones disponibles, selecciona una o varias provincias y continúa.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Palette.kMuted, height: 1.35),
               ),
               const SizedBox(height: 16),
 
-              if (_ciudades.isNotEmpty)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _ciudades.take(4).map((c) {
-                    final selected = _selectedCityIds.contains(c.id);
-                    return GestureDetector(
-                      onTap: () async {
-                        final newSet = {..._selectedCityIds};
-                        if (selected)
-                          newSet.remove(c.id);
-                        else
-                          newSet.add(c.id);
-                        await _applyCitySelection(newSet);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? Palette.kAccent.withOpacity(0.12)
-                              : Palette.kField,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: selected ? Palette.kAccent : Palette.kBorder,
-                            width: selected ? 1.2 : 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              selected
-                                  ? Icons.check_circle
-                                  : Icons.circle_outlined,
-                              size: 16,
-                              color: selected
-                                  ? Palette.kAccent
-                                  : Palette.kMuted,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              c.nombre,
-                              style: TextStyle(
-                                color: selected
-                                    ? Palette.kAccent
-                                    : Palette.kTitle,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-
-              const SizedBox(height: 16),
-
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _openCityPickerAndReload,
-                    icon: const Icon(Icons.map_outlined),
-                    label: const Text('Seleccionar ciudad'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Palette.kTitle,
-                      side: const BorderSide(color: Palette.kBorder),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
+              FilledButton.icon(
+                onPressed: _openCityPickerAndReload,
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('Seleccionar provincias'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Palette.kAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  const SizedBox(width: 10),
-                  if (_citiesError != null)
-                    FilledButton.icon(
-                      onPressed: _loadCiudades,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Reintentar'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Palette.kAccent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
             ],
           ),
@@ -883,7 +699,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                 );
               }
 
-              if (_selectedCityIds.isEmpty) {
+              if (_selectedProvinciaIds.isEmpty) {
                 return _buildSelectCityPrompt();
               }
 
@@ -893,6 +709,8 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                   PromosListLight(
                     promos: _applyFilters(_allPromos),
                     cardStyle: CardStyle.compact,
+                    userLat: _userLat,
+                    userLng: _userLng,
                     isFavorite: (p) => favs.isFav(p.id),
                     onFavorite: (p) =>
                         context.read<FavoritesStore>().toggle(p.id),
@@ -900,6 +718,8 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                   PromosListLight(
                     promos: _applyFilters(_onlyToday(_allPromos)),
                     cardStyle: CardStyle.compact,
+                    userLat: _userLat,
+                    userLng: _userLng,
                     isFavorite: (p) => favs.isFav(p.id),
                     onFavorite: (p) =>
                         context.read<FavoritesStore>().toggle(p.id),
@@ -909,6 +729,8 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                       _allPromos.where((p) => p.isFlash).toList(),
                     ),
                     cardStyle: CardStyle.flash,
+                    userLat: _userLat,
+                    userLng: _userLng,
                     isFavorite: (p) => favs.isFav(p.id),
                     onFavorite: (p) =>
                         context.read<FavoritesStore>().toggle(p.id),
@@ -1049,6 +871,10 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                             nombre = user['nombre'];
                           }
                         }
+                        // Evita que un nombre muy largo se sobreponga en el header.
+                        if (nombre.length > 18) {
+                          nombre = '${nombre.substring(0, 18).trimRight()}…';
+                        }
                         return Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1099,20 +925,15 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                 ),
           const SizedBox(width: 8),
 
-          // 📍 FILTRO DE CIUDAD
+          // 📍 FILTRO DE PROVINCIA
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: CityFilterIcon(
-              count: _selectedCityIds.isEmpty ? 0 : _selectedCityIds.length,
+              count: _selectedProvinciaIds.length,
               onTap: () async {
-                if (_citiesLoading) return;
-                if (_citiesError != null) {
-                  await _loadCiudades();
-                  return;
-                }
-                final resultIds = await _pickCities();
-                if (resultIds != null) {
-                  await _applyCitySelection(resultIds);
+                final result = await _pickProvincias();
+                if (result != null) {
+                  await _aplicarProvincias(result);
                 }
               },
             ),

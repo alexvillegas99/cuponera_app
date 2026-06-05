@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'media_item.dart';
 
 class Promotion {
   /// ✅ Este es el ObjectId del negocio/Usuario (24 hex) que usa favoritos
@@ -14,12 +15,15 @@ class Promotion {
   final String description;
   final String imageUrl;
   final String logoUrl;
+  final List<MediaItem> galeria;
   final bool isTwoForOne;
   final List<String> categories;
   final List<String> tags;
   final double rating;
   final String scheduleLabel;
   final String distanceLabel;
+  final double? lat;
+  final double? lng;
   final String? address;
   final DateTime startDate;
   final DateTime endDate;
@@ -40,12 +44,15 @@ class Promotion {
     required this.description,
     required this.imageUrl,
     required this.logoUrl,
+    this.galeria = const [],
     required this.isTwoForOne,
     required this.categories,
     required this.tags,
     required this.rating,
     required this.scheduleLabel,
     required this.distanceLabel,
+    this.lat,
+    this.lng,
     required this.startDate,
     required this.endDate,
     required this.isFlash,
@@ -82,12 +89,15 @@ class Promotion {
       description: (d['description'] ?? '') as String,
       imageUrl: (d['imageUrl'] ?? '') as String,
       logoUrl: (d['logoUrl'] ?? '') as String,
+      galeria: MediaItem.listFrom(d['galeria']),
       isTwoForOne: (d['isTwoForOne'] ?? false) as bool,
       categories: (j['categorias'] as List?)?.map((e) => e.toString()).toList() ?? const [],
       tags: (d['tags'] as List?)?.map((e) => e.toString()).toList() ?? const [],
       rating: (d['rating'] is num) ? (d['rating'] as num).toDouble() : 0,
       scheduleLabel: (d['scheduleLabel'] ?? '') as String,
       distanceLabel: (d['distanceLabel'] ?? '') as String,
+      lat: (j['ubicacion'] is Map) ? (j['ubicacion']['lat'] as num?)?.toDouble() : null,
+      lng: (j['ubicacion'] is Map) ? (j['ubicacion']['lng'] as num?)?.toDouble() : null,
       address: d['address'] as String?,
       startDate: DateTime.tryParse(d['startDate'] ?? '') ?? DateTime.now(),
       endDate: DateTime.tryParse(d['endDate'] ?? '') ?? DateTime.now(),
@@ -103,6 +113,15 @@ class Promotion {
   }
 
   bool get hasValidBackendId => RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(id);
+
+  /// Imagen de portada para listados: primera FOTO de la galería; si no hay,
+  /// cae al imageUrl tradicional.
+  String get coverUrl {
+    for (final m in galeria) {
+      if (!m.isVideo && m.url.isNotEmpty) return m.url;
+    }
+    return imageUrl;
+  }
 
 
   /// === Helpers de fecha (solo día) ===

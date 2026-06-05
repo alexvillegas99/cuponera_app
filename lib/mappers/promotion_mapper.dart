@@ -59,6 +59,12 @@ Promotion mapBackendItemToPromotion(Map<String, dynamic> item) {
     rating: _safeDouble(d['rating'], 0),
     scheduleLabel: _safeStr(d['scheduleLabel']),
     distanceLabel: _safeStr(d['distanceLabel']),
+    lat: (item['ubicacion'] is Map)
+        ? (item['ubicacion']['lat'] as num?)?.toDouble()
+        : null,
+    lng: (item['ubicacion'] is Map)
+        ? (item['ubicacion']['lng'] as num?)?.toDouble()
+        : null,
     startDate: _parseDate(d['startDate']),
     endDate: _parseDate(d['endDate']),
     isFlash: _safeBool(d['isFlash']),
