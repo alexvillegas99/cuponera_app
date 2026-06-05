@@ -4,11 +4,17 @@ import 'package:enjoy/models/categoria.dart';
 import 'package:enjoy/models/ciudad.dart';
 import 'package:enjoy/services/categorias_service.dart';
 import 'package:enjoy/services/ciudades_service.dart';
+import 'package:enjoy/models/media_item.dart';
+import 'package:enjoy/models/producto.dart';
+import 'package:enjoy/models/provincia.dart';
+import 'package:enjoy/screens/usuarios/establecimiento_form_screen.dart' show SearchablePickerField;
+import 'package:enjoy/screens/usuarios/establecimiento_wizard_screen.dart';
 import 'package:enjoy/services/establecimientos_empresa_service.dart';
 import 'package:enjoy/ui/palette.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
@@ -59,7 +65,6 @@ class _EstablecimientoDetalleScreenState
   String get _horario => (_detalle['scheduleLabel'] ?? '').toString();
   String get _direccion => (_detalle['address'] ?? '').toString();
   bool get _isTwoForOne => _detalle['isTwoForOne'] == true;
-  String? get _imageUrl => _detalle['imageUrl']?.toString();
   String? get _logoUrl => _detalle['logoUrl']?.toString();
 
   List<String> get _tags {
@@ -101,23 +106,55 @@ class _EstablecimientoDetalleScreenState
     return [];
   }
 
-  // ── Edición de fotos ─────────────────────────────────────────────
-  Future<void> _editarFoto(String campo) async {
+  // ── Galería del local ────────────────────────────────────────────
+  List<MediaItem> get _galeria => MediaItem.listFrom(_detalle['galeria']);
+  static const int _maxGaleria = 5;
+  static const int _maxVideoMb = 25;
+
+  // ── Catálogo de productos del local ──────────────────────────────
+  List<Producto> get _productos => Producto.listFrom(_detalle['productos']);
+
+  /// Selecciona una imagen, la recorta (aspecto libre) y devuelve el data URL base64.
+  Future<String?> _pickAndCropImage() async {
     final picker = ImagePicker();
     final file = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 75,
-      maxWidth: 1200,
+      imageQuality: 90,
     );
-    if (file == null || !mounted) return;
+    if (file == null) return null;
+
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: file.path,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Recortar',
+          toolbarColor: Palette.kTitle,
+          toolbarWidgetColor: Colors.white,
+          lockAspectRatio: false,
+          hideBottomControls: false,
+        ),
+        IOSUiSettings(
+          title: 'Recortar',
+          aspectRatioLockEnabled: false,
+          resetAspectRatioEnabled: true,
+        ),
+      ],
+    );
+    if (cropped == null) return null;
+
+    final path = cropped.path;
+    final bytes = await File(path).readAsBytes();
+    final mime = path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    return 'data:$mime;base64,${base64Encode(bytes)}';
+  }
+
+  // ── Edición de fotos (logo / imagen principal) ───────────────────
+  Future<void> _editarFoto(String campo) async {
+    final base64Str = await _pickAndCropImage();
+    if (base64Str == null || !mounted) return;
 
     setState(() => _saving = true);
     try {
-      final bytes = await File(file.path).readAsBytes();
-      final b64 = base64Encode(bytes);
-      final mime = file.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-      final base64Str = 'data:$mime;base64,$b64';
-
       // Send full detallePromocion with all existing fields preserved.
       // Both imageUrl and logoUrl are kept so the backend doesn't clear the
       // photo we are NOT updating. Old base64 fields are removed to avoid
@@ -125,6 +162,7 @@ class _EstablecimientoDetalleScreenState
       final detallePayload = Map<String, dynamic>.from(_detalle);
       detallePayload.remove('imageBase64');
       detallePayload.remove('logoBase64');
+      detallePayload.remove('galeria'); // no reenviar la galería en esta operación
       detallePayload[campo] = base64Str;
 
       await _svc.actualizar(_id, {'detallePromocion': detallePayload});
@@ -140,27 +178,277 @@ class _EstablecimientoDetalleScreenState
     }
   }
 
-  // ── Edición de datos ─────────────────────────────────────────────
-  Future<void> _abrirEdicion() async {
-    final result = await showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _EditSheet(data: _data),
-    );
-    if (result == null || !mounted) return;
-
+  /// Persiste la galería: conserva los items existentes (url+type) y aplica el cambio.
+  Future<void> _guardarGaleria(List<Map<String, dynamic>> galeria) async {
     setState(() => _saving = true);
     try {
-      await _svc.actualizar(_id, result);
+      final detallePayload = Map<String, dynamic>.from(_detalle);
+      detallePayload.remove('imageBase64');
+      detallePayload.remove('logoBase64');
+      detallePayload['galeria'] = galeria;
+
+      await _svc.actualizar(_id, {'detallePromocion': detallePayload});
+
       final fresh = await _svc.obtener(_id);
       if (fresh != null && mounted) setState(() => _data = fresh);
-      if (mounted) _snack('Cambios guardados correctamente', success: true);
+
+      if (mounted) _snack('Galería actualizada', success: true);
     } catch (e) {
-      if (mounted) _snack('Error al guardar los cambios');
+      if (mounted) _snack('Error al guardar la galería');
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Items existentes serializados como {url, type} para reenviar al backend.
+  List<Map<String, dynamic>> _galeriaExistentePayload() => _galeria
+      .map((m) => {
+            'url': m.url,
+            'type': m.type,
+            if (m.thumbnailUrl != null) 'thumbnailUrl': m.thumbnailUrl,
+          })
+      .toList();
+
+  Future<void> _agregarFotoGaleria() async {
+    if (_galeria.length >= _maxGaleria) {
+      _snack('Máximo $_maxGaleria elementos en la galería');
+      return;
+    }
+    final base64Str = await _pickAndCropImage();
+    if (base64Str == null || !mounted) return;
+
+    final galeria = _galeriaExistentePayload()
+      ..add({'base64': base64Str, 'type': 'image'});
+    await _guardarGaleria(galeria);
+  }
+
+  Future<void> _agregarVideoGaleria() async {
+    if (_galeria.length >= _maxGaleria) {
+      _snack('Máximo $_maxGaleria elementos en la galería');
+      return;
+    }
+    final picker = ImagePicker();
+    final file = await picker.pickVideo(source: ImageSource.gallery);
+    if (file == null || !mounted) return;
+
+    final bytes = await File(file.path).readAsBytes();
+    if (bytes.length > _maxVideoMb * 1024 * 1024) {
+      _snack('El video no debe superar los $_maxVideoMb MB');
+      return;
+    }
+    final mime = file.path.toLowerCase().endsWith('.webm') ? 'video/webm' : 'video/mp4';
+    final base64Str = 'data:$mime;base64,${base64Encode(bytes)}';
+
+    final galeria = _galeriaExistentePayload()
+      ..add({'base64': base64Str, 'type': 'video'});
+    await _guardarGaleria(galeria);
+  }
+
+  Future<void> _quitarGaleria(int index) async {
+    final galeria = _galeriaExistentePayload();
+    if (index < 0 || index >= galeria.length) return;
+    galeria.removeAt(index);
+    await _guardarGaleria(galeria);
+  }
+
+  /// Reordenar: mover un item a la izquierda (-1) o derecha (+1) y guardar.
+  Future<void> _moverGaleria(int index, int dir) async {
+    final galeria = _galeriaExistentePayload();
+    final j = index + dir;
+    if (index < 0 || index >= galeria.length || j < 0 || j >= galeria.length) {
+      return;
+    }
+    final tmp = galeria[index];
+    galeria[index] = galeria[j];
+    galeria[j] = tmp;
+    await _guardarGaleria(galeria);
+  }
+
+  // ── Catálogo de productos (sin límite) ───────────────────────────
+  /// Persiste el catálogo: conserva los items existentes y aplica el cambio.
+  Future<void> _guardarProductos(List<Map<String, dynamic>> productos) async {
+    setState(() => _saving = true);
+    try {
+      final detallePayload = Map<String, dynamic>.from(_detalle);
+      detallePayload.remove('imageBase64');
+      detallePayload.remove('logoBase64');
+      detallePayload.remove('galeria'); // no reenviar la galería en esta operación
+      detallePayload['productos'] = productos;
+
+      await _svc.actualizar(_id, {'detallePromocion': detallePayload});
+
+      final fresh = await _svc.obtener(_id);
+      if (fresh != null && mounted) setState(() => _data = fresh);
+
+      if (mounted) _snack('Catálogo actualizado', success: true);
+    } catch (e) {
+      if (mounted) _snack('Error al guardar el catálogo');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Productos existentes serializados como {url, nombre, descripcion} para reenviar.
+  List<Map<String, dynamic>> _productosExistentePayload() => _productos
+      .map((p) => {
+            'url': p.url,
+            'nombre': p.nombre,
+            if (p.descripcion != null) 'descripcion': p.descripcion,
+          })
+      .toList();
+
+  Future<void> _agregarProducto() async {
+    final base64Str = await _pickAndCropImage();
+    if (base64Str == null || !mounted) return;
+
+    final datos = await _editarDatosProducto();
+    if (datos == null || !mounted) return;
+
+    final productos = _productosExistentePayload()
+      ..add({
+        'base64': base64Str,
+        'nombre': datos.$1,
+        if (datos.$2.isNotEmpty) 'descripcion': datos.$2,
+      });
+    await _guardarProductos(productos);
+  }
+
+  Future<void> _editarProducto(int index) async {
+    final productos = _productosExistentePayload();
+    if (index < 0 || index >= productos.length) return;
+    final actual = _productos[index];
+    final datos = await _editarDatosProducto(
+      nombre: actual.nombre,
+      descripcion: actual.descripcion ?? '',
+    );
+    if (datos == null || !mounted) return;
+    productos[index]['nombre'] = datos.$1;
+    if (datos.$2.isNotEmpty) {
+      productos[index]['descripcion'] = datos.$2;
+    } else {
+      productos[index].remove('descripcion');
+    }
+    await _guardarProductos(productos);
+  }
+
+  Future<void> _cambiarFotoProducto(int index) async {
+    final productos = _productosExistentePayload();
+    if (index < 0 || index >= productos.length) return;
+    final base64Str = await _pickAndCropImage();
+    if (base64Str == null || !mounted) return;
+    productos[index]['base64'] = base64Str;
+    productos[index].remove('url'); // el backend usará el base64 nuevo
+    await _guardarProductos(productos);
+  }
+
+  Future<void> _quitarProducto(int index) async {
+    final productos = _productosExistentePayload();
+    if (index < 0 || index >= productos.length) return;
+    productos.removeAt(index);
+    await _guardarProductos(productos);
+  }
+
+  Future<void> _moverProducto(int index, int dir) async {
+    final productos = _productosExistentePayload();
+    final j = index + dir;
+    if (index < 0 || index >= productos.length || j < 0 || j >= productos.length) {
+      return;
+    }
+    final tmp = productos[index];
+    productos[index] = productos[j];
+    productos[j] = tmp;
+    await _guardarProductos(productos);
+  }
+
+  /// Diálogo para capturar/editar nombre + descripción de un producto.
+  /// Devuelve (nombre, descripcion) o null si se cancela / nombre vacío.
+  Future<(String, String)?> _editarDatosProducto({
+    String nombre = '',
+    String descripcion = '',
+  }) async {
+    final nombreCtrl = TextEditingController(text: nombre);
+    final descCtrl = TextEditingController(text: descripcion);
+    final result = await showDialog<(String, String)>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Palette.kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Producto',
+            style: TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nombreCtrl,
+              autofocus: true,
+              style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+              decoration: InputDecoration(
+                labelText: 'Nombre',
+                labelStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
+                filled: true,
+                fillColor: Palette.kField,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Palette.kBorder)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: descCtrl,
+              minLines: 2,
+              maxLines: 4,
+              style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+              decoration: InputDecoration(
+                labelText: 'Descripción (opcional)',
+                labelStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
+                filled: true,
+                fillColor: Palette.kField,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Palette.kBorder)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar', style: TextStyle(color: Palette.kMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Palette.kAccent, foregroundColor: Colors.white),
+            onPressed: () {
+              final n = nombreCtrl.text.trim();
+              if (n.isEmpty) return;
+              Navigator.pop(ctx, (n, descCtrl.text.trim()));
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    nombreCtrl.dispose();
+    descCtrl.dispose();
+    return result;
+  }
+
+  // ── Edición: abre el wizard por pasos (con guardado por sección) ──
+  Future<void> _abrirEdicion() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EstablecimientoWizardScreen(establecimiento: _data),
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _saving = true);
+      try {
+        final fresh = await _svc.obtener(_id);
+        if (fresh != null && mounted) setState(() => _data = fresh);
+      } finally {
+        if (mounted) setState(() => _saving = false);
+      }
     }
   }
 
@@ -228,6 +516,10 @@ class _EstablecimientoDetalleScreenState
                     const SizedBox(height: 12),
                   ],
                   _buildImagenes(),
+                  const SizedBox(height: 12),
+                  _buildGaleria(),
+                  const SizedBox(height: 12),
+                  _buildProductos(),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -467,16 +759,11 @@ class _EstablecimientoDetalleScreenState
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Row(
             children: [
-              Expanded(
-                child: _ImageSlot(
-                  label: 'Imagen principal',
-                  url: _imageUrl,
-                  canEdit: widget.canEditFotos,
-                  onEdit: () => _editarFoto('imageBase64'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
+              // Solo Logo. La portada (imageUrl) la deriva el backend de la
+              // primera foto de la galería, igual que la web: no se sube una
+              // "imagen principal" aparte (eso congelaría la portada).
+              SizedBox(
+                width: 160,
                 child: _ImageSlot(
                   label: 'Logo',
                   url: _logoUrl,
@@ -484,6 +771,120 @@ class _EstablecimientoDetalleScreenState
                   onEdit: () => _editarFoto('logoBase64'),
                 ),
               ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Galería ──────────────────────────────────────────────────────
+  Widget _buildGaleria() {
+    final items = _galeria;
+    return _SectionCard(
+      title: 'Galería (${items.length}/$_maxGaleria)',
+      icon: Icons.collections_rounded,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Text(
+            'Hasta $_maxGaleria fotos o videos. Usa las flechas para ordenar. Si hay video, se reproduce primero (de fondo) al entrar al detalle.',
+            style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final entry in items.asMap().entries)
+                _GaleriaThumb(
+                  item: entry.value,
+                  index: entry.key,
+                  total: items.length,
+                  canEdit: widget.canEditFotos,
+                  onRemove: () => _quitarGaleria(entry.key),
+                  onMoveLeft: () => _moverGaleria(entry.key, -1),
+                  onMoveRight: () => _moverGaleria(entry.key, 1),
+                ),
+              if (widget.canEditFotos && items.length < _maxGaleria) ...[
+                _AddMediaButton(
+                  icon: Icons.add_photo_alternate_rounded,
+                  label: 'Foto',
+                  onTap: _agregarFotoGaleria,
+                ),
+                _AddMediaButton(
+                  icon: Icons.video_call_rounded,
+                  label: 'Video',
+                  onTap: _agregarVideoGaleria,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Catálogo de productos ────────────────────────────────────────
+  Widget _buildProductos() {
+    final items = _productos;
+    return _SectionCard(
+      title: 'Catálogo (${items.length})',
+      icon: Icons.shopping_bag_rounded,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Text(
+            'Productos o servicios que ofrece el local. Cada uno con foto, nombre y descripción. Sin límite.',
+            style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Column(
+            children: [
+              for (final entry in items.asMap().entries) ...[
+                _ProductoCard(
+                  producto: entry.value,
+                  index: entry.key,
+                  total: items.length,
+                  canEdit: widget.canEditFotos,
+                  onEditText: () => _editarProducto(entry.key),
+                  onChangePhoto: () => _cambiarFotoProducto(entry.key),
+                  onRemove: () => _quitarProducto(entry.key),
+                  onMoveUp: () => _moverProducto(entry.key, -1),
+                  onMoveDown: () => _moverProducto(entry.key, 1),
+                ),
+                const SizedBox(height: 10),
+              ],
+              if (widget.canEditFotos)
+                GestureDetector(
+                  onTap: _agregarProducto,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Palette.kField,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: Palette.kAccent.withOpacity(0.35), width: 1.5),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_rounded, color: Palette.kAccent, size: 22),
+                        SizedBox(width: 6),
+                        Text('Agregar producto',
+                            style: TextStyle(
+                                color: Palette.kAccent,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -543,6 +944,8 @@ class _EditSheetState extends State<_EditSheet> {
   // Datos disponibles (cargados desde API)
   List<Categoria> _categorias = [];
   List<Ciudad> _ciudades = [];
+  List<Provincia> _provincias = [];
+  String? _selectedProvincia;
   bool _loadingOptions = true;
 
   static const _diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
@@ -594,6 +997,9 @@ class _EditSheetState extends State<_EditSheet> {
       }).where((s) => s.isNotEmpty).toList();
     }
 
+    // Provincia precargada (la deriva el backend de la 1ª ciudad).
+    _selectedProvincia = widget.data['provinciaId']?.toString();
+
     // Ubicación
     final ub = widget.data['ubicacion'];
     if (ub is Map) {
@@ -638,10 +1044,15 @@ class _EditSheetState extends State<_EditSheet> {
   Future<void> _loadOptions() async {
     try {
       final cats = await _catSvc.getActivas();
-      final cids = await _cidSvc.getParaPromos();
+      final provs = await _cidSvc.getProvincias();
+      // Ciudades de la provincia precargada (o ninguna si no hay).
+      final cids = _selectedProvincia == null
+          ? <Ciudad>[]
+          : await _cidSvc.getParaPromosPorProvincia(_selectedProvincia!);
       if (mounted) {
         setState(() {
           _categorias = cats;
+          _provincias = provs;
           _ciudades = cids;
           _loadingOptions = false;
         });
@@ -649,6 +1060,20 @@ class _EditSheetState extends State<_EditSheet> {
     } catch (_) {
       if (mounted) setState(() => _loadingOptions = false);
     }
+  }
+
+  Future<void> _onProvinciaChange(String? id) async {
+    if (id == _selectedProvincia) return;
+    setState(() {
+      _selectedProvincia = id;
+      _selectedCiudades.clear();
+      _ciudades = [];
+    });
+    if (id == null) return;
+    try {
+      final cids = await _cidSvc.getParaPromosPorProvincia(id);
+      if (mounted) setState(() => _ciudades = cids);
+    } catch (_) {}
   }
 
   Map<String, dynamic> _getDetalle(Map<String, dynamic> data) {
@@ -962,13 +1387,27 @@ class _EditSheetState extends State<_EditSheet> {
                             padding: EdgeInsets.symmetric(vertical: 8),
                             child: Center(child: CircularProgressIndicator(color: Palette.kAccent, strokeWidth: 2)),
                           )
-                        : _multiSelectChips(
+                        : SearchableChips(
                             items: _categorias.map((c) => (id: c.id, label: c.nombre)).toList(),
                             selected: _selectedCategorias,
                             onToggle: _toggleCategoria,
                             emptyText: 'Sin categorías disponibles',
+                            hint: 'Buscar categoría',
                             color: Palette.kAccent,
                           ),
+
+                    // ── PROVINCIA ─────────────────────────────────
+                    const SizedBox(height: 8),
+                    _sectionLabel('PROVINCIA'),
+                    SearchablePickerField(
+                      label: 'Provincia',
+                      icon: Icons.map_rounded,
+                      value: _selectedProvincia,
+                      items: _provincias
+                          .map((p) => (id: p.id, label: p.nombre))
+                          .toList(),
+                      onChanged: _onProvinciaChange,
+                    ),
 
                     // ── CIUDADES ──────────────────────────────────
                     const SizedBox(height: 8),
@@ -978,13 +1417,20 @@ class _EditSheetState extends State<_EditSheet> {
                             padding: EdgeInsets.symmetric(vertical: 8),
                             child: Center(child: CircularProgressIndicator(color: Palette.kAccent, strokeWidth: 2)),
                           )
-                        : _multiSelectChips(
-                            items: _ciudades.map((c) => (id: c.id, label: c.nombre)).toList(),
-                            selected: _selectedCiudades,
-                            onToggle: _toggleCiudad,
-                            emptyText: 'Sin ciudades disponibles',
-                            color: Palette.kPrimary,
-                          ),
+                        : _selectedProvincia == null
+                            ? const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: Text('Selecciona primero una provincia.',
+                                    style: TextStyle(color: Palette.kMuted, fontSize: 13)),
+                              )
+                            : SearchableChips(
+                                items: _ciudades.map((c) => (id: c.id, label: c.nombre)).toList(),
+                                selected: _selectedCiudades,
+                                onToggle: _toggleCiudad,
+                                emptyText: 'Sin ciudades en esta provincia',
+                                hint: 'Buscar ciudad',
+                                color: Palette.kPrimary,
+                              ),
 
                     // ── UBICACIÓN ─────────────────────────────────
                     const SizedBox(height: 8),
@@ -1744,6 +2190,283 @@ class _ImageSlot extends StatelessWidget {
   }
 }
 
+class _GaleriaThumb extends StatelessWidget {
+  final MediaItem item;
+  final int index;
+  final int total;
+  final bool canEdit;
+  final VoidCallback onRemove;
+  final VoidCallback onMoveLeft;
+  final VoidCallback onMoveRight;
+  const _GaleriaThumb({
+    required this.item,
+    required this.index,
+    required this.total,
+    required this.canEdit,
+    required this.onRemove,
+    required this.onMoveLeft,
+    required this.onMoveRight,
+  });
+
+  Widget _miniBtn(IconData icon, VoidCallback onTap, {bool enabled = true}) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: enabled ? Colors.black54 : Colors.black26,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 13, color: enabled ? Colors.white : Colors.white38),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 92,
+      height: 92,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(11),
+            child: item.isVideo
+                ? Container(
+                    color: Palette.kField,
+                    child: const Center(
+                      child: Icon(Icons.play_circle_fill_rounded, color: Palette.kMuted, size: 34),
+                    ),
+                  )
+                : Image.network(
+                    item.url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        const Icon(Icons.broken_image_rounded, color: Palette.kMuted),
+                  ),
+          ),
+          // Número de orden
+          Positioned(
+            top: 3,
+            left: 3,
+            child: Container(
+              width: 18,
+              height: 18,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+              child: Text('${index + 1}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          if (item.isVideo)
+            Positioned(
+              bottom: 4,
+              left: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(6)),
+                child: const Text('Video · fondo', style: TextStyle(color: Colors.white, fontSize: 8)),
+              ),
+            ),
+          if (canEdit) ...[
+            Positioned(
+              top: 3,
+              right: 3,
+              child: _miniBtn(Icons.close_rounded, onRemove),
+            ),
+            // Flechas de orden
+            Positioned(
+              bottom: 4,
+              right: 4,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _miniBtn(Icons.chevron_left_rounded, onMoveLeft, enabled: index > 0),
+                  const SizedBox(width: 3),
+                  _miniBtn(Icons.chevron_right_rounded, onMoveRight, enabled: index < total - 1),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AddMediaButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _AddMediaButton({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 92,
+        height: 92,
+        decoration: BoxDecoration(
+          color: Palette.kField,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Palette.kAccent.withOpacity(0.35), width: 1.5),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Palette.kAccent, size: 26),
+            const SizedBox(height: 4),
+            Text(label, style: const TextStyle(color: Palette.kAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductoCard extends StatelessWidget {
+  final Producto producto;
+  final int index;
+  final int total;
+  final bool canEdit;
+  final VoidCallback onEditText;
+  final VoidCallback onChangePhoto;
+  final VoidCallback onRemove;
+  final VoidCallback onMoveUp;
+  final VoidCallback onMoveDown;
+  const _ProductoCard({
+    required this.producto,
+    required this.index,
+    required this.total,
+    required this.canEdit,
+    required this.onEditText,
+    required this.onChangePhoto,
+    required this.onRemove,
+    required this.onMoveUp,
+    required this.onMoveDown,
+  });
+
+  Widget _miniBtn(IconData icon, VoidCallback onTap, {bool enabled = true}) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          color: Palette.kField,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Palette.kBorder),
+        ),
+        child: Icon(icon, size: 15, color: enabled ? Palette.kMuted : Palette.kBorder),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Palette.kField,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Palette.kBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Foto (toca para cambiar)
+          GestureDetector(
+            onTap: canEdit ? onChangePhoto : null,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 72,
+                height: 72,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.network(
+                      producto.url,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Palette.kSurface,
+                        child: const Icon(Icons.broken_image_rounded, color: Palette.kMuted),
+                      ),
+                    ),
+                    if (canEdit)
+                      Positioned(
+                        bottom: 3,
+                        right: 3,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                              color: Palette.kAccent, borderRadius: BorderRadius.circular(6)),
+                          child: const Icon(Icons.camera_alt_rounded, size: 11, color: Colors.white),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Nombre + descripción
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  producto.nombre.isEmpty ? 'Sin nombre' : producto.nombre,
+                  style: const TextStyle(
+                      color: Palette.kTitle, fontSize: 14, fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if ((producto.descripcion ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    producto.descripcion!,
+                    style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                if (canEdit) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _miniBtn(Icons.edit_rounded, onEditText),
+                      const SizedBox(width: 6),
+                      _miniBtn(Icons.keyboard_arrow_up_rounded, onMoveUp, enabled: index > 0),
+                      const SizedBox(width: 6),
+                      _miniBtn(Icons.keyboard_arrow_down_rounded, onMoveDown,
+                          enabled: index < total - 1),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: onRemove,
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Icon(Icons.delete_outline_rounded,
+                              size: 15, color: Colors.red.shade400),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -1853,6 +2576,148 @@ class _ChipTag extends StatelessWidget {
         border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+/// Selector de chips con buscador: muestra las seleccionadas arriba y una lista
+/// filtrable con scroll. Pensado para listas largas (ej. 150+ categorías).
+class SearchableChips extends StatefulWidget {
+  final List<({String id, String label})> items;
+  final List<String> selected;
+  final void Function(String) onToggle;
+  final Color color;
+  final String emptyText;
+  final String hint;
+
+  const SearchableChips({
+    super.key,
+    required this.items,
+    required this.selected,
+    required this.onToggle,
+    required this.color,
+    this.emptyText = 'Sin opciones',
+    this.hint = 'Buscar…',
+  });
+
+  @override
+  State<SearchableChips> createState() => _SearchableChipsState();
+}
+
+class _SearchableChipsState extends State<SearchableChips> {
+  String _q = '';
+
+  String _norm(String s) {
+    var r = s.toLowerCase();
+    const from = 'áàäâéèëêíìïîóòöôúùüûñ';
+    const to = 'aaaaeeeeiiiioooouuuun';
+    for (var i = 0; i < from.length; i++) {
+      r = r.replaceAll(from[i], to[i]);
+    }
+    return r;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.items.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(widget.emptyText, style: const TextStyle(color: Palette.kMuted, fontSize: 13)),
+      );
+    }
+
+    final selectedItems =
+        widget.items.where((i) => widget.selected.contains(i.id)).toList();
+    final q = _norm(_q.trim());
+    final filtered = q.isEmpty
+        ? widget.items
+        : widget.items.where((i) => _norm(i.label).contains(q)).toList();
+
+    Widget chip(({String id, String label}) item, {bool removable = false}) {
+      final sel = widget.selected.contains(item.id);
+      return GestureDetector(
+        onTap: () => widget.onToggle(item.id),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: sel ? widget.color : Palette.kField,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: sel ? widget.color : Palette.kBorder),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(item.label,
+                  style: TextStyle(
+                      color: sel ? Colors.white : Palette.kMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+              if (removable) ...[
+                const SizedBox(width: 4),
+                const Icon(Icons.close_rounded, size: 14, color: Colors.white),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Buscador
+          TextField(
+            onChanged: (v) => setState(() => _q = v),
+            style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: '${widget.hint}  (${widget.selected.length} sel.)',
+              hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
+              prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Palette.kMuted),
+              filled: true,
+              fillColor: Palette.kField,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Palette.kBorder)),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Palette.kBorder)),
+            ),
+          ),
+          // Seleccionadas (resumen)
+          if (selectedItems.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: selectedItems.map((i) => chip(i, removable: true)).toList(),
+            ),
+            const Divider(height: 18, color: Palette.kBorder),
+          ],
+          // Lista filtrada (scroll)
+          const SizedBox(height: 4),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 200),
+            child: SingleChildScrollView(
+              child: filtered.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text('Sin resultados para “$_q”',
+                          style: const TextStyle(color: Palette.kMuted, fontSize: 12)),
+                    )
+                  : Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: filtered.map((i) => chip(i)).toList(),
+                    ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

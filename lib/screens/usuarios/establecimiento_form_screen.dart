@@ -3,6 +3,8 @@ import 'package:enjoy/models/ciudad.dart';
 import 'package:enjoy/services/categorias_service.dart';
 import 'package:enjoy/services/ciudades_service.dart';
 import 'package:enjoy/services/establecimientos_empresa_service.dart';
+import 'package:enjoy/screens/usuarios/establecimiento_detalle_screen.dart'
+    show SearchableChips;
 import 'package:enjoy/ui/palette.dart';
 import 'package:flutter/material.dart';
 
@@ -31,7 +33,7 @@ class _EstablecimientoFormScreenState extends State<EstablecimientoFormScreen> {
   List<Ciudad> _ciudades = [];
   List<Categoria> _categorias = [];
   String? _ciudadId;
-  String? _categoriaId;
+  final List<String> _selectedCategorias = [];
 
   bool _loadingRefs = true;
   bool _saving = false;
@@ -77,7 +79,7 @@ class _EstablecimientoFormScreenState extends State<EstablecimientoFormScreen> {
         'rol': 'admin-local',
         'estado': false,
         if (_ciudadId != null) 'ciudades': [_ciudadId],
-        if (_categoriaId != null) 'categorias': [_categoriaId],
+        if (_selectedCategorias.isNotEmpty) 'categorias': _selectedCategorias,
       };
       await _svc.crear(payload);
       if (!mounted) return;
@@ -189,18 +191,24 @@ class _EstablecimientoFormScreenState extends State<EstablecimientoFormScreen> {
                         .toList(),
                     onChanged: (v) => setState(() => _ciudadId = v),
                   ),
+                  const SizedBox(height: 16),
+                  const _SectionLabel(label: 'Categorías'),
                   const SizedBox(height: 12),
-                  _Dropdown(
-                    label: 'Categoría',
-                    icon: Icons.category_outlined,
-                    value: _categoriaId,
+                  SearchableChips(
                     items: _categorias
-                        .map((c) => DropdownMenuItem(
-                              value: c.id,
-                              child: Text(c.nombre),
-                            ))
+                        .map((c) => (id: c.id, label: c.nombre))
                         .toList(),
-                    onChanged: (v) => setState(() => _categoriaId = v),
+                    selected: _selectedCategorias,
+                    color: Palette.kAccent,
+                    hint: 'Buscar categoría',
+                    emptyText: 'No hay categorías disponibles',
+                    onToggle: (id) => setState(() {
+                      if (_selectedCategorias.contains(id)) {
+                        _selectedCategorias.remove(id);
+                      } else {
+                        _selectedCategorias.add(id);
+                      }
+                    }),
                   ),
                   const SizedBox(height: 16),
                   Container(
@@ -374,6 +382,160 @@ class _Dropdown extends StatelessWidget {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Palette.kAccent),
+        ),
+      ),
+    );
+  }
+}
+
+/// Campo tipo dropdown pero con buscador (abre un modal con lista filtrable).
+/// Ideal para listas largas como categorías (150+).
+class SearchablePickerField extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final String? value;
+  final List<({String id, String label})> items;
+  final ValueChanged<String?> onChanged;
+
+  const SearchablePickerField({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  String? get _selectedLabel {
+    for (final i in items) {
+      if (i.id == value) return i.label;
+    }
+    return null;
+  }
+
+  Future<void> _open(BuildContext context) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Palette.kSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (_) => _PickerSheet(label: label, items: items, value: value),
+    );
+    if (selected != null) onChanged(selected == '__none__' ? null : selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sel = _selectedLabel;
+    return InkWell(
+      onTap: () => _open(context),
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          prefixIcon: Icon(icon, color: Palette.kMuted, size: 18),
+          labelText: label,
+          labelStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
+          filled: true,
+          fillColor: Palette.kSurface,
+          suffixIcon: const Icon(Icons.search_rounded, color: Palette.kMuted, size: 18),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Palette.kBorder),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Palette.kBorder),
+          ),
+        ),
+        child: Text(
+          sel ?? 'Seleccionar…',
+          style: TextStyle(
+            color: sel != null ? Palette.kTitle : Palette.kMuted,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PickerSheet extends StatefulWidget {
+  final String label;
+  final List<({String id, String label})> items;
+  final String? value;
+  const _PickerSheet({required this.label, required this.items, required this.value});
+
+  @override
+  State<_PickerSheet> createState() => _PickerSheetState();
+}
+
+class _PickerSheetState extends State<_PickerSheet> {
+  String _q = '';
+
+  String _norm(String s) {
+    var r = s.toLowerCase();
+    const from = 'áàäâéèëêíìïîóòöôúùüûñ';
+    const to = 'aaaaeeeeiiiioooouuuun';
+    for (var i = 0; i < from.length; i++) {
+      r = r.replaceAll(from[i], to[i]);
+    }
+    return r;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _norm(_q.trim());
+    final filtered = q.isEmpty
+        ? widget.items
+        : widget.items.where((i) => _norm(i.label).contains(q)).toList();
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Palette.kBorder, borderRadius: BorderRadius.circular(2))),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextField(
+                autofocus: true,
+                onChanged: (v) => setState(() => _q = v),
+                style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Buscar ${widget.label.toLowerCase()}…',
+                  hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Palette.kMuted),
+                  filled: true,
+                  fillColor: Palette.kField,
+                  isDense: true,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Palette.kBorder)),
+                ),
+              ),
+            ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? const Center(child: Text('Sin resultados', style: TextStyle(color: Palette.kMuted)))
+                  : ListView.separated(
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: Palette.kBorder),
+                      itemBuilder: (_, i) {
+                        final item = filtered[i];
+                        final sel = item.id == widget.value;
+                        return ListTile(
+                          title: Text(item.label, style: TextStyle(color: Palette.kTitle, fontSize: 14, fontWeight: sel ? FontWeight.w700 : FontWeight.w400)),
+                          trailing: sel ? const Icon(Icons.check_rounded, color: Palette.kAccent, size: 20) : null,
+                          onTap: () => Navigator.of(context).pop(item.id),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
     );

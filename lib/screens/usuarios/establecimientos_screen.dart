@@ -1,5 +1,5 @@
 import 'package:enjoy/screens/usuarios/establecimiento_detalle_screen.dart';
-import 'package:enjoy/screens/usuarios/establecimiento_form_screen.dart';
+import 'package:enjoy/screens/usuarios/establecimiento_wizard_screen.dart';
 import 'package:enjoy/services/establecimientos_empresa_service.dart';
 import 'package:enjoy/services/permissions_service.dart';
 import 'package:enjoy/ui/palette.dart';
@@ -51,7 +51,7 @@ class _EstablecimientosScreenState extends State<EstablecimientosScreen> {
   Future<void> _abrirNuevo() async {
     final creado = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const EstablecimientoFormScreen()),
+      MaterialPageRoute(builder: (_) => const EstablecimientoWizardScreen()),
     );
     if (creado == true) {
       await _cargar();
