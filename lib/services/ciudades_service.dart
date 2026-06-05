@@ -2,8 +2,32 @@
 import 'package:flutter/material.dart';
 import 'package:enjoy/services/core/api_client.dart';
 import '../models/ciudad.dart';
+import '../models/provincia.dart';
 
 class CiudadesService {
+  /// Provincias activas (catálogo del Ecuador).
+  Future<List<Provincia>> getProvincias() async {
+    final resp = await ApiClient.instance.get('/provincias/activas');
+    if (resp.statusCode != 200) {
+      throw Exception('Error ${resp.statusCode}: ${resp.data}');
+    }
+    return Provincia.listFrom(resp.data);
+  }
+
+  /// Ciudades activas para promociones, opcionalmente filtradas por provincia.
+  Future<List<Ciudad>> getParaPromosPorProvincia(String provinciaId) async {
+    final resp = await ApiClient.instance.get(
+      '/ciudades/promociones',
+      queryParameters: {'provincia': provinciaId},
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Error ${resp.statusCode}: ${resp.data}');
+    }
+    return (resp.data as List)
+        .map((e) => Ciudad.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
  Future<List<Ciudad>> getParaPromos() async {
   final path = '/ciudades/promociones';
 
