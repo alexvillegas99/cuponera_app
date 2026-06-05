@@ -1,8 +1,9 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:enjoy/services/auth_service.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../ui/palette.dart';
 
 enum LoginMode { cliente, empresa }
@@ -32,7 +33,10 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
-    _fadeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    _fadeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
   }
@@ -45,7 +49,8 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  String get _headline => _mode == LoginMode.cliente ? 'Bienvenido de vuelta' : 'Acceso empresas';
+  String get _headline =>
+      _mode == LoginMode.cliente ? 'Bienvenido de vuelta' : 'Acceso empresas';
 
   String get _userHint =>
       _mode == LoginMode.cliente ? 'Correo electrónico' : 'Correo corporativo';
@@ -58,8 +63,16 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _loading = true);
     try {
       _mode == LoginMode.cliente
-          ? await _auth.loginCliente(_userCtrl.text.trim(), _passCtrl.text, context)
-          : await _auth.loginEmpresa(_userCtrl.text.trim(), _passCtrl.text, context);
+          ? await _auth.loginCliente(
+              _userCtrl.text.trim(),
+              _passCtrl.text,
+              context,
+            )
+          : await _auth.loginEmpresa(
+              _userCtrl.text.trim(),
+              _passCtrl.text,
+              context,
+            );
     } catch (_) {
       _snack('Credenciales inválidas. Inténtalo nuevamente.');
     } finally {
@@ -143,7 +156,10 @@ class _LoginScreenState extends State<LoginScreen>
                 child: FadeTransition(
                   opacity: _fadeAnim,
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 28,
+                    ),
                     child: Column(
                       children: [
                         // ── Logo ──
@@ -188,7 +204,7 @@ class _LoginScreenState extends State<LoginScreen>
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
-            child: Image.asset('assets/img/logoeny.png', fit: BoxFit.contain),
+            child: Image.asset('assets/img/splash.png', fit: BoxFit.contain),
           ),
         ),
         const SizedBox(height: 14),
@@ -259,7 +275,9 @@ class _LoginScreenState extends State<LoginScreen>
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Icon(
-                  _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  _obscure
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
                   color: Palette.kMuted,
                   size: 20,
                 ),
@@ -273,7 +291,9 @@ class _LoginScreenState extends State<LoginScreen>
           Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
-              onTap: () => context.push('/recuperar'),
+              // Propaga el modo (empresa/cliente) a la pantalla de recuperación.
+              onTap: () => context.push('/recuperar',
+                  extra: _mode == LoginMode.empresa),
               child: const Text(
                 '¿Olvidaste tu contraseña?',
                 style: TextStyle(
@@ -313,10 +333,7 @@ class _LoginScreenState extends State<LoginScreen>
           _buildGoogleBtn(),
 
           // ── Apple (solo iOS) ──
-          if (Platform.isIOS) ...[
-            const SizedBox(height: 10),
-            _buildAppleBtn(),
-          ],
+          if (Platform.isIOS) ...[const SizedBox(height: 10), _buildAppleBtn()],
 
           // ── Invitado ──
           if (_mode == LoginMode.cliente) ...[
@@ -341,12 +358,17 @@ class _LoginScreenState extends State<LoginScreen>
   Widget _buildEmpresaSwitch() {
     final isEmpresa = _mode == LoginMode.empresa;
     return GestureDetector(
-      onTap: () => setState(() =>
-          _mode = isEmpresa ? LoginMode.cliente : LoginMode.empresa),
+      onTap: () => setState(
+        () => _mode = isEmpresa ? LoginMode.cliente : LoginMode.empresa,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.business_outlined, size: 13, color: Palette.kMuted.withOpacity(0.6)),
+          Icon(
+            Icons.business_outlined,
+            size: 13,
+            color: Palette.kMuted.withOpacity(0.6),
+          ),
           const SizedBox(width: 5),
           Text(
             isEmpresa ? 'Volver a acceso cliente' : 'Acceso empresas',
@@ -392,7 +414,10 @@ class _LoginScreenState extends State<LoginScreen>
               ? const SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Colors.white,
+                  ),
                 )
               : const Row(
                   mainAxisSize: MainAxisSize.min,
@@ -437,7 +462,10 @@ class _LoginScreenState extends State<LoginScreen>
               ? const SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Palette.kAccent),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Palette.kAccent,
+                  ),
                 )
               : Row(
                   mainAxisSize: MainAxisSize.min,
@@ -484,7 +512,10 @@ class _LoginScreenState extends State<LoginScreen>
               ? const SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Colors.white,
+                  ),
                 )
               : const Row(
                   mainAxisSize: MainAxisSize.min,
@@ -552,12 +583,16 @@ class _LoginScreenState extends State<LoginScreen>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          _mode == LoginMode.cliente ? '¿No tienes cuenta? ' : '¿Tu empresa no tiene acceso? ',
+          _mode == LoginMode.cliente
+              ? '¿No tienes cuenta? '
+              : '¿Tu empresa no tiene acceso? ',
           style: const TextStyle(color: Palette.kMuted, fontSize: 13),
         ),
         GestureDetector(
           onTap: () => context.push(
-            _mode == LoginMode.cliente ? '/registro-cliente' : '/solicitud-empresa',
+            _mode == LoginMode.cliente
+                ? '/registro-cliente'
+                : '/solicitud-empresa',
           ),
           child: Text(
             _mode == LoginMode.cliente ? 'Regístrate' : 'Solicitar acceso',
@@ -677,7 +712,10 @@ class _Field extends StatelessWidget {
         suffixIcon: suffix,
         filled: true,
         fillColor: Palette.kBg,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 15,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Palette.kBorder),

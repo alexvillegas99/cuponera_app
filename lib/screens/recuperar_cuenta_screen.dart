@@ -8,7 +8,9 @@ import 'package:enjoy/ui/palette.dart';
 enum RecoveryMode { cliente, empresa }
 
 class RecuperarCuentaScreen extends StatefulWidget {
-  const RecuperarCuentaScreen({super.key});
+  /// Si viene true, la pantalla arranca en modo EMPRESA (heredado del login).
+  final bool initialEmpresa;
+  const RecuperarCuentaScreen({super.key, this.initialEmpresa = false});
 
   @override
   State<RecuperarCuentaScreen> createState() => _RecuperarCuentaScreenState();
@@ -23,13 +25,21 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
   final _pass2Ctrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  RecoveryMode _mode = RecoveryMode.cliente;
+  late RecoveryMode _mode;
   bool _loading = false;
   bool _otpOk = false;
   bool _showPass = false;
   bool _showPass2 = false;
 
   static const int _otpLen = 5;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.initialEmpresa ? RecoveryMode.empresa : RecoveryMode.cliente;
+  }
+
+  bool get _esEmpresa => _mode == RecoveryMode.empresa;
 
   @override
   void dispose() {
@@ -46,8 +56,12 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
   }
 
   String? _passVal(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Ingresa tu nueva contraseña';
-    if (v.trim().length < 6) return 'Usa al menos 6 caracteres';
+    final p = (v ?? '').trim();
+    if (p.isEmpty) return 'Ingresa tu nueva contraseña';
+    if (p.length < 8) return 'Usa al menos 8 caracteres';
+    if (!RegExp(r'[a-z]').hasMatch(p)) return 'Incluye una letra minúscula';
+    if (!RegExp(r'[A-Z]').hasMatch(p)) return 'Incluye una letra mayúscula';
+    if (!RegExp(r'\d').hasMatch(p)) return 'Incluye un número';
     return null;
   }
 
@@ -55,6 +69,38 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
     if (v == null || v.trim().isEmpty) return 'Repite tu nueva contraseña';
     if (v != _passCtrl.text.trim()) return 'Las contraseñas no coinciden';
     return null;
+  }
+
+  /// Checklist en vivo de los requisitos de una contraseña segura.
+  Widget _requisitosClave() {
+    final p = _passCtrl.text;
+    final reglas = <(String, bool)>[
+      ('Al menos 8 caracteres', p.length >= 8),
+      ('Una letra mayúscula', RegExp(r'[A-Z]').hasMatch(p)),
+      ('Una letra minúscula', RegExp(r'[a-z]').hasMatch(p)),
+      ('Un número', RegExp(r'\d').hasMatch(p)),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: reglas.map((r) {
+        final ok = r.$2;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 1.5),
+          child: Row(
+            children: [
+              Icon(ok ? Icons.check_circle_rounded : Icons.circle_outlined,
+                  size: 15,
+                  color: ok ? Colors.green.shade600 : Palette.kMuted),
+              const SizedBox(width: 6),
+              Text(r.$1,
+                  style: TextStyle(
+                      color: ok ? Colors.green.shade700 : Palette.kMuted,
+                      fontSize: 12)),
+            ],
+          ),
+        );
+      }).toList(),
+    );
   }
 
   void _snack(String msg) {
@@ -172,6 +218,45 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
+                  // ── Badge del modo (empresa/cliente) ──
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: (_esEmpresa ? Palette.kPrimary : Palette.kAccent)
+                          .withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: (_esEmpresa ? Palette.kPrimary : Palette.kAccent)
+                              .withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _esEmpresa
+                              ? Icons.business_rounded
+                              : Icons.person_rounded,
+                          size: 18,
+                          color: _esEmpresa ? Palette.kPrimary : Palette.kAccent,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _esEmpresa
+                                ? 'Recuperación de cuenta EMPRESA'
+                                : 'Recuperación de cuenta CLIENTE',
+                            style: TextStyle(
+                              color: _esEmpresa ? Palette.kPrimary : Palette.kAccent,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   // ── Paso 1: Email ──
                   if (!_otpOk)
                     _Card(
@@ -254,12 +339,15 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
                             controller: _passCtrl,
                             obscureText: !_showPass,
                             cursorColor: Palette.kAccent,
+                            onChanged: (_) => setState(() {}),
                             style: const TextStyle(color: Palette.kTitle, fontSize: 14),
                             decoration: _inputDec('Nueva contraseña', icon: Icons.lock_outline, suffix: IconButton(
                               icon: Icon(_showPass ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Palette.kMuted, size: 20),
                               onPressed: () => setState(() => _showPass = !_showPass),
                             )),
                           ),
+                          const SizedBox(height: 10),
+                          _requisitosClave(),
                           const SizedBox(height: 12),
                           TextField(
                             controller: _pass2Ctrl,
