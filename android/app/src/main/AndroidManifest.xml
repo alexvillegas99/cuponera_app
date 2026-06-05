@@ -1,14 +1,18 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
  <!-- ===== Permisos globales (fuera de <application>) ===== -->
-    <!-- Cámara / galería -->
+    <!-- Cámara (captura puntual de comprobante/imagen) -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <!-- Android 13+ para leer imágenes -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <!-- Pre Android 13 -->
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
+
+    <!--
+        image_picker usa el Android Photo Picker (Android 13+), que NO requiere
+        permisos de medios. Removemos los permisos que el plugin fusiona en su
+        manifest para evitar el rechazo de Play Console por "uso no válido de
+        permisos de fotos y vídeos".
+    -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
 
     <!-- Ubicación GPS -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -26,7 +30,7 @@
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
 
     <application
-        android:label="enjoy"
+        android:label="Enjoy"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -51,6 +55,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- image_cropper (uCrop) -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

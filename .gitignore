@@ -53,3 +53,6 @@ app.*.map.json
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Android build artifacts (tracked por error)
+android/build/
