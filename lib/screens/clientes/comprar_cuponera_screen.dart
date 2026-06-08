@@ -178,7 +178,7 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
 
   Future<void> _submit() async {
     if (_selectedCuponera == null) {
-      _showSnack('Selecciona una cuponera');
+      _showSnack('Selecciona una membresía');
       return;
     }
     if (_comprobante == null) {
@@ -229,7 +229,7 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
 
   Future<void> _pagarConPayPhone() async {
     if (_selectedCuponera == null) {
-      _showSnack('Selecciona una cuponera');
+      _showSnack('Selecciona una membresía');
       return;
     }
 
@@ -274,7 +274,7 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
               children: [
                 Icon(Icons.check_circle, color: Colors.white, size: 20),
                 SizedBox(width: 10),
-                Text('¡Pago aprobado! Tu cuponera ha sido activada.'),
+                Text('¡Pago aprobado! Tu membresía ha sido activada.'),
               ],
             ),
             backgroundColor: Colors.green.shade700,
@@ -296,7 +296,7 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
 
   Future<void> _pagarConPayPal() async {
     if (_selectedCuponera == null) {
-      _showSnack('Selecciona una cuponera');
+      _showSnack('Selecciona una membresía');
       return;
     }
 
@@ -501,7 +501,7 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          c['nombre']?.toString() ?? 'Cuponera',
+                          c['nombre']?.toString() ?? 'Membresía',
                           style: TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 15,
                             color: selected ? Palette.kTitle : Palette.kSub,
@@ -592,11 +592,11 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionHeader(Icons.card_giftcard, 'Selecciona tu cuponera'),
+        _sectionHeader(Icons.card_giftcard, 'Selecciona tu membresía'),
         const SizedBox(height: 12),
 
         if (total == 0)
-          const Text('No hay cuponeras disponibles.', style: TextStyle(color: Palette.kMuted))
+          const Text('No hay membresías disponibles.', style: TextStyle(color: Palette.kMuted))
 
         // Más de 5: modo selector
         else if (total > 5) ...[
@@ -608,7 +608,7 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
               child: TextButton.icon(
                 onPressed: _abrirSelectorCuponeras,
                 icon: const Icon(Icons.swap_horiz, size: 18),
-                label: const Text('Cambiar cuponera'),
+                label: const Text('Cambiar membresía'),
                 style: TextButton.styleFrom(foregroundColor: Palette.kAccent),
               ),
             ),
@@ -619,7 +619,7 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
               child: OutlinedButton.icon(
                 onPressed: _abrirSelectorCuponeras,
                 icon: const Icon(Icons.local_activity, size: 20),
-                label: Text('Seleccionar cuponera ($total disponibles)'),
+                label: Text('Seleccionar membresía ($total disponibles)'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Palette.kTitle,
                   side: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -1013,7 +1013,7 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
         backgroundColor: Palette.kPrimary,
         foregroundColor: Colors.white,
         title: const Text(
-          'Comprar Cuponera',
+          'Comprar Membresía',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
         elevation: 0,
@@ -1056,7 +1056,7 @@ class _SelectorCuponerasPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Palette.kPrimary,
         foregroundColor: Colors.white,
-        title: const Text('Seleccionar cuponera',
+        title: const Text('Seleccionar membresía',
           style: TextStyle(fontWeight: FontWeight.w700)),
         elevation: 0,
       ),
@@ -1097,7 +1097,7 @@ class _SelectorCuponerasPage extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(c['nombre']?.toString() ?? 'Cuponera',
+                          Text(c['nombre']?.toString() ?? 'Membresía',
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Palette.kTitle)),
                           if (c['descripcion'] != null && c['descripcion'].toString().isNotEmpty) ...[
                             const SizedBox(height: 2),

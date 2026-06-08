@@ -261,7 +261,7 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
             icon: Icons.qr_code_2_rounded,
             iconColor: Palette.kPrimary,
             value: p.cuponeras,
-            label: 'Cuponeras',
+            label: 'Membresías',
           ),
         ),
         const SizedBox(width: 10),
@@ -392,7 +392,7 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
       context,
       title: '¿Eliminar tu cuenta?',
       message:
-          'Perderás acceso a tu historial, cuponeras y datos guardados. Podrás crear una cuenta nueva con el mismo correo si cambias de opinión.',
+          'Perderás acceso a tu historial, membresías y datos guardados. Podrás crear una cuenta nueva con el mismo correo si cambias de opinión.',
       confirmLabel: 'Continuar',
       icon: Icons.no_accounts_rounded,
     );

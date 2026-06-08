@@ -142,7 +142,7 @@ class _MisSolicitudesScreenState extends State<MisSolicitudesScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        s['cuponeraNombre'] ?? 'Cuponera',
+                                        s['cuponeraNombre'] ?? 'Membresía',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w700,
                                           color: Palette.kTitle,

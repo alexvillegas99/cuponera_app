@@ -1210,7 +1210,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Error al cargar cuponeras',
+                'Error al cargar membresías',
                 style: TextStyle(color: Colors.redAccent),
               ),
               const SizedBox(height: 8),
@@ -1404,12 +1404,12 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                       NavItem(icon: Icons.home_filled, label: 'Inicio'),
                       NavItem(
                           icon: Icons.local_activity_outlined,
-                          label: 'Cuponeras'),
+                          label: 'Membresías'),
                     ]
                   : const [
                       NavItem(icon: Icons.home_filled, label: 'Inicio'),
                       NavItem(icon: Icons.favorite, label: 'Favoritos'),
-                      NavItem(icon: Icons.qr_code_2, label: 'Cuponeras'),
+                      NavItem(icon: Icons.qr_code_2, label: 'Membresías'),
                     ],
             ),
           ),
@@ -1510,7 +1510,7 @@ class _GuestCuponerasViewState extends State<_GuestCuponerasView> {
   Future<void> _verMapa(Map<String, dynamic> v) async {
     final id = v['_id']?.toString() ?? '';
     if (id.isEmpty) return;
-    final nombre = v['nombre'] ?? 'Cuponera';
+    final nombre = v['nombre'] ?? 'Membresía';
 
     showDialog(
       context: context,
@@ -1583,7 +1583,7 @@ class _GuestCuponerasViewState extends State<_GuestCuponerasView> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Para comprar una cuponera necesitas una cuenta. Es rápido y gratis.',
+              'Para comprar una membresía necesitas una cuenta. Es rápido y gratis.',
               style: TextStyle(color: Palette.kMuted, fontSize: 14, height: 1.4),
               textAlign: TextAlign.center,
             ),
@@ -1644,7 +1644,7 @@ class _GuestCuponerasViewState extends State<_GuestCuponerasView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Error al cargar cuponeras', style: TextStyle(color: Colors.redAccent)),
+            const Text('Error al cargar membresías', style: TextStyle(color: Colors.redAccent)),
             const SizedBox(height: 8),
             TextButton(onPressed: _load, child: const Text('Reintentar')),
           ],
@@ -1659,7 +1659,7 @@ class _GuestCuponerasViewState extends State<_GuestCuponerasView> {
           child: TextField(
             onChanged: (v) => setState(() => _query = v),
             decoration: InputDecoration(
-              hintText: 'Buscar cuponera…',
+              hintText: 'Buscar membresía…',
               prefixIcon: const Icon(Icons.search),
               isDense: true,
               filled: true,
@@ -1680,7 +1680,7 @@ class _GuestCuponerasViewState extends State<_GuestCuponerasView> {
           child: _filtered.isEmpty
               ? Center(
                   child: Text(
-                    'No hay cuponeras disponibles',
+                    'No hay membresías disponibles',
                     style: TextStyle(color: Palette.kMuted),
                   ),
                 )
@@ -1689,7 +1689,7 @@ class _GuestCuponerasViewState extends State<_GuestCuponerasView> {
                   itemCount: _filtered.length,
                   itemBuilder: (context, i) {
                     final v = _filtered[i];
-                    final nombre = v['nombre'] ?? 'Cuponera';
+                    final nombre = v['nombre'] ?? 'Membresía';
                     final precio = v['precio'];
                     final descripcion = v['descripcion'] ?? '';
                     final imageUrl = v['imageUrl'] ?? '';

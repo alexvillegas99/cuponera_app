@@ -95,7 +95,7 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
         elevation: 0,
         scrolledUnderElevation: 0,
         title: Text(
-          _data?.version.nombre ?? 'Detalle cuponera',
+          _data?.version.nombre ?? 'Detalle membresía',
           style: const TextStyle(
             color: Palette.kTitle,
             fontWeight: FontWeight.w700,

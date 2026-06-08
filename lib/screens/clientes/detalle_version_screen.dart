@@ -97,7 +97,7 @@ class _DetalleVersionScreenState extends State<DetalleVersionScreen> {
   // ─── Header card ───────────────────────────────────────────
 
   Widget _buildHeaderCard() {
-    final nombre = widget.versionData['nombre']?.toString() ?? 'Cuponera';
+    final nombre = widget.versionData['nombre']?.toString() ?? 'Membresía';
     final precio = widget.versionData['precio']?.toString() ?? '0.00';
     final descripcion = widget.versionData['descripcion']?.toString() ?? '';
     final ciudades = widget.versionData['ciudadesDisponibles'];
@@ -385,7 +385,7 @@ class _DetalleVersionScreenState extends State<DetalleVersionScreen> {
   @override
   Widget build(BuildContext context) {
     final nombre =
-        widget.versionData['nombre']?.toString() ?? 'Detalle Cuponera';
+        widget.versionData['nombre']?.toString() ?? 'Detalle Membresía';
 
     return Scaffold(
       backgroundColor: Palette.kBg,

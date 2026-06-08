@@ -118,7 +118,7 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
     final cuponId = _extractCuponId(code.trim());
     if (cuponId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Código no válido para cuponera.')),
+        const SnackBar(content: Text('Código no válido para membresía.')),
       );
       return;
     }
@@ -156,8 +156,8 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
     if (yaAsignadoA == null || yaAsignadoA.isEmpty) {
       final ok = await _confirmAssignSheet(
         context,
-        title: 'Asignar cuponera',
-        message: '¿Deseas ligar esta cuponera a tu cuenta?',
+        title: 'Asignar membresía',
+        message: '¿Deseas ligar esta membresía a tu cuenta?',
         confirmLabel: 'Sí, asignar',
         cancelLabel: 'Cancelar',
       );
@@ -167,7 +167,7 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
         await _cuponSvc.asignarACliente(clienteId, cuponId);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('¡Cuponera asignada correctamente!')),
+          const SnackBar(content: Text('¡Membresía asignada correctamente!')),
         );
         await _reloadFromServer();
       } on ApiException catch (e) {
@@ -184,13 +184,13 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
     } else if (yaAsignadoA == clienteId) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Esta cuponera ya está ligada a tu cuenta.'),
+          content: Text('Esta membresía ya está ligada a tu cuenta.'),
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('La cuponera ya está ligada a otro cliente.'),
+          content: Text('La membresía ya está ligada a otro cliente.'),
         ),
       );
     }
@@ -670,7 +670,7 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
                   ),
                   const SizedBox(height: 18),
                   const Text(
-                    'Sin cuponeras activas',
+                    'Sin membresías activas',
                     style: TextStyle(
                       color: Palette.kTitle,
                       fontWeight: FontWeight.w800,
@@ -680,7 +680,7 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Adquiere una cuponera para disfrutar descuentos en los mejores locales.',
+                    'Adquiere una membresía para disfrutar descuentos en los mejores locales.',
                     style: TextStyle(color: Palette.kMuted, fontSize: 13, height: 1.5),
                     textAlign: TextAlign.center,
                   ),
@@ -1327,7 +1327,7 @@ class _QrScanPageState extends State<_QrScanPage> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: const Text('Escanear cuponera'),
+        title: const Text('Escanear membresía'),
         elevation: 0,
       ),
       body: Stack(
@@ -1361,7 +1361,7 @@ class _QrScanPageState extends State<_QrScanPage> {
                 ),
                 SizedBox(height: 8),
                 Text(
-                  'Apunta al código QR de tu cuponera',
+                  'Apunta al código QR de tu membresía',
                   style: TextStyle(color: Colors.white70, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
