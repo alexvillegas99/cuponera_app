@@ -1149,13 +1149,13 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Aún no tenés una cuponera',
+                      Text('Aún no tienes una cuponera',
                           style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
                               fontSize: 14)),
                       SizedBox(height: 2),
-                      Text('Adquirí una y empezá a ahorrar',
+                      Text('Adquiere una y empieza a ahorrar',
                           style:
                               TextStyle(color: Colors.white70, fontSize: 12)),
                     ],
