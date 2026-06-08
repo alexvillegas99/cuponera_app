@@ -1,5 +1,7 @@
 // lib/services/cupones_service.dart
+import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:enjoy/mappers/cuponera.dart';
 import 'package:enjoy/services/core/api_client.dart';
 import 'package:enjoy/services/core/api_exception.dart';
@@ -61,6 +63,83 @@ Future<List<Cuponera>> listarPorCliente(
   print('[CuponesService] ✅ Mapeadas ${out.length} cuponeras');
   return out;
 }
+
+  /// Caché en memoria de las cuponeras del cliente (por clienteId+soloActivas).
+  /// Solo se refresca con [force] (pull-to-refresh).
+  static final Map<String, List<Cuponera>> _cuponerasCache = {};
+
+  /// Versión paginada + cacheada (endpoint nuevo aditivo). Mismo shape que
+  /// listarPorCliente, pero usa /cuponeras-paginado y cachea en memoria.
+  Future<List<Cuponera>> listarPorClientePaginado(
+    String clienteId, {
+    bool soloActivas = true,
+    bool force = false,
+    int limit = 50,
+  }) async {
+    final key = '$clienteId|$soloActivas';
+    if (!force && _cuponerasCache.containsKey(key)) {
+      return _cuponerasCache[key]!;
+    }
+    try {
+      final resp = await ApiClient.instance.get(
+        '/cupones/clientes/$clienteId/cuponeras-paginado',
+        queryParameters: {
+          'soloActivas': soloActivas.toString(),
+          'page': 1,
+          'limit': limit,
+        },
+      );
+      final body = resp.data;
+      final raw = (body is Map && body['data'] is List)
+          ? body['data'] as List
+          : const [];
+      final out = _parseCuponeras(raw);
+      _cuponerasCache[key] = out;
+      // Persistir para uso offline.
+      await _persistCuponeras(key, raw);
+      return out;
+    } catch (e) {
+      // Sin conexión / error → devolver lo cacheado en disco (offline).
+      final cached = await _loadPersistedCuponeras(key);
+      if (cached != null) {
+        _cuponerasCache[key] = cached;
+        return cached;
+      }
+      rethrow;
+    }
+  }
+
+  List<Cuponera> _parseCuponeras(List raw) {
+    final out = <Cuponera>[];
+    for (final item in raw) {
+      if (item is Map<String, dynamic>) {
+        try {
+          out.add(Cuponera.fromJson(item));
+        } catch (_) {}
+      }
+    }
+    return out;
+  }
+
+  Future<void> _persistCuponeras(String key, List raw) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('cuponeras_cache_$key', jsonEncode(raw));
+    } catch (_) {}
+  }
+
+  Future<List<Cuponera>?> _loadPersistedCuponeras(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString('cuponeras_cache_$key');
+      if (str == null) return null;
+      final decoded = jsonDecode(str);
+      if (decoded is! List) return null;
+      return _parseCuponeras(decoded);
+    } catch (_) {
+      return null;
+    }
+  }
 
 
 Future<Map<String, dynamic>> findByIdRaw(String cuponId) async {
@@ -130,6 +209,17 @@ Future<Map<String, dynamic>> findByIdRaw(String cuponId) async {
 
     if (resp.data is List) {
       return List<Map<String, dynamic>>.from(resp.data);
+    }
+    return [];
+  }
+
+  /// Ids de los locales donde el cliente tiene cupón disponible para canjear.
+  Future<List<String>> localesDisponibles(String clienteId) async {
+    final resp = await ApiClient.instance.get(
+      '/cupones/clientes/$clienteId/locales-disponibles',
+    );
+    if (resp.data is List) {
+      return (resp.data as List).map((e) => e.toString()).toList();
     }
     return [];
   }

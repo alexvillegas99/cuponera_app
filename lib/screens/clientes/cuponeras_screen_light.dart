@@ -94,9 +94,10 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
       final me = await _auth.getUser();
       final clienteId = me?['_id']?.toString();
       if (clienteId != null) {
-        final fresh = await _cuponSvc.listarPorCliente(
+        final fresh = await _cuponSvc.listarPorClientePaginado(
           clienteId,
           soloActivas: true,
+          force: true,
         );
         if (!mounted) return;
         setState(() => _items = fresh);

@@ -73,8 +73,11 @@ class _LoginScreenState extends State<LoginScreen>
               _passCtrl.text,
               context,
             );
-    } catch (_) {
-      _snack('Credenciales inválidas. Inténtalo nuevamente.');
+    } catch (e) {
+      // Muestra el mensaje real del backend (p.ej. cuenta de redes sociales
+      // sin clave: "realiza la recuperación de credenciales").
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      _snack(msg.isEmpty ? 'Credenciales inválidas. Inténtalo nuevamente.' : msg);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

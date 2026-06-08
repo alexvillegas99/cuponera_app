@@ -124,6 +124,51 @@ class AuthService {
     }
   }
 
+  /// Registra un cliente y deja la sesión iniciada (auto-login).
+  /// Funciona tanto con clave como con redes sociales (password nulo).
+  Future<void> registerCliente(
+    Map<String, dynamic> dto,
+    BuildContext context,
+  ) async {
+    final uri = Uri.parse('$baseUrl/auth/register/cliente');
+    try {
+      final resp = await http.post(
+        uri,
+        headers: _jsonHeaders,
+        body: jsonEncode(dto),
+      );
+
+      if (resp.statusCode == 200 || resp.statusCode == 201) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final accessToken = data['accessToken'] as String?;
+        final cliente = data['cliente'] as Map<String, dynamic>?;
+
+        if (accessToken == null || cliente == null) {
+          throw Exception('Respuesta inválida del servidor');
+        }
+
+        final user = {...cliente, 'kind': 'CLIENTE'};
+        await saveUserData(accessToken, user);
+
+        final userId = user['_id']?.toString();
+        if (userId != null && userId.isNotEmpty) {
+          myFirebaseService?.subscribeToTopic(userId);
+          _guardarFcmToken(userId);
+        }
+
+        if (context.mounted) {
+          final ruta = await getTargetHomeRoute();
+          context.go(ruta);
+        }
+      } else {
+        throw Exception(_serverErrorMessage(resp));
+      }
+    } catch (e) {
+      debugPrint('Error register cliente: $e');
+      rethrow;
+    }
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   /// Obtiene el identity token de Apple directamente (sin Firebase).
   /// Solo disponible en iOS / macOS.

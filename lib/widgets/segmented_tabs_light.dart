@@ -63,17 +63,18 @@ class SegmentedTabsLight extends StatelessWidget {
                 ],
               ),
             ),
-            Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.bolt_rounded, size: 15),
-                  SizedBox(width: 5),
-                  Text('Flash'),
-                ],
-              ),
-            ),
+            // Pestaña "Flash" deshabilitada temporalmente (no se usa por ahora).
+            // Tab(
+            //   child: Row(
+            //     mainAxisAlignment: MainAxisAlignment.center,
+            //     mainAxisSize: MainAxisSize.min,
+            //     children: [
+            //       Icon(Icons.bolt_rounded, size: 15),
+            //       SizedBox(width: 5),
+            //       Text('Flash'),
+            //     ],
+            //   ),
+            // ),
           ],
         ),
       ),

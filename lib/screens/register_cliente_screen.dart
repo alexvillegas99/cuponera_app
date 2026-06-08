@@ -1,7 +1,7 @@
 import 'package:enjoy/widgets/branded_modal.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:enjoy/services/registration_api.dart';
+import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/otp_service.dart';
 import 'package:enjoy/screens/otp_screen.dart';
 import 'package:enjoy/ui/palette.dart';
@@ -23,6 +23,7 @@ class RegisterClienteScreen extends StatefulWidget {
 class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
   final _formKey = GlobalKey<FormState>();
   final _api = RegistrationApi();
+  final _auth = AuthService();
   final _otp = OtpService();
 
   final _nombres = TextEditingController();
@@ -155,18 +156,14 @@ class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
         "tipoIdentificacion": _tipo.name,
         "identificacion": _identificacion.text.trim(),
         "email": correo,
-        "password": _password.text,
+        // Social: sin clave (se recupera luego). Email: con clave.
+        "password": _fromGoogle ? null : _password.text,
         "telefono": _telefono.text.trim().isEmpty ? null : _telefono.text.trim(),
       };
 
-      await _api.crearCliente(dto);
+      // Crea la cuenta y deja la sesión iniciada (auto-login → home).
       if (!mounted) return;
-      await showBrandedDialog(context,
-        title: 'Cuenta creada',
-        message: 'Tu cuenta ha sido registrada. Ahora puedes iniciar sesión.',
-        icon: Icons.check_circle_outline,
-      );
-      context.pop();
+      await _auth.registerCliente(dto, context);
     } catch (e) {
       await showBrandedDialog(context,
         title: 'No se pudo registrar',
@@ -376,32 +373,34 @@ class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
 
                             const SizedBox(height: 16),
 
-                            // Contraseña
-                            _SectionCard(
-                              icon: Icons.lock_outline,
-                              title: 'Contraseña',
-                              child: TextFormField(
-                                controller: _password,
-                                validator: _pwdVal,
-                                obscureText: _obscure,
-                                cursorColor: Palette.kAccent,
-                                style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                                decoration: _inputDec(
-                                  'Mínimo 6 caracteres',
-                                  icon: Icons.lock_outline,
-                                  suffix: IconButton(
-                                    icon: Icon(
-                                      _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                      color: Palette.kMuted,
-                                      size: 20,
+                            // Contraseña (solo registro con clave; las cuentas
+                            // por redes sociales se crean sin clave).
+                            if (!_fromGoogle) ...[
+                              _SectionCard(
+                                icon: Icons.lock_outline,
+                                title: 'Contraseña',
+                                child: TextFormField(
+                                  controller: _password,
+                                  validator: _pwdVal,
+                                  obscureText: _obscure,
+                                  cursorColor: Palette.kAccent,
+                                  style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+                                  decoration: _inputDec(
+                                    'Mínimo 6 caracteres',
+                                    icon: Icons.lock_outline,
+                                    suffix: IconButton(
+                                      icon: Icon(
+                                        _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                        color: Palette.kMuted,
+                                        size: 20,
+                                      ),
+                                      onPressed: () => setState(() => _obscure = !_obscure),
                                     ),
-                                    onPressed: () => setState(() => _obscure = !_obscure),
                                   ),
                                 ),
                               ),
-                            ),
-
-                            const SizedBox(height: 16),
+                              const SizedBox(height: 16),
+                            ],
 
                             // ── Términos y condiciones ──
                             Row(

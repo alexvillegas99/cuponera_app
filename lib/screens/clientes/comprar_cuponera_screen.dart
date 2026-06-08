@@ -65,7 +65,7 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
     // Cargar configuración, versiones activas y métodos de pago en paralelo
     final results = await Future.wait([
       ConfiguracionService.obtenerTodas(),
-      VersionesService.listarActivas(),
+      VersionesService.listarActivasPaginado(),
       PagosService.metodosPago(),
     ]);
 

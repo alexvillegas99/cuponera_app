@@ -122,12 +122,21 @@ class _ProvincePickerState extends State<_ProvincePicker> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
             child: Row(
               children: [
-                const Expanded(
-                  child: Text('Elige tus provincias',
-                      style: TextStyle(
-                          color: Palette.kTitle,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Elige tus provincias',
+                          style: TextStyle(
+                              color: Palette.kTitle,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800)),
+                      Text('${_sel.length} provincia(s)',
+                          style: const TextStyle(
+                              color: Palette.kMuted, fontSize: 12)),
+                    ],
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: _gpsLoading ? null : _usarGps,
@@ -139,6 +148,19 @@ class _ProvincePickerState extends State<_ProvincePicker> {
                       : const Icon(Icons.my_location_rounded, size: 16),
                   label: const Text('Cercana'),
                   style: TextButton.styleFrom(foregroundColor: Palette.kAccent),
+                ),
+                const SizedBox(width: 4),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, _sel),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Palette.kAccent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
+                  child: const Text('Guardar'),
                 ),
               ],
             ),
@@ -183,30 +205,7 @@ class _ProvincePickerState extends State<_ProvincePicker> {
                     },
                   ),
           ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Row(
-                children: [
-                  Text('${_sel.length} provincia(s)',
-                      style: const TextStyle(color: Palette.kMuted, fontSize: 13)),
-                  const Spacer(),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context, _sel),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Palette.kAccent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    ),
-                    child: const Text('Aplicar'),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          const SafeArea(top: false, child: SizedBox(height: 8)),
         ],
       ),
     );

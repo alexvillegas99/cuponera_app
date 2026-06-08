@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 
 import 'package:geolocator/geolocator.dart';
 import 'package:enjoy/mappers/cuponera.dart';
@@ -101,6 +102,22 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
 
   String _query = '';
   final Set<String> _selectedCats = {};
+
+  // ===== Filtros avanzados (bottom sheet) =====
+  bool _ordenarCercania = false;
+  bool _soloConCupon = false;
+  bool _cargandoDisponibles = false;
+  final Set<String> _localesConCupon = {};
+
+  bool get _filtrosActivos =>
+      _ordenarCercania || _soloConCupon || _selectedCiudadIds.isNotEmpty;
+
+  // ===== Paginación (infinite scroll) =====
+  bool _hasMore = false;
+  bool _loadingMore = false;
+  final Set<String> _selectedCiudadIds = {};
+  List<Ciudad> _ciudadesFiltro = [];
+  Timer? _searchDebounce;
 
   // ===== Cuponeras =====
   List<Cuponera> _cuponeras = [];
@@ -261,8 +278,16 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     if (!Platform.isIOS) {
     _fm = FirebaseMessaging.instance;
   }
-    _tabController = TabController(length: 3, vsync: this);
+    // Solo "Todas" (Hoy/Flash deshabilitadas temporalmente) → 1 tab.
+    _tabController = TabController(length: 1, vsync: this);
+    _tabController.addListener(_onTabChanged);
     _initScreen();
+  }
+
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging) return;
+    // Cada tab (Todas/Hoy/Flash) es un feed paginado server-side propio.
+    _loadPromosByCities();
   }
 
   Future<void> _initScreen() async {
@@ -324,6 +349,8 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
@@ -348,14 +375,16 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     }
   }
 
-  Future<void> _loadPromosByCities() async {
-    // ✅ Multi-provincia: si no hay provincias elegidas, NO llames al backend
+  /// Carga la primera página del feed según el tab activo y los filtros.
+  /// [force] = pull-to-refresh (ignora la caché).
+  Future<void> _loadPromosByCities({bool force = false}) async {
     if (_selectedProvinciaIds.isEmpty) {
       if (mounted) {
         setState(() {
           _allPromos = [];
           _promosError = null;
           _loadingPromos = false;
+          _hasMore = false;
         });
       }
       return;
@@ -363,12 +392,22 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
 
     try {
       setState(() => _loadingPromos = true);
-      // Trae TODOS los locales de las provincias elegidas (backend expande a ciudades).
-      final promos =
-          await _promoService.getByProvincias(_selectedProvinciaIds.toList());
+      final idx = _tabController.index; // 0 Todas · 1 Hoy · 2 Flash
+      final feed = await _promoService.loadFirst(
+        provinciaIds: _selectedProvinciaIds.toList(),
+        ciudadIds: _selectedCiudadIds.isEmpty ? null : _selectedCiudadIds.toList(),
+        q: _query.isEmpty ? null : _query,
+        isToday: idx == 1,
+        isFlash: idx == 2,
+        localIds: _soloConCupon ? _localesConCupon.toList() : null,
+        lat: _ordenarCercania ? _userLat : null,
+        lng: _ordenarCercania ? _userLng : null,
+        force: force,
+      );
       if (mounted) {
         setState(() {
-          _allPromos = promos;
+          _allPromos = feed.promos;
+          _hasMore = feed.hasMore;
           _promosError = null;
           _loadingPromos = false;
         });
@@ -384,6 +423,82 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     }
   }
 
+  /// Carga la siguiente página (infinite scroll) y la agrega.
+  Future<void> _loadMoreFeed() async {
+    if (_loadingMore || !_hasMore || _selectedProvinciaIds.isEmpty) return;
+    setState(() => _loadingMore = true);
+    try {
+      final idx = _tabController.index;
+      final feed = await _promoService.loadMore(
+        provinciaIds: _selectedProvinciaIds.toList(),
+        ciudadIds: _selectedCiudadIds.isEmpty ? null : _selectedCiudadIds.toList(),
+        q: _query.isEmpty ? null : _query,
+        isToday: idx == 1,
+        isFlash: idx == 2,
+        localIds: _soloConCupon ? _localesConCupon.toList() : null,
+        lat: _ordenarCercania ? _userLat : null,
+        lng: _ordenarCercania ? _userLng : null,
+      );
+      if (mounted) {
+        setState(() {
+          _allPromos = feed.promos;
+          _hasMore = feed.hasMore;
+          _loadingMore = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  /// Búsqueda con debounce → nueva consulta server-side (dentro del filtro).
+  void _onSearchChanged(String q) {
+    setState(() => _query = q.trim().toLowerCase());
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      _loadPromosByCities();
+    });
+  }
+
+  Widget _cityChip(String label, bool selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? Palette.kAccent : Palette.kField,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: selected ? Palette.kAccent : Palette.kBorder),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Palette.kTitle,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Un tab de promos: lista paginada con pull-to-refresh.
+  Widget _buildPromoTab(CardStyle style, FavoritesStore favs) {
+    return RefreshIndicator(
+      color: Palette.kAccent,
+      onRefresh: () => _loadPromosByCities(force: true),
+      child: PromosListLight(
+        promos: _applyFilters(_allPromos),
+        cardStyle: style,
+        userLat: _userLat,
+        userLng: _userLng,
+        isFavorite: (p) => favs.isFav(p.id),
+        onFavorite: (p) => context.read<FavoritesStore>().toggle(p.id),
+      ),
+    );
+  }
+
   Future<void> _loadCuponeras() async {
     try {
       final usuario = await authService.getUser();
@@ -396,7 +511,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
         return;
       }
 
-      final list = await CuponesService().listarPorCliente(
+      final list = await CuponesService().listarPorClientePaginado(
         clienteId,
         soloActivas: true,
       );
@@ -489,7 +604,251 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
       }).toList();
     }
 
+    // Nota: "solo con cupón disponible" y "orden por cercanía" ahora se
+    // resuelven server-side (params localIds / lat-lng del endpoint paginado).
+
     return list;
+  }
+
+  /// Distancia (m) del usuario al local; infinito si falta algún dato.
+  double _distanciaA(Promotion p) {
+    if (p.lat == null || p.lng == null || _userLat == null || _userLng == null) {
+      return double.infinity;
+    }
+    return Geolocator.distanceBetween(_userLat!, _userLng!, p.lat!, p.lng!);
+  }
+
+  /// Trae del backend los locales donde al cliente le queda canje disponible.
+  Future<void> _cargarLocalesConCupon() async {
+    final usuario = await authService.getUser();
+    final clienteId = usuario?['_id'] as String?;
+    if (clienteId == null) return;
+    setState(() => _cargandoDisponibles = true);
+    try {
+      final ids = await CuponesService().localesDisponibles(clienteId);
+      if (mounted) {
+        setState(() {
+          _localesConCupon
+            ..clear()
+            ..addAll(ids);
+          _cargandoDisponibles = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _cargandoDisponibles = false);
+    }
+  }
+
+  /// Carga las ciudades de las provincias seleccionadas (para el filtro).
+  Future<void> _cargarCiudadesFiltro() async {
+    if (_selectedProvinciaIds.isEmpty) {
+      _ciudadesFiltro = [];
+      return;
+    }
+    try {
+      final results = await Future.wait(
+        _selectedProvinciaIds
+            .map((id) => _ciudadesService.getParaPromosPorProvincia(id)),
+      );
+      final seen = <String>{};
+      final merged = <Ciudad>[];
+      for (final list in results) {
+        for (final c in list) {
+          if (seen.add(c.id)) merged.add(c);
+        }
+      }
+      merged.sort((a, b) => a.nombre.compareTo(b.nombre));
+      _ciudadesFiltro = merged;
+    } catch (_) {
+      _ciudadesFiltro = [];
+    }
+  }
+
+  /// Bottom sheet de filtros avanzados.
+  Future<void> _openFiltros() async {
+    await _cargarCiudadesFiltro();
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Palette.kSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            return SafeArea(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Palette.kBorder,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text('Filtros',
+                        style: TextStyle(
+                            color: Palette.kTitle,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 8),
+                    if (_ciudadesFiltro.isNotEmpty) ...[
+                      const Text('Ciudad',
+                          style: TextStyle(
+                              color: Palette.kMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _cityChip('Todas', _selectedCiudadIds.isEmpty, () {
+                            setState(() => _selectedCiudadIds.clear());
+                            setSheet(() {});
+                            _loadPromosByCities();
+                          }),
+                          for (final c in _ciudadesFiltro)
+                            _cityChip(
+                              c.nombre,
+                              _selectedCiudadIds.contains(c.id),
+                              () {
+                                setState(() {
+                                  if (_selectedCiudadIds.contains(c.id)) {
+                                    _selectedCiudadIds.remove(c.id);
+                                  } else {
+                                    _selectedCiudadIds.add(c.id);
+                                  }
+                                });
+                                setSheet(() {});
+                                _loadPromosByCities();
+                              },
+                            ),
+                        ],
+                      ),
+                      const Divider(height: 26, color: Palette.kBorder),
+                    ],
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: Palette.kAccent,
+                      value: _ordenarCercania,
+                      onChanged: _userLat == null
+                          ? null
+                          : (v) {
+                              setState(() => _ordenarCercania = v);
+                              setSheet(() {});
+                              _loadPromosByCities();
+                            },
+                      title: const Text('Ordenar por cercanía',
+                          style: TextStyle(
+                              color: Palette.kTitle,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600)),
+                      subtitle: Text(
+                        _userLat == null
+                            ? 'Activa la ubicación para usar este filtro'
+                            : 'Muestra primero los locales más cercanos',
+                        style: const TextStyle(
+                            color: Palette.kMuted, fontSize: 12),
+                      ),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: Palette.kAccent,
+                      value: _soloConCupon,
+                      onChanged: (v) async {
+                        setState(() => _soloConCupon = v);
+                        setSheet(() {});
+                        if (v && _localesConCupon.isEmpty) {
+                          await _cargarLocalesConCupon();
+                          setSheet(() {});
+                        }
+                        _loadPromosByCities();
+                      },
+                      title: const Text('Solo con cupón disponible',
+                          style: TextStyle(
+                              color: Palette.kTitle,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600)),
+                      subtitle: const Text(
+                          'Locales donde te queda canje sin usar',
+                          style: TextStyle(color: Palette.kMuted, fontSize: 12)),
+                    ),
+                    if (_cargandoDisponibles)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 6),
+                        child: Row(children: [
+                          SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Palette.kAccent)),
+                          SizedBox(width: 8),
+                          Text('Buscando tus cupones…',
+                              style: TextStyle(
+                                  color: Palette.kMuted, fontSize: 12)),
+                        ]),
+                      ),
+                    const SizedBox(height: 14),
+                    Row(children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            setState(() {
+                              _ordenarCercania = false;
+                              _soloConCupon = false;
+                              _selectedCiudadIds.clear();
+                            });
+                            setSheet(() {});
+                            _loadPromosByCities();
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Palette.kMuted,
+                            side: const BorderSide(color: Palette.kBorder),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text('Limpiar'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Palette.kAccent,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text('Aplicar'),
+                        ),
+                      ),
+                    ]),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _openCityPickerAndReload() async {
@@ -578,36 +937,64 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
         const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: TextField(
-            onChanged: (q) => setState(() => _query = q.trim().toLowerCase()),
-            style: const TextStyle(color: Palette.kTitle),
-            cursorColor: Palette.kAccent,
-            decoration: InputDecoration(
-              hintText: 'Buscar por local, plato o categoría…',
-              hintStyle: const TextStyle(color: Palette.kMuted),
-              prefixIcon: const Icon(
-                Icons.search,
-                color: Palette.kMuted,
-                size: 22,
-              ),
-              filled: true,
-              fillColor: Palette.kField,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 12,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Palette.kBorder),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: Palette.kAccent,
-                  width: 1.2,
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  onChanged: _onSearchChanged,
+                  style: const TextStyle(color: Palette.kTitle),
+                  cursorColor: Palette.kAccent,
+                  decoration: InputDecoration(
+                    hintText: 'Buscar por local, plato o categoría…',
+                    hintStyle: const TextStyle(color: Palette.kMuted),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: Palette.kMuted,
+                      size: 22,
+                    ),
+                    filled: true,
+                    fillColor: Palette.kField,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Palette.kBorder),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(
+                        color: Palette.kAccent,
+                        width: 1.2,
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(width: 10),
+              // Botón de filtros (bottom sheet)
+              GestureDetector(
+                onTap: _openFiltros,
+                child: Container(
+                  height: 48,
+                  width: 48,
+                  decoration: BoxDecoration(
+                    color: _filtrosActivos ? Palette.kAccent : Palette.kField,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color: _filtrosActivos
+                            ? Palette.kAccent
+                            : Palette.kBorder),
+                  ),
+                  child: Icon(
+                    Icons.tune_rounded,
+                    color: _filtrosActivos ? Colors.white : Palette.kMuted,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 8),
@@ -703,44 +1090,96 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                 return _buildSelectCityPrompt();
               }
 
-              return TabBarView(
-                controller: _tabController,
-                children: [
-                  PromosListLight(
-                    promos: _applyFilters(_allPromos),
-                    cardStyle: CardStyle.compact,
-                    userLat: _userLat,
-                    userLng: _userLng,
-                    isFavorite: (p) => favs.isFav(p.id),
-                    onFavorite: (p) =>
-                        context.read<FavoritesStore>().toggle(p.id),
-                  ),
-                  PromosListLight(
-                    promos: _applyFilters(_onlyToday(_allPromos)),
-                    cardStyle: CardStyle.compact,
-                    userLat: _userLat,
-                    userLng: _userLng,
-                    isFavorite: (p) => favs.isFav(p.id),
-                    onFavorite: (p) =>
-                        context.read<FavoritesStore>().toggle(p.id),
-                  ),
-                  PromosListLight(
-                    promos: _applyFilters(
-                      _allPromos.where((p) => p.isFlash).toList(),
-                    ),
-                    cardStyle: CardStyle.flash,
-                    userLat: _userLat,
-                    userLng: _userLng,
-                    isFavorite: (p) => favs.isFav(p.id),
-                    onFavorite: (p) =>
-                        context.read<FavoritesStore>().toggle(p.id),
-                  ),
-                ],
+              return NotificationListener<ScrollNotification>(
+                onNotification: (n) {
+                  if (n.metrics.axis == Axis.vertical &&
+                      n.metrics.pixels >=
+                          n.metrics.maxScrollExtent - 300 &&
+                      _hasMore &&
+                      !_loadingMore) {
+                    _loadMoreFeed();
+                  }
+                  return false;
+                },
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildPromoTab(CardStyle.compact, favs),
+                    // Hoy/Flash deshabilitadas: solo "Todas".
+                  ],
+                ),
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  /// CTA en el home cuando el cliente NO tiene cuponeras: lo lleva a la
+  /// pestaña de Cuponeras (donde está el flujo de adquisición).
+  Widget _buildCuponeraCta() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Material(
+        color: Palette.kPrimary,
+        borderRadius: BorderRadius.circular(16),
+        elevation: 4,
+        shadowColor: Palette.kPrimary.withOpacity(0.3),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => setState(() => _bottomIndex = 2),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.local_activity_rounded,
+                      color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Aún no tenés una cuponera',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14)),
+                      SizedBox(height: 2),
+                      Text('Adquirí una y empezá a ahorrar',
+                          style:
+                              TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Palette.kAccent,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text('Adquirir',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -940,35 +1379,41 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
           ),
         ],
 
-        bottom: _bottomIndex == 0
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(56),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  child: SegmentedTabsLight(controller: _tabController),
-                ),
-              )
-            : null,
+        // Tabs (Todas/Hoy/Flash) deshabilitadas: solo se muestra "Todas".
+        bottom: null,
       ),
 
       body: _buildBodyByIndex(),
 
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: FloatingBottomBarLight(
-          index: _bottomIndex,
-          onTap: (i) => setState(() => _bottomIndex = i),
-          items: widget.guestMode
-              ? const [
-                  NavItem(icon: Icons.home_filled, label: 'Inicio'),
-                  NavItem(icon: Icons.local_activity_outlined, label: 'Cuponeras'),
-                ]
-              : const [
-                  NavItem(icon: Icons.home_filled, label: 'Inicio'),
-                  NavItem(icon: Icons.favorite, label: 'Favoritos'),
-                  NavItem(icon: Icons.qr_code_2, label: 'Cuponeras'),
-                ],
-        ),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // CTA cuando el cliente no tiene cuponeras (solo en el home).
+          if (!widget.guestMode &&
+              _bottomIndex == 0 &&
+              !_loadingCuponeras &&
+              _cuponeras.isEmpty)
+            _buildCuponeraCta(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: FloatingBottomBarLight(
+              index: _bottomIndex,
+              onTap: (i) => setState(() => _bottomIndex = i),
+              items: widget.guestMode
+                  ? const [
+                      NavItem(icon: Icons.home_filled, label: 'Inicio'),
+                      NavItem(
+                          icon: Icons.local_activity_outlined,
+                          label: 'Cuponeras'),
+                    ]
+                  : const [
+                      NavItem(icon: Icons.home_filled, label: 'Inicio'),
+                      NavItem(icon: Icons.favorite, label: 'Favoritos'),
+                      NavItem(icon: Icons.qr_code_2, label: 'Cuponeras'),
+                    ],
+            ),
+          ),
+        ],
       ),
     );
   }

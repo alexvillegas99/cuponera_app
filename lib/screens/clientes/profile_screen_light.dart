@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../ui/palette.dart';
 import '../../models/profile_info.dart';
 import '../../services/informacion_perfil_cliente_service.dart';
+import '../../services/configuracion_service.dart';
 
 class ProfileScreenLight extends StatefulWidget {
   const ProfileScreenLight({super.key});
@@ -21,10 +22,23 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
   bool _loading = true;
   String? _error;
 
+  /// Controla la visibilidad de la opción "Eliminar cuenta" (config remota).
+  /// Solo aparece cuando la clave `mostrar_eliminar_cuenta` = "true".
+  bool _mostrarEliminar = false;
+
   @override
   void initState() {
     super.initState();
     _load();
+    _loadConfigEliminar();
+  }
+
+  Future<void> _loadConfigEliminar() async {
+    final valor =
+        await ConfiguracionService.obtenerValor('mostrar_eliminar_cuenta');
+    if (mounted) {
+      setState(() => _mostrarEliminar = valor?.toLowerCase() == 'true');
+    }
   }
 
   Future<void> _load() async {
@@ -93,44 +107,6 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
 
               // ── Stats ────────────────────────────────────────────
               _buildStats(p),
-
-              const SizedBox(height: 12),
-
-              // ── Ciudades ─────────────────────────────────────────
-              _buildSection(
-                icon: Icons.location_on_outlined,
-                iconColor: Palette.kPrimary,
-                title: 'Mis ciudades',
-                child: p.ciudades.isEmpty
-                    ? const Text(
-                        'Aún no configuras ciudades',
-                        style: TextStyle(color: Palette.kMuted, fontSize: 13),
-                      )
-                    : Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [for (final c in p.ciudades) _Chip(c)],
-                      ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // ── Categorías ───────────────────────────────────────
-              _buildSection(
-                icon: Icons.category_outlined,
-                iconColor: Palette.kAccent,
-                title: 'Categorías favoritas',
-                child: p.categoriasFav.isEmpty
-                    ? const Text(
-                        'Aún no seleccionas categorías',
-                        style: TextStyle(color: Palette.kMuted, fontSize: 13),
-                      )
-                    : Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [for (final t in p.categoriasFav) _Chip(t)],
-                      ),
-              ),
 
               const SizedBox(height: 12),
 
@@ -499,6 +475,8 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
 
   // ── Danger zone ───────────────────────────────────────────────────
   Widget _buildDangerZone() {
+    // Solo se muestra si la configuración remota lo habilita.
+    if (!_mostrarEliminar) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

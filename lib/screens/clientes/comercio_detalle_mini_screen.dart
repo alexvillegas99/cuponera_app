@@ -1145,12 +1145,6 @@ class _ComercioDetalleMiniScreenState
             _buildPromoDetailsCard(p!),
           ],
 
-          // ── Categorías y ciudades ──
-          if (_data!.ciudades.isNotEmpty || _data!.categorias.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildChipsCard(),
-          ],
-
           // ── Catálogo (productos/servicios del local) ──
           if ((p?.productos ?? const []).isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -1603,37 +1597,6 @@ class _ComercioDetalleMiniScreenState
   String _fmt(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-  // ─────────────────────────── CHIPS CARD
-  Widget _buildChipsCard() {
-    return _buildSectionCard(
-      icon: Icons.label_outline_rounded,
-      iconColor: Palette.kPrimary,
-      title: 'Categorías y ciudades',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_data!.ciudades.isNotEmpty) ...[
-            _chipGroup(
-              label: 'Ciudades',
-              icon: Icons.location_city_rounded,
-              color: Palette.kPrimary,
-              items: _data!.ciudades,
-            ),
-          ],
-          if (_data!.ciudades.isNotEmpty && _data!.categorias.isNotEmpty)
-            const SizedBox(height: 14),
-          if (_data!.categorias.isNotEmpty)
-            _chipGroup(
-              label: 'Categorías',
-              icon: Icons.category_rounded,
-              color: Palette.kAccent,
-              items: _data!.categorias,
-            ),
-        ],
-      ),
-    );
-  }
-
   // ─────────────────────────── CATÁLOGO CARD
   Widget _buildCatalogoCard(List<Producto> productos) {
     return _buildSectionCard(
@@ -1641,62 +1604,6 @@ class _ComercioDetalleMiniScreenState
       iconColor: Palette.kAccent,
       title: 'Catálogo',
       child: _CatalogoCarousel(productos: productos),
-    );
-  }
-
-  Widget _chipGroup({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required List<String> items,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Palette.kMuted,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.3,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 6,
-          runSpacing: 4,
-          children: items
-              .map(
-                (item) => Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(icon, size: 12, color: color),
-                      const SizedBox(width: 4),
-                      Text(
-                        item,
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-      ],
     );
   }
 

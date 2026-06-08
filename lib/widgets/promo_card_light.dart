@@ -41,6 +41,9 @@ class PromoCardLight extends StatelessWidget {
     final isFlash = style == CardStyle.flash;
     return InkWell(
       onTap: () {
+        // Cierra el teclado y libera el foco del buscador para que no se
+        // re-enfoque (autofocus) al volver al home.
+        FocusManager.instance.primaryFocus?.unfocus();
         Navigator.push(
           context,
           MaterialPageRoute(

@@ -204,58 +204,128 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Palette.kBg,
-      appBar: AppBar(
-        backgroundColor: Palette.kPrimary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('Recuperar contraseña', style: TextStyle(fontWeight: FontWeight.w600)),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  // ── Badge del modo (empresa/cliente) ──
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: (_esEmpresa ? Palette.kPrimary : Palette.kAccent)
-                          .withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color: (_esEmpresa ? Palette.kPrimary : Palette.kAccent)
-                              .withOpacity(0.3)),
-                    ),
-                    child: Row(
+      body: Column(
+        children: [
+          // ── Header hero con degradado ──
+          Container(
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF152A47), Color(0xFF1E3A6E)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(28),
+                bottomRight: Radius.circular(28),
+              ),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(6, 4, 20, 22),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Icon(
-                          _esEmpresa
-                              ? Icons.business_rounded
-                              : Icons.person_rounded,
-                          size: 18,
-                          color: _esEmpresa ? Palette.kPrimary : Palette.kAccent,
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.arrow_back_rounded,
+                              color: Colors.white),
+                        ),
+                        const Expanded(
+                          child: Text('Recuperar credenciales',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700)),
                         ),
                         const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _esEmpresa
-                                ? 'Recuperación de cuenta EMPRESA'
-                                : 'Recuperación de cuenta CLIENTE',
-                            style: TextStyle(
-                              color: _esEmpresa ? Palette.kPrimary : Palette.kAccent,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 6),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.2)),
+                            ),
+                            child: const Icon(Icons.lock_reset_rounded,
+                                color: Colors.white, size: 28),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _esEmpresa
+                                      ? 'CUENTA DE EMPRESA'
+                                      : 'CUENTA DE CLIENTE',
+                                  style: const TextStyle(
+                                    color: Palette.kAccentLight,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _otpOk
+                                      ? 'Crea tu nueva contraseña'
+                                      : 'Verifica tu identidad para continuar',
+                                  style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 13,
+                                      height: 1.3),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ── Contenido ──
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  child: Column(
+                    children: [
+                      // ── Stepper de pasos ──
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _stepDot(1, 'Verificación',
+                              done: _otpOk, active: !_otpOk),
+                          Expanded(
+                            child: Container(
+                              height: 2,
+                              margin: const EdgeInsets.only(top: 14),
+                              color: _otpOk ? Palette.kAccent : Palette.kBorder,
+                            ),
+                          ),
+                          _stepDot(2, 'Contraseña',
+                              done: false, active: _otpOk),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
 
                   // ── Paso 1: Email ──
                   if (!_otpOk)
@@ -381,11 +451,51 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
                         ],
                       ),
                     ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+        ],
+      ),
+    );
+  }
+
+  /// Indicador de paso del stepper (círculo numerado + etiqueta).
+  Widget _stepDot(int n, String label,
+      {required bool done, required bool active}) {
+    final on = done || active;
+    return SizedBox(
+      width: 88,
+      child: Column(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: on ? Palette.kAccent : Palette.kField,
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color: on ? Palette.kAccent : Palette.kBorder, width: 1.5),
+            ),
+            alignment: Alignment.center,
+            child: done
+                ? const Icon(Icons.check_rounded, color: Colors.white, size: 17)
+                : Text('$n',
+                    style: TextStyle(
+                        color: active ? Colors.white : Palette.kMuted,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13)),
+          ),
+          const SizedBox(height: 5),
+          Text(label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: on ? Palette.kTitle : Palette.kMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }

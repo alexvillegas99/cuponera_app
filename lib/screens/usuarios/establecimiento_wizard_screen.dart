@@ -369,7 +369,7 @@ class _EstablecimientoWizardScreenState
       'description': _descripcion.text.trim(),
       'scheduleLabel': _horarioLabel.trim(),
       'address': _direccion.text.trim(),
-      'isTwoForOne': _isTwoForOne,
+      'isTwoForOne': true,
       'aplicaTodosLosDias': _aplicaTodosLosDias,
     };
     if (_tags.isNotEmpty) d['tags'] = _tags;
@@ -975,7 +975,7 @@ class _EstablecimientoWizardScreenState
         _label('Descripción'),
         _input(_descripcion, 'Describe la promoción…', lines: 3),
         const SizedBox(height: 6),
-        _switch('Es 2x1', _isTwoForOne, (v) => setState(() => _isTwoForOne = v)),
+        // 2x1 ya no es editable: todas las promos son 2x1 (siempre true).
         _switch('Aplica todos los días', _aplicaTodosLosDias,
             (v) => setState(() => _aplicaTodosLosDias = v)),
         if (!_aplicaTodosLosDias) ...[

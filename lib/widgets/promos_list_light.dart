@@ -125,6 +125,9 @@ class _PromoCompactTile extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () {
+        // Cierra el teclado y libera el foco del buscador para que no se
+        // re-enfoque (autofocus) al volver al home.
+        FocusManager.instance.primaryFocus?.unfocus();
         Navigator.push(
           context,
           MaterialPageRoute(
