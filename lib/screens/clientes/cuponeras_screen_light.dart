@@ -37,7 +37,7 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
   late List<Cuponera> _items;
   bool _reloading = false;
   String _whatsappNumero = '+593999999999';
-  String _whatsappMensaje = 'Hola, quiero adquirir una cuponera.';
+  String _whatsappMensaje = 'Hola, quiero adquirir una membresía.';
 
   @override
   void initState() {
@@ -446,7 +446,7 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
   Future<void> _openWhatsApp(String phone, {String? message}) async {
     final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
     final text = Uri.encodeComponent(
-      message ?? 'Hola, quiero adquirir una cuponera.',
+      message ?? 'Hola, quiero adquirir una membresía.',
     );
     final nativeUrl = Uri.parse('whatsapp://send?phone=$cleanPhone&text=$text');
     final webUrl = Uri.parse('https://wa.me/$cleanPhone?text=$text');
@@ -503,7 +503,7 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Adquirir Cuponera',
+                          'Adquirir Membresía',
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 18,
@@ -511,7 +511,7 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
                           ),
                         ),
                         Text(
-                          'Elige cómo quieres adquirir tu cuponera',
+                          'Elige cómo quieres adquirir tu membresía',
                           style: TextStyle(color: Palette.kMuted, fontSize: 13),
                         ),
                       ],
@@ -621,7 +621,7 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
             onPressed: () => _showAdquirirSheet(context),
             icon: const Icon(Icons.add),
             label: const Text(
-              'Adquirir Cuponera',
+              'Adquirir Membresía',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             backgroundColor: Palette.kPrimary,
