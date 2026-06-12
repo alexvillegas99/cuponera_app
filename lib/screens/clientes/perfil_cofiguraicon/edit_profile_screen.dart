@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:enjoy/screens/otp_screen.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/otp_service.dart';
-import '../../../ui/palette.dart';
 
 class EditContactWithOtpScreen extends StatefulWidget {
   const EditContactWithOtpScreen({super.key});
@@ -78,39 +78,6 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
     }
 
     if (mounted) setState(() {});
-  }
-
-  InputDecoration _fieldDec(String label, {IconData? icon}) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
-      prefixIcon: icon != null
-          ? Icon(icon, color: Palette.kMuted, size: 18)
-          : null,
-      filled: true,
-      fillColor: Palette.kField,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Palette.kBorder),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Palette.kAccent, width: 1.4),
-      ),
-      disabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Palette.kBorder),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 1.2),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 1.4),
-      ),
-    );
   }
 
   Future<void> _onSave() async {
@@ -192,134 +159,104 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
     final busy = _saving || _sendingOtp;
     final readOnly = _locked || busy;
 
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      appBar: AppBar(
-        backgroundColor: Palette.kSurface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        foregroundColor: Palette.kPrimary,
-        title: const Text(
-          'Editar perfil',
-          style: TextStyle(
-            color: Palette.kTitle,
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
-          ),
-        ),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            color: Palette.kSurface,
-            border: Border(
-              bottom: BorderSide(color: Palette.kBorder, width: 1),
+    return EnjoyScaffold(
+      padding: EdgeInsets.zero,
+      appBar: const EnjoyAppBar(title: 'Editar perfil'),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
+        children: [
+          // ── Avatar ────────────────────────────────────────────
+          _buildAvatar(busy),
+
+          const SizedBox(height: 18),
+
+          // ── Email (solo lectura) ──────────────────────────────
+          _buildEmailRow(),
+
+          const SizedBox(height: 12),
+
+          // ── Toggle lock ───────────────────────────────────────
+          _buildLockToggle(busy),
+
+          const SizedBox(height: 18),
+
+          // ── Form card ─────────────────────────────────────────
+          _buildFormCard(readOnly),
+
+          const SizedBox(height: 20),
+
+          // ── Botón guardar ─────────────────────────────────────
+          _buildSaveButton(busy),
+        ],
+      ),
+    );
+  }
+
+  // ── Avatar ─────────────────────────────────────────────────────────
+  Widget _buildAvatar(bool busy) {
+    final ec = context.ec;
+    final name = [_firstNameCtrl.text, _lastNameCtrl.text]
+        .where((s) => s.trim().isNotEmpty)
+        .join(' ');
+    return Center(
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          EnjoyAvatar(name.isEmpty ? 'U' : name, size: 92),
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: GestureDetector(
+              onTap: busy ? null : () => setState(() => _locked = false),
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  gradient: ec.accentGradient,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: ec.bgBottom, width: 2),
+                ),
+                child: Icon(Icons.edit_rounded, color: ec.onAccent, size: 15),
+              ),
             ),
           ),
-        ),
-      ),
-
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-          children: [
-
-            // ── Email (solo lectura) ──────────────────────────────
-            _buildEmailRow(),
-
-            const SizedBox(height: 12),
-
-            // ── Toggle lock ───────────────────────────────────────
-            _buildLockToggle(busy),
-
-            const SizedBox(height: 12),
-
-            // ── Form card ─────────────────────────────────────────
-            _buildFormCard(readOnly),
-
-            const SizedBox(height: 20),
-
-            // ── Botón guardar ─────────────────────────────────────
-            _buildSaveButton(busy),
-          ],
-        ),
+        ],
       ),
     );
   }
 
   // ── Email row ──────────────────────────────────────────────────────
   Widget _buildEmailRow() {
+    final ec = context.ec;
     final email = _emailCtrl.text.isEmpty ? '—' : _emailCtrl.text;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
       child: Row(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Palette.kPrimary.withOpacity(0.09),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.alternate_email_rounded,
-              color: Palette.kPrimary,
-              size: 17,
-            ),
-          ),
-          const SizedBox(width: 12),
+          const IconBox(Icons.alternate_email_rounded),
+          const SizedBox(width: 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Correo electrónico',
-                  style: TextStyle(color: Palette.kMuted, fontSize: 11),
+                  style: EnjoyTheme.body(size: 11, color: ec.textMute),
                 ),
-                const SizedBox(height: 1),
+                const SizedBox(height: 2),
                 Text(
                   email,
-                  style: const TextStyle(
-                    color: Palette.kTitle,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
+                  style: EnjoyTheme.heading(
+                      size: 14, weight: FontWeight.w600, color: ec.text),
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.green.withOpacity(0.2)),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.verified_rounded, color: Colors.green, size: 12),
-                SizedBox(width: 4),
-                Text(
-                  'Verificado',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(width: 10),
+          const Pill('Verificado',
+              variant: PillVariant.green,
+              icon: Icons.verified_rounded,
+              dense: true),
         ],
       ),
     );
@@ -327,123 +264,43 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
 
   // ── Lock toggle ────────────────────────────────────────────────────
   Widget _buildLockToggle(bool busy) {
-    return GestureDetector(
-      onTap: busy ? null : () => setState(() => _locked = !_locked),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: _locked
-              ? Palette.kAccent.withOpacity(0.06)
-              : Palette.kPrimary.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _locked
-                ? Palette.kAccent.withOpacity(0.25)
-                : Palette.kPrimary.withOpacity(0.2),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: _locked
-                    ? Palette.kAccent.withOpacity(0.12)
-                    : Palette.kPrimary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                _locked ? Icons.lock_outline_rounded : Icons.lock_open_rounded,
-                color: _locked ? Palette.kAccent : Palette.kPrimary,
-                size: 17,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _locked ? 'Campos bloqueados' : 'Edición habilitada',
-                    style: TextStyle(
-                      color: _locked ? Palette.kAccent : Palette.kPrimary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                  Text(
-                    _locked
-                        ? 'Toca para habilitar la edición'
-                        : 'Toca para bloquear los campos',
-                    style: const TextStyle(
-                      color: Palette.kMuted,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: _locked ? Palette.kAccent : Palette.kPrimary,
-              size: 20,
-            ),
-          ],
-        ),
+    final ec = context.ec;
+    final accent = _locked ? ec.orange : ec.green;
+    return ListRowTile(
+      borderColor: accent.withValues(alpha: .3),
+      leading: IconBox(
+        _locked ? Icons.lock_outline_rounded : Icons.lock_open_rounded,
+        color: accent,
       ),
+      title: _locked ? 'Campos bloqueados' : 'Edición habilitada',
+      titleColor: accent,
+      subtitle: _locked
+          ? 'Toca para habilitar la edición'
+          : 'Toca para bloquear los campos',
+      trailing: Icon(Icons.chevron_right_rounded, color: accent, size: 20),
+      onTap: busy ? null : () => setState(() => _locked = !_locked),
     );
   }
 
   // ── Form card ──────────────────────────────────────────────────────
   Widget _buildFormCard(bool readOnly) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    final ec = context.ec;
+    return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Section header
           Row(
             children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: Palette.kAccent.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.person_outline_rounded,
-                  color: Palette.kAccent,
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
+              const IconBox(Icons.person_outline_rounded, size: 34, iconSize: 17),
+              const SizedBox(width: 12),
+              Text(
                 'Información personal',
-                style: TextStyle(
-                  color: Palette.kTitle,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                ),
+                style: EnjoyTheme.heading(size: 14, color: ec.text),
               ),
             ],
           ),
-
           const SizedBox(height: 16),
-
           Form(
             key: _formKey,
             child: Column(
@@ -452,8 +309,13 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
                   controller: _firstNameCtrl,
                   readOnly: readOnly,
                   textCapitalization: TextCapitalization.words,
-                  decoration: _fieldDec('Nombres', icon: Icons.badge_outlined),
-                  style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+                  cursorColor: ec.orange,
+                  style: EnjoyTheme.body(size: 14, color: ec.text),
+                  decoration: InputDecoration(
+                    labelText: 'Nombres',
+                    prefixIcon: Icon(Icons.badge_outlined,
+                        color: ec.orangeSoft, size: 18),
+                  ),
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? 'Ingresa tus nombres'
                       : null,
@@ -463,9 +325,13 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
                   controller: _lastNameCtrl,
                   readOnly: readOnly,
                   textCapitalization: TextCapitalization.words,
-                  decoration:
-                      _fieldDec('Apellidos', icon: Icons.perm_identity_rounded),
-                  style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+                  cursorColor: ec.orange,
+                  style: EnjoyTheme.body(size: 14, color: ec.text),
+                  decoration: InputDecoration(
+                    labelText: 'Apellidos',
+                    prefixIcon: Icon(Icons.perm_identity_rounded,
+                        color: ec.orangeSoft, size: 18),
+                  ),
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? 'Ingresa tus apellidos'
                       : null,
@@ -477,24 +343,24 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
                   keyboardType: TextInputType.phone,
                   maxLength: 10,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                  decoration: _fieldDec('Número local', icon: Icons.phone_outlined).copyWith(
+                  cursorColor: ec.orange,
+                  style: EnjoyTheme.body(size: 14, color: ec.text),
+                  decoration: InputDecoration(
+                    labelText: 'Número local',
                     counterText: '',
                     hintText: '0999999999',
-                    hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
+                    prefixIcon: Icon(Icons.phone_outlined,
+                        color: ec.orangeSoft, size: 18),
                     prefix: Container(
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.only(right: 8),
-                      decoration: const BoxDecoration(
-                        border: Border(right: BorderSide(color: Palette.kBorder)),
+                      decoration: BoxDecoration(
+                        border: Border(right: BorderSide(color: ec.stroke)),
                       ),
-                      child: const Text(
+                      child: Text(
                         '+593',
-                        style: TextStyle(
-                          color: Palette.kTitle,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
+                        style: EnjoyTheme.heading(
+                            size: 14, weight: FontWeight.w700, color: ec.text),
                       ),
                     ),
                   ),
@@ -518,66 +384,15 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
   // ── Save button ────────────────────────────────────────────────────
   Widget _buildSaveButton(bool busy) {
     final enabled = !_locked && !busy;
-    return GestureDetector(
-      onTap: enabled ? _onSave : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 15),
-        decoration: BoxDecoration(
-          gradient: enabled
-              ? const LinearGradient(
-                  colors: [Palette.kAccent, Palette.kAccentLight],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: enabled ? null : Palette.kBorder,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                    color: Palette.kAccent.withOpacity(0.35),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (busy)
-              const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            else
-              Icon(
-                Icons.check_rounded,
-                color: enabled ? Colors.white : Palette.kMuted,
-                size: 18,
-              ),
-            const SizedBox(width: 8),
-            Text(
-              _saving
-                  ? 'Guardando...'
-                  : _sendingOtp
-                      ? 'Enviando código...'
-                      : 'Guardar cambios',
-              style: TextStyle(
-                color: enabled ? Colors.white : Palette.kMuted,
-                fontWeight: FontWeight.w700,
-                fontSize: 15,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return EnjoyButton(
+      label: _saving
+          ? 'Guardando...'
+          : _sendingOtp
+              ? 'Enviando código...'
+              : 'Guardar cambios',
+      icon: busy ? null : Icons.check_rounded,
+      loading: busy,
+      onPressed: enabled ? _onSave : null,
     );
   }
 }

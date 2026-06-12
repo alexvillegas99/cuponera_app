@@ -1,5 +1,5 @@
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
-import '../../ui/palette.dart';
 import '../../services/versiones_service.dart';
 import 'comercio_detalle_mini_screen.dart';
 import 'mapa_version_screen.dart';
@@ -31,11 +31,11 @@ class _DetalleVersionScreenState extends State<DetalleVersionScreen> {
   Future<void> _fetchLocales() async {
     try {
       final result = await VersionesService.listarLocales(widget.versionId);
-      print('[MAPA] Total locales recibidos: ${result.length}');
+      debugPrint('[MAPA] Total locales recibidos: ${result.length}');
       for (final l in result) {
         final nombre = l['detallePromocion']?['placeName'] ?? l['nombre'] ?? '?';
         final ub = l['ubicacion'];
-        print('[MAPA] Local: $nombre | ubicacion: $ub');
+        debugPrint('[MAPA] Local: $nombre | ubicacion: $ub');
       }
       if (!mounted) return;
       setState(() {
@@ -43,171 +43,81 @@ class _DetalleVersionScreenState extends State<DetalleVersionScreen> {
         _loading = false;
       });
     } catch (e) {
-      print('[MAPA] Error al cargar locales: $e');
+      debugPrint('[MAPA] Error al cargar locales: $e');
       if (!mounted) return;
       setState(() => _loading = false);
     }
   }
 
-  // ─── Build helpers ──────────────────────────────────────────
-
-  Widget _sectionHeader(IconData icon, String title) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Palette.kAccent.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: Palette.kAccent, size: 20),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 16,
-              color: Palette.kTitle,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _card({required Widget child}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-
   // ─── Header card ───────────────────────────────────────────
 
-  Widget _buildHeaderCard() {
+  Widget _buildHeaderCard(EnjoyColors ec) {
     final nombre = widget.versionData['nombre']?.toString() ?? 'Membresía';
     final precio = widget.versionData['precio']?.toString() ?? '0.00';
     final descripcion = widget.versionData['descripcion']?.toString() ?? '';
     final ciudades = widget.versionData['ciudadesDisponibles'];
 
-    return _card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Palette.kAccent.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.card_giftcard,
-                    color: Palette.kAccent,
-                    size: 26,
-                  ),
+    return GlassCard(
+      accent: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const IconBox(Icons.card_giftcard, accent: true, size: 48),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nombre,
+                      style: EnjoyTheme.heading(
+                          size: 18, weight: FontWeight.w800, color: ec.text),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '\$$precio',
+                      style: EnjoyTheme.heading(
+                          size: 22,
+                          weight: FontWeight.w800,
+                          color: ec.orangeSoft),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        nombre,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 18,
-                          color: Palette.kTitle,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '\$$precio',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 22,
-                          color: Palette.kAccent,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
+            ],
+          ),
+          if (descripcion.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              descripcion,
+              style: EnjoyTheme.body(size: 14, height: 1.5, color: ec.textSoft),
             ),
-            if (descripcion.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                descripcion,
-                style: const TextStyle(
-                  color: Palette.kMuted,
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
-            ],
-            if (ciudades is List && ciudades.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: (ciudades as List).map<Widget>((c) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Palette.kPrimary.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.location_on_outlined,
-                          size: 14,
-                          color: Palette.kPrimary,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          c.toString(),
-                          style: const TextStyle(
-                            color: Palette.kPrimary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
           ],
-        ),
+          if (ciudades is List && ciudades.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: (ciudades).map<Widget>((c) {
+                return Pill(
+                  c.toString(),
+                  variant: PillVariant.glass,
+                  icon: Icons.location_on_outlined,
+                  dense: true,
+                );
+              }).toList(),
+            ),
+          ],
+        ],
       ),
     );
   }
 
   // ─── Locales list ──────────────────────────────────────────
 
-  Widget _buildRatingStars(double rating) {
+  Widget _buildRatingStars(EnjoyColors ec, double rating) {
     final fullStars = rating.floor();
     final hasHalf = (rating - fullStars) >= 0.5;
     final emptyStars = 5 - fullStars - (hasHalf ? 1 : 0);
@@ -216,30 +126,25 @@ class _DetalleVersionScreenState extends State<DetalleVersionScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         ...List.generate(fullStars, (_) {
-          return const Icon(Icons.star, color: Palette.kAccent, size: 16);
+          return Icon(Icons.star, color: ec.orange, size: 16);
         }),
-        if (hasHalf)
-          const Icon(Icons.star_half, color: Palette.kAccent, size: 16),
+        if (hasHalf) Icon(Icons.star_half, color: ec.orange, size: 16),
         ...List.generate(emptyStars, (_) {
           return Icon(Icons.star_border,
-              color: Palette.kAccent.withOpacity(0.4), size: 16);
+              color: ec.orange.withValues(alpha: 0.4), size: 16);
         }),
         const SizedBox(width: 4),
         Text(
           rating.toStringAsFixed(1),
-          style: const TextStyle(
-            color: Palette.kMuted,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
+          style: EnjoyTheme.body(
+              size: 12, weight: FontWeight.w600, color: ec.textMute),
         ),
       ],
     );
   }
 
-  Widget _buildLocalCard(Map<String, dynamic> local) {
-    final detalle =
-        local['detallePromocion'] as Map<String, dynamic>? ?? {};
+  Widget _buildLocalCard(EnjoyColors ec, Map<String, dynamic> local) {
+    final detalle = local['detallePromocion'] as Map<String, dynamic>? ?? {};
     final placeName = detalle['placeName']?.toString() ?? 'Local';
     final title = detalle['title']?.toString() ?? '';
     final logoUrl = detalle['logoUrl']?.toString() ?? '';
@@ -248,9 +153,37 @@ class _DetalleVersionScreenState extends State<DetalleVersionScreen> {
         : 0.0;
     final ciudades = local['ciudades'];
 
+    final leading = Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        gradient: ec.iconGlassGradient,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: ec.stroke),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: logoUrl.isNotEmpty
+          ? Image.network(
+              logoUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Icon(
+                Icons.storefront,
+                color: ec.textMute,
+                size: 26,
+              ),
+            )
+          : Icon(
+              Icons.storefront,
+              color: ec.textMute,
+              size: 26,
+            ),
+    );
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: GestureDetector(
+      child: GlassCard(
+        padding: const EdgeInsets.all(14),
+        radius: 16,
         onTap: () {
           Navigator.push(
             context,
@@ -260,122 +193,84 @@ class _DetalleVersionScreenState extends State<DetalleVersionScreen> {
             ),
           );
         },
-        child: _card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                // Logo / avatar
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: Palette.kBg,
-                    borderRadius: BorderRadius.circular(12),
+        child: Row(
+          children: [
+            leading,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    placeName,
+                    style: EnjoyTheme.heading(size: 15, color: ec.text),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  child: logoUrl.isNotEmpty
-                      ? Image.network(
-                          logoUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(
-                            Icons.storefront,
-                            color: Palette.kMuted,
-                            size: 26,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.storefront,
-                          color: Palette.kMuted,
-                          size: 26,
-                        ),
-                ),
-                const SizedBox(width: 12),
-                // Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        placeName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          color: Palette.kTitle,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (title.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            color: Palette.kMuted,
-                            fontSize: 13,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                      const SizedBox(height: 4),
-                      _buildRatingStars(rating),
-                      if (ciudades is List && ciudades.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          (ciudades as List).join(', '),
-                          style: const TextStyle(
-                            color: Palette.kMuted,
-                            fontSize: 12,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  color: Palette.kMuted,
-                  size: 22,
-                ),
-              ],
+                  if (title.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      title,
+                      style: EnjoyTheme.body(size: 13, color: ec.textMute),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  _buildRatingStars(ec, rating),
+                  if (ciudades is List && ciudades.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      (ciudades).join(', '),
+                      style: EnjoyTheme.body(size: 12, color: ec.textMute),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
+            const SizedBox(width: 10),
+            Icon(Icons.chevron_right, color: ec.textMute, size: 22),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildLocalesSection() {
+  Widget _buildLocalesSection(EnjoyColors ec) {
+    final ciudades = widget.versionData['ciudadesDisponibles'];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionHeader(Icons.storefront, 'Locales disponibles'),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: SectionTitle('Locales disponibles')),
+            if (ciudades is List && ciudades.isNotEmpty)
+              Pill((ciudades).join(' · '), variant: PillVariant.glass),
+          ],
+        ),
         const SizedBox(height: 12),
         if (_loading)
-          const Center(
+          Center(
             child: Padding(
-              padding: EdgeInsets.all(32),
-              child: CircularProgressIndicator(color: Palette.kAccent),
+              padding: const EdgeInsets.all(32),
+              child: CircularProgressIndicator(color: ec.orange),
             ),
           )
         else if (_locales.isEmpty)
-          _card(
-            child: const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(
-                child: Text(
-                  'No hay locales disponibles para esta version.',
-                  style: TextStyle(color: Palette.kMuted, fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
+          GlassCard(
+            child: Center(
+              child: Text(
+                'No hay locales disponibles para esta version.',
+                style: EnjoyTheme.body(size: 14, color: ec.textMute),
+                textAlign: TextAlign.center,
               ),
             ),
           )
         else
-          ..._locales.map(_buildLocalCard),
+          ..._locales.map((l) => _buildLocalCard(ec, l)),
       ],
     );
   }
@@ -384,47 +279,41 @@ class _DetalleVersionScreenState extends State<DetalleVersionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final nombre =
         widget.versionData['nombre']?.toString() ?? 'Detalle Membresía';
 
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      appBar: AppBar(
-        backgroundColor: Palette.kPrimary,
-        foregroundColor: Colors.white,
-        title: Text(
-          nombre,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        elevation: 0,
-        actions: [
-          if (!_loading)
-            IconButton(
-              tooltip: 'Ver en mapa',
-              icon: const Icon(Icons.map_outlined),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => MapaVersionScreen(
-                      versionNombre: nombre,
-                      locales: _locales,
-                    ),
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
+    return EnjoyScaffold(
+      padding: EdgeInsets.zero,
+      appBar: const EnjoyAppBar(title: 'Detalle Membresía'),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeaderCard(),
+            _buildHeaderCard(ec),
             const SizedBox(height: 24),
-            _buildLocalesSection(),
-            const SizedBox(height: 32),
+            _buildLocalesSection(ec),
+            // CTA al final del contenido (altura normal, no se estira).
+            const SizedBox(height: 22),
+            EnjoyButton(
+              label: 'Ver en mapa',
+              icon: Icons.place_outlined,
+              variant: EnjoyButtonVariant.ghost,
+              onPressed: _loading
+                  ? null
+                  : () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MapaVersionScreen(
+                            versionNombre: nombre,
+                            locales: _locales,
+                          ),
+                        ),
+                      );
+                    },
+            ),
           ],
         ),
       ),

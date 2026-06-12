@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../ui/enjoy_dark.dart';
 import '../ui/palette.dart';
 
 class InfoTinyLight extends StatelessWidget {
@@ -9,9 +10,9 @@ class InfoTinyLight extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(children: [
-      Icon(icon, color: Palette.kMuted, size: 16),
+      Icon(icon, color: ED.mute, size: 16),
       const SizedBox(width: 4),
-      Text(label, style: const TextStyle(color: Palette.kSub)),
+      Text(label, style: const TextStyle(color: ED.sub)),
     ]);
   }
 }

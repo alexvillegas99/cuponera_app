@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:go_router/go_router.dart';
 import 'package:enjoy/services/registration_api.dart';
 import 'package:enjoy/widgets/branded_modal.dart';
-import 'package:enjoy/ui/palette.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class SolicitudEmpresaScreen extends StatefulWidget {
@@ -47,22 +47,6 @@ class _SolicitudEmpresaScreenState extends State<SolicitudEmpresaScreen> {
     return rx.hasMatch(v.trim()) ? null : 'Email inválido';
   }
 
-  InputDecoration _inputDec(String hint, {IconData? icon}) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
-      prefixIcon: icon != null ? Icon(icon, color: Palette.kMuted, size: 20) : null,
-      filled: true,
-      fillColor: Palette.kBg,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kAccent, width: 1.5)),
-      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent)),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent, width: 1.5)),
-    );
-  }
-
   void _snack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -101,6 +85,7 @@ class _SolicitudEmpresaScreenState extends State<SolicitudEmpresaScreen> {
         message: 'Nos pondremos en contacto contigo muy pronto.',
         icon: Icons.check_circle_outline,
       );
+      if (!mounted) return;
       context.pop();
     } catch (e) {
       await showBrandedDialog(context,
@@ -115,208 +100,200 @@ class _SolicitudEmpresaScreenState extends State<SolicitudEmpresaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      appBar: AppBar(
-        backgroundColor: Palette.kPrimary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('Solicitar acceso', style: TextStyle(fontWeight: FontWeight.w600)),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    // ── Header ──
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Palette.kPrimary,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 40, height: 40,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 20),
-                          ),
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: Text(
-                              'Déjanos tus datos y te contactaremos',
-                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // ── Negocio ──
-                    _Section(
-                      icon: Icons.store_outlined,
-                      title: 'Datos del negocio',
-                      child: Column(children: [
-                        TextFormField(
-                          controller: _empresa,
-                          validator: _req,
-                          cursorColor: Palette.kAccent,
-                          style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                          decoration: _inputDec('Nombre del negocio', icon: Icons.store_outlined),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _ruc,
-                          cursorColor: Palette.kAccent,
-                          style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                          decoration: _inputDec('RUC (opcional)', icon: Icons.numbers_outlined),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _ciudad,
-                          validator: _req,
-                          cursorColor: Palette.kAccent,
-                          style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                          decoration: _inputDec('Ciudad', icon: Icons.location_city_outlined),
-                        ),
-                      ]),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // ── Contacto ──
-                    _Section(
-                      icon: Icons.person_outline,
-                      title: 'Persona de contacto',
-                      child: Column(children: [
-                        TextFormField(
-                          controller: _contacto,
-                          validator: _req,
-                          cursorColor: Palette.kAccent,
-                          style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                          decoration: _inputDec('Nombre y apellido', icon: Icons.person_outline),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _email,
-                          validator: _emailVal,
-                          keyboardType: TextInputType.emailAddress,
-                          cursorColor: Palette.kAccent,
-                          style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                          decoration: _inputDec('Email', icon: Icons.alternate_email),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _telefono,
-                          validator: _req,
-                          keyboardType: TextInputType.phone,
-                          cursorColor: Palette.kAccent,
-                          style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                          decoration: _inputDec('Teléfono', icon: Icons.phone_outlined),
-                        ),
-                      ]),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // ── Mensaje ──
-                    _Section(
-                      icon: Icons.chat_bubble_outline,
-                      title: 'Mensaje (opcional)',
-                      child: TextFormField(
-                        controller: _mensaje,
-                        maxLines: 3,
-                        cursorColor: Palette.kAccent,
-                        style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                        decoration: _inputDec('Cuéntanos sobre tu negocio...'),
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // ── Términos y condiciones ──
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+    final ec = context.ec;
+    return EnjoyScaffold(
+      appBar: const EnjoyAppBar(title: 'Solicitar acceso'),
+      padding: EdgeInsets.zero,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  // ── Header destacado ──
+                  GlassCard(
+                    accent: true,
+                    child: Row(
                       children: [
-                        SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: Checkbox(
-                            value: _aceptaTerminos,
-                            onChanged: (v) => setState(() => _aceptaTerminos = v ?? false),
-                            activeColor: Palette.kAccent,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
+                        IconBox(Icons.handshake_outlined,
+                            accent: true, size: 40, radius: 11, iconSize: 20),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: GestureDetector(
-                            onTap: () => launchUrl(
-                              Uri.parse('https://portal.ecuenjoy.com/privacy-policy'),
-                              mode: LaunchMode.externalApplication,
-                            ),
-                            child: Text.rich(
-                              TextSpan(
-                                text: 'Acepto los ',
-                                style: const TextStyle(color: Palette.kMuted, fontSize: 13),
-                                children: [
-                                  TextSpan(
-                                    text: 'Términos y Condiciones',
-                                    style: TextStyle(
-                                      color: Palette.kAccent,
-                                      fontWeight: FontWeight.w600,
-                                      decoration: TextDecoration.underline,
-                                      decorationColor: Palette.kAccent,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                          child: Text(
+                            'Déjanos tus datos y te contactaremos',
+                            style: EnjoyTheme.heading(
+                                size: 15,
+                                weight: FontWeight.w600,
+                                color: ec.text),
                           ),
                         ),
                       ],
                     ),
+                  ),
 
-                    const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                    // ── Submit ──
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton.icon(
-                        onPressed: (_loading || !_aceptaTerminos) ? null : _enviar,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Palette.kAccent,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: Palette.kAccent.withOpacity(0.5),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                        icon: _loading
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Icon(Icons.send, size: 18),
-                        label: Text(
-                          _loading ? 'Enviando…' : 'Enviar solicitud',
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  // ── Negocio ──
+                  _Section(
+                    icon: Icons.store_outlined,
+                    title: 'Datos del negocio',
+                    child: Column(children: [
+                      TextFormField(
+                        controller: _empresa,
+                        validator: _req,
+                        cursorColor: ec.orange,
+                        style: EnjoyTheme.body(size: 14, color: ec.text),
+                        decoration: const InputDecoration(
+                          hintText: 'Nombre del negocio',
+                          prefixIcon: Icon(Icons.store_outlined, size: 20),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _ruc,
+                        cursorColor: ec.orange,
+                        style: EnjoyTheme.body(size: 14, color: ec.text),
+                        decoration: const InputDecoration(
+                          hintText: 'RUC (opcional)',
+                          prefixIcon: Icon(Icons.numbers_outlined, size: 20),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _ciudad,
+                        validator: _req,
+                        cursorColor: ec.orange,
+                        style: EnjoyTheme.body(size: 14, color: ec.text),
+                        decoration: const InputDecoration(
+                          hintText: 'Ciudad',
+                          prefixIcon:
+                              Icon(Icons.location_city_outlined, size: 20),
+                        ),
+                      ),
+                    ]),
+                  ),
 
-                    const SizedBox(height: 20),
-                  ],
-                ),
+                  const SizedBox(height: 16),
+
+                  // ── Contacto ──
+                  _Section(
+                    icon: Icons.person_outline,
+                    title: 'Persona de contacto',
+                    child: Column(children: [
+                      TextFormField(
+                        controller: _contacto,
+                        validator: _req,
+                        cursorColor: ec.orange,
+                        style: EnjoyTheme.body(size: 14, color: ec.text),
+                        decoration: const InputDecoration(
+                          hintText: 'Nombre y apellido',
+                          prefixIcon: Icon(Icons.person_outline, size: 20),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _email,
+                        validator: _emailVal,
+                        keyboardType: TextInputType.emailAddress,
+                        cursorColor: ec.orange,
+                        style: EnjoyTheme.body(size: 14, color: ec.text),
+                        decoration: const InputDecoration(
+                          hintText: 'Email',
+                          prefixIcon: Icon(Icons.alternate_email, size: 20),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _telefono,
+                        validator: _req,
+                        keyboardType: TextInputType.phone,
+                        cursorColor: ec.orange,
+                        style: EnjoyTheme.body(size: 14, color: ec.text),
+                        decoration: const InputDecoration(
+                          hintText: 'Teléfono',
+                          prefixIcon: Icon(Icons.phone_outlined, size: 20),
+                        ),
+                      ),
+                    ]),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ── Mensaje ──
+                  _Section(
+                    icon: Icons.chat_bubble_outline,
+                    title: 'Mensaje (opcional)',
+                    child: TextFormField(
+                      controller: _mensaje,
+                      maxLines: 3,
+                      cursorColor: ec.orange,
+                      style: EnjoyTheme.body(size: 14, color: ec.text),
+                      decoration: const InputDecoration(
+                        hintText: 'Cuéntanos sobre tu negocio...',
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ── Términos y condiciones ──
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      EnjoyToggle(
+                        value: _aceptaTerminos,
+                        onChanged: (v) =>
+                            setState(() => _aceptaTerminos = v),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => launchUrl(
+                            Uri.parse(
+                                'https://portal.ecuenjoy.com/privacy-policy'),
+                            mode: LaunchMode.externalApplication,
+                          ),
+                          child: Text.rich(
+                            TextSpan(
+                              text: 'Acepto los ',
+                              style: EnjoyTheme.body(
+                                  size: 13, color: ec.textMute),
+                              children: [
+                                TextSpan(
+                                  text: 'Términos y Condiciones',
+                                  style: EnjoyTheme.body(
+                                    size: 13,
+                                    weight: FontWeight.w600,
+                                    color: ec.orangeSoft,
+                                  ).copyWith(
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: ec.orangeSoft,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ── Submit ──
+                  EnjoyButton(
+                    label: _loading ? 'Enviando…' : 'Enviar solicitud',
+                    icon: Icons.send,
+                    loading: _loading,
+                    onPressed:
+                        (_loading || !_aceptaTerminos) ? null : _enviar,
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
               ),
             ),
           ),
@@ -335,25 +312,17 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4))],
-      ),
+    final ec = context.ec;
+    return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Container(
-              width: 32, height: 32,
-              decoration: BoxDecoration(color: Palette.kAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-              child: Icon(icon, size: 16, color: Palette.kAccent),
-            ),
+            IconBox(icon, size: 32, radius: 9, iconSize: 16),
             const SizedBox(width: 10),
-            Text(title, style: const TextStyle(color: Palette.kTitle, fontSize: 14, fontWeight: FontWeight.w600)),
+            Text(title,
+                style: EnjoyTheme.heading(
+                    size: 14, weight: FontWeight.w600, color: ec.text)),
           ]),
           const SizedBox(height: 14),
           child,

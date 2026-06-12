@@ -1,10 +1,18 @@
+import 'dart:convert';
+import 'package:enjoy/models/ciudad.dart';
+import 'package:enjoy/models/provincia.dart';
+import 'package:enjoy/screens/usuarios/establecimiento_form_screen.dart'
+    show SearchablePickerField;
+import 'package:enjoy/services/ciudades_service.dart';
 import 'package:enjoy/widgets/branded_modal.dart';
 import 'package:flutter/material.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:enjoy/services/registration_api.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/otp_service.dart';
 import 'package:enjoy/screens/otp_screen.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 enum TipoIdentificacion { CEDULA, RUC, PASAPORTE }
@@ -40,6 +48,14 @@ class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
   bool _aceptaTerminos = false;
   bool _fromGoogle = false;
 
+  // ── Ubicación ──
+  final _ciudadesSvc = CiudadesService();
+  List<Provincia> _provincias = [];
+  List<Ciudad> _ciudades = [];
+  String? _provinciaId;
+  String? _ciudadId;
+  bool _gpsLoading = false;
+
   static const int _otpLen = 5;
 
   @override
@@ -52,6 +68,111 @@ class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
       _email.text = g['email'] ?? '';
       _fromGoogle = true;
       _emailOk = true; // Email verificado por Google, saltar OTP
+    }
+    _cargarProvincias();
+  }
+
+  Future<void> _cargarProvincias() async {
+    try {
+      final list = await _ciudadesSvc.getProvincias();
+      if (!mounted) return;
+      setState(() => _provincias = list);
+    } catch (_) {}
+  }
+
+  Future<void> _cargarCiudades(String provinciaId) async {
+    try {
+      final list = await _ciudadesSvc.getParaRegistro(provinciaId: provinciaId);
+      if (!mounted) return;
+      setState(() => _ciudades = list);
+    } catch (_) {}
+  }
+
+  /// Pide permiso, obtiene lat/lng y busca provincia/ciudad por reverse-geocode
+  /// usando OpenStreetMap (sin API key). Si no encuentra match exacto en el
+  /// catálogo, deja los pickers para que el usuario elija manualmente.
+  Future<void> _usarMiUbicacion() async {
+    setState(() => _gpsLoading = true);
+    try {
+      // Permisos
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        _snack('Permiso de ubicación denegado.');
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition();
+
+      // Reverse-geocode con OpenStreetMap (Nominatim). Sin API key.
+      final url = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse?lat=${pos.latitude}&lon=${pos.longitude}&format=json&zoom=10&accept-language=es',
+      );
+      final resp = await http.get(url, headers: {
+        'User-Agent': 'EnjoyApp/1.0 (registro cliente)',
+      });
+      if (resp.statusCode != 200) {
+        _snack('No se pudo detectar tu ciudad.');
+        return;
+      }
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final addr = (json['address'] as Map?) ?? {};
+      final provinciaNombre = (addr['state'] ?? '').toString();
+      final ciudadNombre = (addr['city'] ??
+              addr['town'] ??
+              addr['village'] ??
+              addr['municipality'] ??
+              '')
+          .toString();
+
+      // Match contra catálogo (sin tildes, case-insensitive)
+      String norm(String s) => s
+          .toLowerCase()
+          .replaceAll(RegExp(r'á|à|ä|â'), 'a')
+          .replaceAll(RegExp(r'é|è|ë|ê'), 'e')
+          .replaceAll(RegExp(r'í|ì|ï|î'), 'i')
+          .replaceAll(RegExp(r'ó|ò|ö|ô'), 'o')
+          .replaceAll(RegExp(r'ú|ù|ü|û'), 'u')
+          .trim();
+
+      final provMatch = _provincias.firstWhere(
+        (p) => norm(p.nombre) == norm(provinciaNombre),
+        orElse: () => const Provincia(id: '', nombre: ''),
+      );
+      if (provMatch.id.isEmpty) {
+        _snack('No detectamos tu provincia. Selecciónala manualmente.');
+        return;
+      }
+      setState(() {
+        _provinciaId = provMatch.id;
+        _ciudadId = null;
+      });
+      await _cargarCiudades(provMatch.id);
+      if (!mounted) return;
+
+      final ciuMatch = _ciudades.firstWhere(
+        (c) => norm(c.nombre) == norm(ciudadNombre),
+        orElse: () => const Ciudad(
+          id: '',
+          nombre: '',
+          estado: true,
+          visibleParaRegistro: true,
+        ),
+      );
+      if (ciuMatch.id.isNotEmpty) {
+        setState(() => _ciudadId = ciuMatch.id);
+        _snack('Ubicación detectada: ${provMatch.nombre} / ${ciuMatch.nombre}');
+      } else {
+        _snack(
+            'Provincia: ${provMatch.nombre}. Elige tu ciudad manualmente.');
+      }
+    } catch (e) {
+      _snack('No se pudo obtener tu ubicación.');
+    } finally {
+      if (mounted) setState(() => _gpsLoading = false);
     }
   }
 
@@ -159,6 +280,8 @@ class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
         // Social: sin clave (se recupera luego). Email: con clave.
         "password": _fromGoogle ? null : _password.text,
         "telefono": _telefono.text.trim().isEmpty ? null : _telefono.text.trim(),
+        if (_provinciaId != null) "provincia": _provinciaId,
+        if (_ciudadId != null) "ciudad": _ciudadId,
       };
 
       // Crea la cuenta y deja la sesión iniciada (auto-login → home).
@@ -185,302 +308,336 @@ class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
     );
   }
 
-  // ── Decoración de input ──
-  InputDecoration _inputDec(String hint, {IconData? icon, Widget? suffix}) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
-      prefixIcon: icon != null ? Icon(icon, color: Palette.kMuted, size: 20) : null,
-      suffixIcon: suffix,
-      filled: true,
-      fillColor: Palette.kBg,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Palette.kAccent, width: 1.5),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.redAccent),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      appBar: AppBar(
-        backgroundColor: Palette.kPrimary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('Crear cuenta', style: TextStyle(fontWeight: FontWeight.w600)),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Step 1: Email ──
-                  _SectionCard(
-                    icon: Icons.mail_outline,
-                    title: 'Correo electrónico',
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _email,
-                            readOnly: _emailOk || _fromGoogle,
-                            keyboardType: TextInputType.emailAddress,
-                            cursorColor: Palette.kAccent,
-                            style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                            decoration: _inputDec('email@ejemplo.com', icon: Icons.alternate_email),
+    final ec = context.ec;
+    return EnjoyScaffold(
+      appBar: const EnjoyAppBar(title: 'Crear cuenta'),
+      padding: EdgeInsets.zero,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Barra de pasos ──
+                Steps(count: 2, current: _emailOk ? 2 : 1),
+                const SizedBox(height: 18),
+
+                // ── Step 1: Email ──
+                _SectionCard(
+                  icon: Icons.mail_outline,
+                  title: 'Correo electrónico',
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _email,
+                          readOnly: _emailOk || _fromGoogle,
+                          keyboardType: TextInputType.emailAddress,
+                          cursorColor: ec.orange,
+                          style: EnjoyTheme.body(size: 14, color: ec.text),
+                          decoration: const InputDecoration(
+                            hintText: 'email@ejemplo.com',
+                            prefixIcon: Icon(Icons.alternate_email, size: 20),
                           ),
                         ),
-                        if (!_fromGoogle) const SizedBox(width: 10),
-                        if (!_fromGoogle) SizedBox(
-                          height: 48,
-                          child: ElevatedButton(
-                            onPressed: _loading || _emailOk ? null : _checkEmail,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _emailOk ? Palette.kPrimary : Palette.kAccent,
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor: _emailOk
-                                  ? Palette.kPrimary.withOpacity(0.8)
-                                  : Palette.kAccent.withOpacity(0.5),
-                              disabledForegroundColor: Colors.white70,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                            ),
-                            child: _loading && !_emailOk
-                                ? const SizedBox(
-                                    width: 18, height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                  )
-                                : Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(_emailOk ? Icons.check : Icons.send, size: 16),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        _emailOk ? 'Validado' : 'Verificar',
-                                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                      ),
-                                    ],
-                                  ),
-                          ),
+                      ),
+                      if (!_fromGoogle) const SizedBox(width: 10),
+                      if (!_fromGoogle)
+                        EnjoyButton(
+                          label: _emailOk ? 'Validado' : 'Verificar',
+                          icon: _emailOk ? Icons.check : Icons.send,
+                          variant: _emailOk
+                              ? EnjoyButtonVariant.green
+                              : EnjoyButtonVariant.orange,
+                          expand: false,
+                          dense: true,
+                          loading: _loading && !_emailOk,
+                          onPressed:
+                              _loading || _emailOk ? null : _checkEmail,
                         ),
-                      ],
-                    ),
+                    ],
                   ),
+                ),
 
-                  const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-                  // ── Step 2: Datos (bloqueado si no validó email) ──
-                  IgnorePointer(
-                    ignoring: !_emailOk,
-                    child: AnimatedOpacity(
-                      opacity: _emailOk ? 1 : 0.45,
-                      duration: const Duration(milliseconds: 200),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            // Datos personales
-                            _SectionCard(
-                              icon: Icons.person_outline,
-                              title: 'Datos personales',
-                              child: Column(
-                                children: [
-                                  TextFormField(
-                                    controller: _nombres,
-                                    validator: _reqMin2,
-                                    cursorColor: Palette.kAccent,
-                                    style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                                    decoration: _inputDec('Nombres', icon: Icons.badge_outlined),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  TextFormField(
-                                    controller: _apellidos,
-                                    validator: _reqMin2,
-                                    cursorColor: Palette.kAccent,
-                                    style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                                    decoration: _inputDec('Apellidos', icon: Icons.badge_outlined),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  TextFormField(
-                                    controller: _telefono,
-                                    keyboardType: TextInputType.phone,
-                                    cursorColor: Palette.kAccent,
-                                    style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                                    decoration: _inputDec('Teléfono (opcional)', icon: Icons.phone_outlined),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            // Identificación
-                            _SectionCard(
-                              icon: Icons.credit_card,
-                              title: 'Identificación',
-                              child: Column(
-                                children: [
-                                  DropdownButtonFormField<TipoIdentificacion>(
-                                    value: _tipo,
-                                    decoration: _inputDec('Tipo'),
-                                    dropdownColor: Colors.white,
-                                    items: TipoIdentificacion.values
-                                        .map((t) => DropdownMenuItem(
-                                              value: t,
-                                              child: Text(t.name, style: const TextStyle(color: Palette.kTitle, fontSize: 14)),
-                                            ))
-                                        .toList(),
-                                    onChanged: (v) => setState(() => _tipo = v ?? TipoIdentificacion.CEDULA),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  TextFormField(
-                                    controller: _identificacion,
-                                    validator: _reqNotEmpty,
-                                    cursorColor: Palette.kAccent,
-                                    style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                                    decoration: _inputDec(
-                                      _tipo == TipoIdentificacion.RUC ? 'RUC' : 'Cédula / Pasaporte',
-                                      icon: Icons.fingerprint,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            // Contraseña (solo registro con clave; las cuentas
-                            // por redes sociales se crean sin clave).
-                            if (!_fromGoogle) ...[
-                              _SectionCard(
-                                icon: Icons.lock_outline,
-                                title: 'Contraseña',
-                                child: TextFormField(
-                                  controller: _password,
-                                  validator: _pwdVal,
-                                  obscureText: _obscure,
-                                  cursorColor: Palette.kAccent,
-                                  style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                                  decoration: _inputDec(
-                                    'Mínimo 6 caracteres',
-                                    icon: Icons.lock_outline,
-                                    suffix: IconButton(
-                                      icon: Icon(
-                                        _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                        color: Palette.kMuted,
-                                        size: 20,
-                                      ),
-                                      onPressed: () => setState(() => _obscure = !_obscure),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                            ],
-
-                            // ── Términos y condiciones ──
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
+                // ── Step 2: Datos (bloqueado si no validó email) ──
+                IgnorePointer(
+                  ignoring: !_emailOk,
+                  child: AnimatedOpacity(
+                    opacity: _emailOk ? 1 : 0.45,
+                    duration: const Duration(milliseconds: 200),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        children: [
+                          // Datos personales
+                          _SectionCard(
+                            icon: Icons.person_outline,
+                            title: 'Datos personales',
+                            child: Column(
                               children: [
-                                SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: Checkbox(
-                                    value: _aceptaTerminos,
-                                    onChanged: (v) => setState(() => _aceptaTerminos = v ?? false),
-                                    activeColor: Palette.kAccent,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                TextFormField(
+                                  controller: _nombres,
+                                  validator: _reqMin2,
+                                  cursorColor: ec.orange,
+                                  style:
+                                      EnjoyTheme.body(size: 14, color: ec.text),
+                                  decoration: const InputDecoration(
+                                    hintText: 'Nombres',
+                                    prefixIcon:
+                                        Icon(Icons.badge_outlined, size: 20),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: GestureDetector(
-                                    onTap: () => launchUrl(
-                                      Uri.parse('https://portal.ecuenjoy.com/privacy-policy'),
-                                      mode: LaunchMode.externalApplication,
-                                    ),
-                                    child: Text.rich(
-                                      TextSpan(
-                                        text: 'Acepto los ',
-                                        style: const TextStyle(color: Palette.kMuted, fontSize: 13),
-                                        children: [
-                                          TextSpan(
-                                            text: 'Términos y Condiciones',
-                                            style: TextStyle(
-                                              color: Palette.kAccent,
-                                              fontWeight: FontWeight.w600,
-                                              decoration: TextDecoration.underline,
-                                              decorationColor: Palette.kAccent,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: _apellidos,
+                                  validator: _reqMin2,
+                                  cursorColor: ec.orange,
+                                  style:
+                                      EnjoyTheme.body(size: 14, color: ec.text),
+                                  decoration: const InputDecoration(
+                                    hintText: 'Apellidos',
+                                    prefixIcon:
+                                        Icon(Icons.badge_outlined, size: 20),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: _telefono,
+                                  keyboardType: TextInputType.phone,
+                                  cursorColor: ec.orange,
+                                  style:
+                                      EnjoyTheme.body(size: 14, color: ec.text),
+                                  decoration: const InputDecoration(
+                                    hintText: 'Teléfono (opcional)',
+                                    prefixIcon:
+                                        Icon(Icons.phone_outlined, size: 20),
                                   ),
                                 ),
                               ],
                             ),
+                          ),
 
-                            const SizedBox(height: 20),
+                          const SizedBox(height: 16),
 
-                            // ── Botón submit ──
-                            SizedBox(
-                              width: double.infinity,
-                              height: 50,
-                              child: ElevatedButton.icon(
-                                onPressed: (_loading || !_emailOk || !_aceptaTerminos) ? null : _submit,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Palette.kAccent,
-                                  foregroundColor: Colors.white,
-                                  disabledBackgroundColor: Palette.kAccent.withOpacity(0.5),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          // Ubicación (provincia + ciudad) — opcional pero
+                          // recomendado para recibir notificaciones locales.
+                          _SectionCard(
+                            icon: Icons.place_outlined,
+                            title: 'Ubicación',
+                            child: Column(
+                              children: [
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: EnjoyButton(
+                                    label: _gpsLoading
+                                        ? 'Detectando…'
+                                        : 'Usar mi ubicación',
+                                    icon: Icons.my_location_rounded,
+                                    variant: EnjoyButtonVariant.ghost,
+                                    loading: _gpsLoading,
+                                    onPressed:
+                                        _gpsLoading ? null : _usarMiUbicacion,
+                                  ),
                                 ),
-                                icon: _loading
-                                    ? const SizedBox(
-                                        width: 20, height: 20,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                      )
-                                    : const Icon(Icons.check, size: 18),
-                                label: Text(
-                                  _loading ? 'Creando…' : 'Crear cuenta',
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                                const SizedBox(height: 12),
+                                SearchablePickerField(
+                                  label: 'Provincia',
+                                  icon: Icons.map_outlined,
+                                  value: _provinciaId,
+                                  items: _provincias
+                                      .map((p) =>
+                                          (id: p.id, label: p.nombre))
+                                      .toList(),
+                                  onChanged: (id) {
+                                    setState(() {
+                                      _provinciaId = id;
+                                      _ciudadId = null;
+                                      _ciudades = [];
+                                    });
+                                    if (id != null) _cargarCiudades(id);
+                                  },
+                                ),
+                                const SizedBox(height: 10),
+                                SearchablePickerField(
+                                  label: 'Ciudad',
+                                  icon: Icons.location_city_rounded,
+                                  value: _ciudadId,
+                                  items: _ciudades
+                                      .map((c) =>
+                                          (id: c.id, label: c.nombre))
+                                      .toList(),
+                                  onChanged: (id) =>
+                                      setState(() => _ciudadId = id),
+                                ),
+                                if (_provinciaId == null) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Opcional pero recomendado — te ayuda a recibir promociones de tu zona.',
+                                    style: EnjoyTheme.body(
+                                        size: 11.5, color: ec.textMute),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Identificación
+                          _SectionCard(
+                            icon: Icons.credit_card,
+                            title: 'Identificación',
+                            child: Column(
+                              children: [
+                                DropdownButtonFormField<TipoIdentificacion>(
+                                  initialValue: _tipo,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Tipo',
+                                  ),
+                                  dropdownColor: ec.surfaceMid,
+                                  style:
+                                      EnjoyTheme.body(size: 14, color: ec.text),
+                                  items: TipoIdentificacion.values
+                                      .map((t) => DropdownMenuItem(
+                                            value: t,
+                                            child: Text(t.name,
+                                                style: EnjoyTheme.body(
+                                                    size: 14, color: ec.text)),
+                                          ))
+                                      .toList(),
+                                  onChanged: (v) => setState(() =>
+                                      _tipo = v ?? TipoIdentificacion.CEDULA),
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: _identificacion,
+                                  validator: _reqNotEmpty,
+                                  cursorColor: ec.orange,
+                                  style:
+                                      EnjoyTheme.body(size: 14, color: ec.text),
+                                  decoration: InputDecoration(
+                                    hintText: _tipo == TipoIdentificacion.RUC
+                                        ? 'RUC'
+                                        : 'Cédula / Pasaporte',
+                                    prefixIcon:
+                                        const Icon(Icons.fingerprint, size: 20),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Contraseña (solo registro con clave; las cuentas
+                          // por redes sociales se crean sin clave).
+                          if (!_fromGoogle) ...[
+                            _SectionCard(
+                              icon: Icons.lock_outline,
+                              title: 'Contraseña',
+                              child: TextFormField(
+                                controller: _password,
+                                validator: _pwdVal,
+                                obscureText: _obscure,
+                                cursorColor: ec.orange,
+                                style:
+                                    EnjoyTheme.body(size: 14, color: ec.text),
+                                decoration: InputDecoration(
+                                  hintText: 'Mínimo 6 caracteres',
+                                  prefixIcon:
+                                      const Icon(Icons.lock_outline, size: 20),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscure
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      color: ec.textMute,
+                                      size: 20,
+                                    ),
+                                    onPressed: () =>
+                                        setState(() => _obscure = !_obscure),
+                                  ),
                                 ),
                               ),
                             ),
-
                             const SizedBox(height: 16),
                           ],
-                        ),
+
+                          // ── Términos y condiciones ──
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: Checkbox(
+                                  value: _aceptaTerminos,
+                                  onChanged: (v) => setState(
+                                      () => _aceptaTerminos = v ?? false),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(6)),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => launchUrl(
+                                    Uri.parse(
+                                        'https://portal.ecuenjoy.com/privacy-policy'),
+                                    mode: LaunchMode.externalApplication,
+                                  ),
+                                  child: Text.rich(
+                                    TextSpan(
+                                      text: 'Acepto los ',
+                                      style: EnjoyTheme.body(
+                                          size: 13, color: ec.textMute),
+                                      children: [
+                                        TextSpan(
+                                          text: 'Términos y Condiciones',
+                                          style: EnjoyTheme.body(
+                                            size: 13,
+                                            weight: FontWeight.w600,
+                                            color: ec.orangeSoft,
+                                          ).copyWith(
+                                            decoration:
+                                                TextDecoration.underline,
+                                            decorationColor: ec.orangeSoft,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // ── Botón submit ──
+                          EnjoyButton(
+                            label: _loading ? 'Creando…' : 'Crear cuenta',
+                            icon: Icons.check,
+                            loading: _loading,
+                            onPressed:
+                                (_loading || !_emailOk || !_aceptaTerminos)
+                                    ? null
+                                    : _submit,
+                          ),
+
+                          const SizedBox(height: 16),
+                        ],
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -499,42 +656,19 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    final ec = context.ec;
+    return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Palette.kAccent.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, size: 16, color: Palette.kAccent),
-              ),
+              IconBox(icon, size: 32, radius: 9, iconSize: 16),
               const SizedBox(width: 10),
               Text(
                 title,
-                style: const TextStyle(
-                  color: Palette.kTitle,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: EnjoyTheme.heading(
+                    size: 14, weight: FontWeight.w600, color: ec.text),
               ),
             ],
           ),

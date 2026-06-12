@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:enjoy/ui/enjoy.dart';
 
 class CuponesScreen extends StatefulWidget {
   const CuponesScreen({super.key, required this.cupones, this.onScanSuccess});
@@ -60,16 +60,12 @@ class _CuponesScreenState extends State<CuponesScreen> {
   }
 
   Future<void> _pickVersion() async {
+    final ec = context.ec;
     final versiones = _versiones;
     final selected = await showModalBottomSheet<String?>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      barrierColor: Colors.black.withOpacity(0.25),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         child: Column(
@@ -81,20 +77,16 @@ class _CuponesScreenState extends State<CuponesScreen> {
               height: 5,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: Colors.black12,
+                color: ec.strokeStrong,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
             // Título
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'Filtrar por versión',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 17,
-                  color: Palette.kTitle,
-                ),
+                style: EnjoyTheme.heading(size: 17, color: ec.text),
               ),
             ),
             const SizedBox(height: 12),
@@ -105,7 +97,7 @@ class _CuponesScreenState extends State<CuponesScreen> {
               selected: _versionId == null,
               onTap: () => Navigator.pop(ctx, '__all__'),
             ),
-            if (versiones.isNotEmpty) const Divider(height: 8),
+            if (versiones.isNotEmpty) const EnjoyDivider(height: 16),
             ...versiones.map((v) => _VersionOption(
                   label: v['nombre'] ?? '—',
                   icon: Icons.bookmark_outline_rounded,
@@ -131,16 +123,16 @@ class _CuponesScreenState extends State<CuponesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final data = _filtered;
     final total = widget.cupones.length;
 
     return Scaffold(
-      backgroundColor: Palette.kBg,
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           // ── Barra de filtros ──
-          Container(
-            color: Palette.kSurface,
+          Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             child: Row(
               children: [
@@ -148,30 +140,34 @@ class _CuponesScreenState extends State<CuponesScreen> {
                 Expanded(
                   flex: 5,
                   child: Container(
-                    height: 44,
+                    height: 46,
                     decoration: BoxDecoration(
-                      color: Palette.kField,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Palette.kBorder),
+                      color: ec.glass,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: ec.stroke),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
                       children: [
-                        const Icon(Icons.search_rounded,
-                            color: Palette.kMuted, size: 18),
+                        Icon(Icons.search_rounded,
+                            color: ec.orangeSoft, size: 18),
                         const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
                             controller: _qCtrl,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
+                            cursorColor: ec.orange,
+                            decoration: InputDecoration(
                               hintText: 'Secuencial…',
-                              hintStyle: TextStyle(
-                                  color: Palette.kMuted, fontSize: 13),
+                              hintStyle: EnjoyTheme.body(
+                                  size: 13, color: ec.textMute),
                               border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              filled: false,
                               isCollapsed: true,
                             ),
-                            style: const TextStyle(fontSize: 13),
+                            style: EnjoyTheme.body(size: 13, color: ec.text),
                             onChanged: (v) => setState(() => _q = v.trim()),
                           ),
                         ),
@@ -181,8 +177,8 @@ class _CuponesScreenState extends State<CuponesScreen> {
                               _qCtrl.clear();
                               setState(() => _q = '');
                             },
-                            child: const Icon(Icons.close_rounded,
-                                size: 16, color: Palette.kMuted),
+                            child: Icon(Icons.close_rounded,
+                                size: 16, color: ec.textMute),
                           ),
                       ],
                     ),
@@ -195,17 +191,17 @@ class _CuponesScreenState extends State<CuponesScreen> {
                   child: GestureDetector(
                     onTap: _pickVersion,
                     child: Container(
-                      height: 44,
+                      height: 46,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         color: _versionId != null
-                            ? Palette.kAccent.withOpacity(0.08)
-                            : Palette.kField,
-                        borderRadius: BorderRadius.circular(12),
+                            ? ec.orange.withValues(alpha: 0.14)
+                            : ec.glass,
+                        borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: _versionId != null
-                              ? Palette.kAccent.withOpacity(0.4)
-                              : Palette.kBorder,
+                              ? ec.orange.withValues(alpha: 0.3)
+                              : ec.stroke,
                         ),
                       ),
                       child: Row(
@@ -214,8 +210,8 @@ class _CuponesScreenState extends State<CuponesScreen> {
                             Icons.bookmark_outline_rounded,
                             size: 16,
                             color: _versionId != null
-                                ? Palette.kAccent
-                                : Palette.kMuted,
+                                ? ec.orangeSoft
+                                : ec.textMute,
                           ),
                           const SizedBox(width: 7),
                           Expanded(
@@ -229,26 +225,26 @@ class _CuponesScreenState extends State<CuponesScreen> {
                                   : 'Versión',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: _versionId != null
-                                    ? Palette.kAccent
-                                    : Palette.kMuted,
-                                fontWeight: _versionId != null
+                              style: EnjoyTheme.body(
+                                size: 13,
+                                weight: _versionId != null
                                     ? FontWeight.w600
                                     : FontWeight.w400,
+                                color: _versionId != null
+                                    ? ec.orangeSoft
+                                    : ec.textMute,
                               ),
                             ),
                           ),
                           if (_versionId != null)
                             GestureDetector(
                               onTap: () => setState(() => _versionId = null),
-                              child: const Icon(Icons.close_rounded,
-                                  size: 15, color: Palette.kAccent),
+                              child: Icon(Icons.close_rounded,
+                                  size: 15, color: ec.orangeSoft),
                             )
                           else
-                            const Icon(Icons.expand_more_rounded,
-                                size: 17, color: Palette.kMuted),
+                            Icon(Icons.expand_more_rounded,
+                                size: 17, color: ec.textMute),
                         ],
                       ),
                     ),
@@ -260,73 +256,44 @@ class _CuponesScreenState extends State<CuponesScreen> {
 
           // ── Contador ──
           if (total > 0)
-            Container(
-              color: Palette.kSurface,
+            Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Palette.kAccent.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.confirmation_num_rounded,
-                            size: 13, color: Palette.kAccent),
-                        const SizedBox(width: 5),
-                        Text(
-                          '${data.length} de $total cupón${total != 1 ? 'es' : ''}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Palette.kAccent,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
+                  Pill(
+                    '${data.length} de $total cupón${total != 1 ? 'es' : ''}',
+                    variant: PillVariant.orange,
+                    icon: Icons.confirmation_num_rounded,
+                    dense: true,
                   ),
                 ],
               ),
             ),
-
-          const Divider(height: 1, color: Palette.kBorder),
 
           // ── Lista ──
           Expanded(
             child: data.isEmpty
                 ? _EmptyState(onScan: _goScan)
                 : ListView.separated(
-                    padding:
-                        const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
                     itemCount: data.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: 10),
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (_, i) {
-                      final item =
-                          data[i] as Map<String, dynamic>;
+                      final item = data[i];
                       final cupon =
-                          (item['cupon'] as Map?)
-                              ?.cast<String, dynamic>() ??
-                          const {};
+                          (item['cupon'] as Map?)?.cast<String, dynamic>() ??
+                              const {};
                       final usuario =
-                          (item['usuario'] as Map?)?['nombre']
-                              ?.toString() ??
-                          'Desconocido';
+                          (item['usuario'] as Map?)?['nombre']?.toString() ??
+                              'Desconocido';
                       final escaneadoPor =
                           (item['escaneadoPor'] as Map?)?['nombre']
                               ?.toString();
-                      final sec =
-                          cupon['secuencial']?.toString() ?? 'N/A';
+                      final sec = cupon['secuencial']?.toString() ?? 'N/A';
                       final version =
-                          (cupon['version'] as Map?)?['nombre']
-                              ?.toString() ??
-                          '—';
-                      final fechaEscaneo =
-                          item['fechaEscaneo']?.toString();
+                          (cupon['version'] as Map?)?['nombre']?.toString() ??
+                              '—';
+                      final fechaEscaneo = item['fechaEscaneo']?.toString();
 
                       return _CouponCard(
                         secuencial: sec,
@@ -342,12 +309,13 @@ class _CuponesScreenState extends State<CuponesScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _goScan,
-        backgroundColor: Palette.kAccent,
-        foregroundColor: Colors.white,
+        backgroundColor: ec.orange,
+        foregroundColor: ec.onAccent,
         elevation: 3,
         icon: const Icon(Icons.qr_code_scanner_rounded),
-        label: const Text('Escanear',
-            style: TextStyle(fontWeight: FontWeight.w700)),
+        label: Text('Escanear',
+            style: EnjoyTheme.heading(
+                size: 14, weight: FontWeight.w700, color: ec.onAccent)),
       ),
     );
   }
@@ -374,129 +342,48 @@ class _CouponCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Palette.kBorder),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-            color: Colors.black.withOpacity(0.04),
-          ),
-        ],
-      ),
-      child: Row(
+    final ec = context.ec;
+    return GlassCard(
+      leftAccent: ec.orange,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Franja naranja izquierda
-          Container(
-            width: 5,
-            height: 110,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Palette.kAccent, Palette.kAccentLight],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(14),
-                bottomLeft: Radius.circular(14),
-              ),
-            ),
-          ),
-
-          // Ícono central
-          Container(
-            width: 52,
-            height: 110,
-            alignment: Alignment.center,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Palette.kAccent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.local_offer_rounded,
-                size: 20,
-                color: Palette.kAccent,
-              ),
-            ),
-          ),
-
-          // Contenido
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Encabezado: número + check
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Cupón #$secuencial',
-                          style: const TextStyle(
-                            color: Palette.kTitle,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.check_circle_rounded,
-                                size: 12, color: Color(0xFF10B981)),
-                            SizedBox(width: 4),
-                            Text(
-                              'Canjeado',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF10B981),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-
-                  // Versión
-                  _InfoRow(Icons.bookmarks_outlined, version),
-                  const SizedBox(height: 3),
-
-                  // Responsable
-                  _InfoRow(Icons.store_rounded, usuario),
-                  const SizedBox(height: 3),
-
-                  // Quién escaneó (si difiere)
-                  if (escaneadoPor != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 3),
-                      child: _InfoRow(
-                          Icons.qr_code_scanner_rounded, 'Escaneó: $escaneadoPor'),
+          // Encabezado: número + estado
+          Row(
+            children: [
+              IconBox(Icons.local_offer_rounded, size: 38, iconSize: 18),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Cupón #$secuencial',
+                      style: EnjoyTheme.heading(size: 15, color: ec.text),
                     ),
-
-                  // Fecha
-                  _InfoRow(Icons.access_time_rounded, fechaLabel,
-                      muted: false),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      usuario,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: EnjoyTheme.body(size: 12, color: ec.textMute),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const Pill('Canjeado',
+                  variant: PillVariant.green, dense: true),
+            ],
           ),
+          const SizedBox(height: 10),
+          _InfoRow(Icons.bookmarks_outlined, version),
+          const SizedBox(height: 4),
+          if (escaneadoPor != null) ...[
+            _InfoRow(Icons.qr_code_scanner_rounded, 'Escaneó: $escaneadoPor'),
+            const SizedBox(height: 4),
+          ],
+          _InfoRow(Icons.access_time_rounded, fechaLabel, muted: false),
         ],
       ),
     );
@@ -511,19 +398,20 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Row(
       children: [
-        Icon(icon, size: 13, color: Palette.kMuted),
-        const SizedBox(width: 5),
+        Icon(icon, size: 13, color: ec.textMute),
+        const SizedBox(width: 6),
         Expanded(
           child: Text(
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12,
-              color: muted ? Palette.kMuted : Palette.kTitle,
-              fontWeight: muted ? FontWeight.w400 : FontWeight.w500,
+            style: EnjoyTheme.body(
+              size: 12,
+              weight: muted ? FontWeight.w400 : FontWeight.w500,
+              color: muted ? ec.textMute : ec.textSoft,
             ),
           ),
         ),
@@ -551,50 +439,42 @@ class _VersionOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 3),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? Palette.kAccent.withOpacity(0.08) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          color: selected ? ec.orange.withValues(alpha: 0.1) : ec.glass,
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected ? Palette.kAccent.withOpacity(0.3) : Colors.transparent,
+            color: selected ? ec.orange.withValues(alpha: 0.3) : ec.stroke,
           ),
         ),
         child: Row(
           children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: selected
-                    ? Palette.kAccent.withOpacity(0.12)
-                    : Palette.kField,
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Icon(
-                icon,
-                size: 17,
-                color: selected ? Palette.kAccent : Palette.kMuted,
-              ),
+            IconBox(
+              icon,
+              size: 34,
+              radius: 10,
+              iconSize: 17,
+              color: selected ? ec.orangeSoft : ec.textMute,
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight:
-                      selected ? FontWeight.w700 : FontWeight.w400,
-                  color: selected ? Palette.kAccent : Palette.kTitle,
+                style: EnjoyTheme.body(
+                  size: 14,
+                  weight: selected ? FontWeight.w700 : FontWeight.w400,
+                  color: selected ? ec.orangeSoft : ec.text,
                 ),
               ),
             ),
             if (selected)
-              const Icon(Icons.check_rounded,
-                  size: 18, color: Palette.kAccent),
+              Icon(Icons.check_rounded, size: 18, color: ec.orangeSoft),
           ],
         ),
       ),
@@ -612,6 +492,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -622,48 +503,33 @@ class _EmptyState extends StatelessWidget {
               width: 90,
               height: 90,
               decoration: BoxDecoration(
-                color: Palette.kAccent.withOpacity(0.08),
+                color: ec.orange.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
+                border: Border.all(color: ec.orange.withValues(alpha: 0.25)),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.confirmation_num_outlined,
                 size: 44,
-                color: Palette.kAccent,
+                color: ec.orangeSoft,
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Sin cupones',
-              style: TextStyle(
-                color: Palette.kTitle,
-                fontWeight: FontWeight.w800,
-                fontSize: 20,
-              ),
+              style: EnjoyTheme.heading(size: 20, color: ec.text),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Aún no hay cupones canjeados.\nEscanea un QR para registrar el primero.',
-              style: TextStyle(color: Palette.kMuted, fontSize: 13, height: 1.5),
+              style: EnjoyTheme.body(size: 13, color: ec.textMute, height: 1.5),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            FilledButton.icon(
+            EnjoyButton(
+              label: 'Escanear QR',
+              icon: Icons.qr_code_scanner_rounded,
+              expand: false,
               onPressed: onScan,
-              style: FilledButton.styleFrom(
-                backgroundColor: Palette.kAccent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
-              label: const Text(
-                'Escanear QR',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-              ),
             ),
           ],
         ),

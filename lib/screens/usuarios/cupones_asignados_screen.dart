@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:enjoy/services/cupones_admin_service.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 
 class CuponesAsignadosScreen extends StatefulWidget {
@@ -77,6 +77,7 @@ class _CuponesAsignadosScreenState extends State<CuponesAsignadosScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Column(
       children: [
         // ── Buscador ───────────────────────────────────────────────
@@ -85,23 +86,17 @@ class _CuponesAsignadosScreenState extends State<CuponesAsignadosScreen> {
           child: TextField(
             controller: _searchCtrl,
             onChanged: _onSearchChanged,
-            style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+            cursorColor: ec.orange,
+            style: EnjoyTheme.body(size: 14, color: ec.text),
             decoration: InputDecoration(
               hintText: 'Buscar por secuencial, cliente o estado...',
-              hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
-              prefixIcon: const Icon(Icons.search_rounded, color: Palette.kMuted, size: 20),
+              prefixIcon: const Icon(Icons.search_rounded, size: 20),
               suffixIcon: _searchCtrl.text.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 18, color: Palette.kMuted),
+                      icon: const Icon(Icons.close_rounded, size: 18),
                       onPressed: () { _searchCtrl.clear(); _cargar(reset: true); },
                     )
                   : null,
-              filled: true,
-              fillColor: Palette.kSurface,
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kAccent)),
             ),
           ),
         ),
@@ -109,17 +104,17 @@ class _CuponesAsignadosScreenState extends State<CuponesAsignadosScreen> {
         // ── Contador ──────────────────────────────────────────────
         if (!_loading && _error == null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Row(
               children: [
                 Text(
                   '$_total cupón${_total != 1 ? 'es' : ''} asignado${_total != 1 ? 's' : ''}',
-                  style: const TextStyle(color: Palette.kMuted, fontSize: 12, fontWeight: FontWeight.w500),
+                  style: EnjoyTheme.body(size: 12, weight: FontWeight.w500, color: ec.textMute),
                 ),
                 if (_totalPages > 1) ...[
                   const Spacer(),
                   Text('Página $_page de $_totalPages',
-                      style: const TextStyle(color: Palette.kMuted, fontSize: 12)),
+                      style: EnjoyTheme.body(size: 12, color: ec.textMute)),
                 ],
               ],
             ),
@@ -128,13 +123,13 @@ class _CuponesAsignadosScreenState extends State<CuponesAsignadosScreen> {
         // ── Contenido ─────────────────────────────────────────────
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator(color: Palette.kAccent))
+              ? Center(child: CircularProgressIndicator(color: ec.orange))
               : _error != null
                   ? _ErrorRetry(message: _error!, onRetry: _cargar)
                   : _cupones.isEmpty
                       ? const _Empty()
                       : RefreshIndicator(
-                          color: Palette.kAccent,
+                          color: ec.orange,
                           onRefresh: () => _cargar(reset: true),
                           child: ListView.separated(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -202,11 +197,11 @@ class _CuponCard extends StatelessWidget {
 
   String get _estado => (cupon['estado'] ?? '').toString().toLowerCase();
 
-  Color get _estadoColor {
+  PillVariant get _estadoPill {
     switch (_estado) {
-      case 'activo': return const Color(0xFF16A34A);
-      case 'bloqueado': return const Color(0xFFDC2626);
-      default: return Palette.kMuted;
+      case 'activo': return PillVariant.green;
+      case 'bloqueado': return PillVariant.red;
+      default: return PillVariant.glass;
     }
   }
 
@@ -220,114 +215,84 @@ class _CuponCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final secuencial = cupon['secuencial'];
     final escaneos = cupon['numeroDeEscaneos'] ?? 0;
     final vencimiento = cupon['fechaVencimiento']?.toString();
     final ultimoScan = cupon['ultimoScaneo']?.toString();
     final creacion = cupon['createdAt']?.toString();
-    final color = _estadoColor;
-    final initial = _nombreCliente.isNotEmpty ? _nombreCliente[0].toUpperCase() : '?';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Palette.kBorder),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Cabecera: cliente + estado + secuencial ────────────
-            Row(
-              children: [
-                Container(
-                  width: 42, height: 42,
-                  decoration: BoxDecoration(
-                    color: Palette.kAccent.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(initial,
-                        style: const TextStyle(color: Palette.kAccent, fontWeight: FontWeight.w800, fontSize: 17)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(_nombreCliente,
-                          style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 14),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                      Text(_correoCliente,
-                          style: const TextStyle(color: Palette.kMuted, fontSize: 11),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+    return GlassCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Cabecera: cliente + estado + secuencial ────────────
+          Row(
+            children: [
+              EnjoyAvatar(_nombreCliente, size: 42),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: color.withOpacity(0.3)),
-                      ),
-                      child: Text(_estadoLabel,
-                          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
-                    ),
-                    if (secuencial != null) ...[
-                      const SizedBox(height: 4),
-                      Text('#$secuencial',
-                          style: const TextStyle(color: Palette.kMuted, fontSize: 11, fontWeight: FontWeight.w600)),
-                    ],
+                    Text(_nombreCliente,
+                        style: EnjoyTheme.heading(size: 14, color: ec.text),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(_correoCliente,
+                        style: EnjoyTheme.body(size: 11, color: ec.textMute),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
                   ],
                 ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-            const Divider(height: 1, color: Palette.kBorder),
-            const SizedBox(height: 10),
-
-            // ── Cuponera ───────────────────────────────────────────
-            _InfoRow(
-              icon: Icons.confirmation_num_rounded,
-              label: 'Cuponera',
-              value: _versionNombre,
-              color: Palette.kAccent,
-            ),
-
-            // ── CI del cliente ─────────────────────────────────────
-            if (_cedulaCliente != '—')
-              _InfoRow(icon: Icons.badge_rounded, label: 'Cédula', value: _cedulaCliente),
-
-            // ── Escaneos ───────────────────────────────────────────
-            _InfoRow(
-              icon: Icons.qr_code_scanner_rounded,
-              label: 'Escaneos',
-              value: escaneos.toString(),
-            ),
-
-            // ── Fechas ─────────────────────────────────────────────
-            if (creacion != null)
-              _InfoRow(icon: Icons.calendar_today_rounded, label: 'Asignado', value: formatFecha(creacion)),
-            if (vencimiento != null)
-              _InfoRow(icon: Icons.event_rounded, label: 'Vence', value: formatFecha(vencimiento)),
-            if (ultimoScan != null)
-              _InfoRow(
-                icon: Icons.access_time_rounded,
-                label: 'Último scan',
-                value: formatFecha(ultimoScan),
               ),
-          ],
-        ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Pill(_estadoLabel, variant: _estadoPill, dense: true),
+                  if (secuencial != null) ...[
+                    const SizedBox(height: 4),
+                    Text('#$secuencial',
+                        style: EnjoyTheme.body(size: 11, weight: FontWeight.w600, color: ec.textMute)),
+                  ],
+                ],
+              ),
+            ],
+          ),
+
+          const EnjoyDivider(height: 20),
+
+          // ── Cuponera ───────────────────────────────────────────
+          _InfoRow(
+            icon: Icons.confirmation_num_rounded,
+            label: 'Cuponera',
+            value: _versionNombre,
+            accent: true,
+          ),
+
+          // ── CI del cliente ─────────────────────────────────────
+          if (_cedulaCliente != '—')
+            _InfoRow(icon: Icons.badge_rounded, label: 'Cédula', value: _cedulaCliente),
+
+          // ── Escaneos ───────────────────────────────────────────
+          _InfoRow(
+            icon: Icons.qr_code_scanner_rounded,
+            label: 'Escaneos',
+            value: escaneos.toString(),
+          ),
+
+          // ── Fechas ─────────────────────────────────────────────
+          if (creacion != null)
+            _InfoRow(icon: Icons.calendar_today_rounded, label: 'Asignado', value: formatFecha(creacion)),
+          if (vencimiento != null)
+            _InfoRow(icon: Icons.event_rounded, label: 'Vence', value: formatFecha(vencimiento)),
+          if (ultimoScan != null)
+            _InfoRow(
+              icon: Icons.access_time_rounded,
+              label: 'Último scan',
+              value: formatFecha(ultimoScan),
+            ),
+        ],
       ),
     );
   }
@@ -339,28 +304,27 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final Color? color;
+  final bool accent;
 
-  const _InfoRow({required this.icon, required this.label, required this.value, this.color});
+  const _InfoRow({required this.icon, required this.label, required this.value, this.accent = false});
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
+    final hl = accent ? ec.orangeSoft : null;
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
       child: Row(
         children: [
-          Icon(icon, size: 13, color: color ?? Palette.kMuted),
+          Icon(icon, size: 13, color: hl ?? ec.textMute),
           const SizedBox(width: 6),
           SizedBox(
             width: 72,
-            child: Text(label, style: const TextStyle(color: Palette.kMuted, fontSize: 12)),
+            child: Text(label, style: EnjoyTheme.body(size: 12, color: ec.textMute)),
           ),
           Expanded(
             child: Text(value,
-                style: TextStyle(
-                    color: color ?? Palette.kTitle,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600),
+                style: EnjoyTheme.body(size: 12, weight: FontWeight.w600, color: hl ?? ec.text),
                 maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
         ],
@@ -386,6 +350,7 @@ class _Paginacion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Row(
@@ -400,7 +365,7 @@ class _Paginacion extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
               '$page / $totalPages',
-              style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w600, fontSize: 14),
+              style: EnjoyTheme.heading(size: 14, weight: FontWeight.w600, color: ec.text),
             ),
           ),
           _PageBtn(
@@ -423,15 +388,18 @@ class _PageBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
-        width: 36, height: 36,
+        width: 38, height: 38,
         decoration: BoxDecoration(
-          color: enabled ? Palette.kAccent : Palette.kField,
-          borderRadius: BorderRadius.circular(10),
+          gradient: enabled ? ec.accentGradient : null,
+          color: enabled ? null : ec.glass,
+          borderRadius: BorderRadius.circular(11),
+          border: enabled ? null : Border.all(color: ec.stroke),
         ),
-        child: Icon(icon, size: 20, color: enabled ? Colors.white : Palette.kBorder),
+        child: Icon(icon, size: 20, color: enabled ? ec.onAccent : ec.textMute),
       ),
     );
   }
@@ -444,17 +412,18 @@ class _Empty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    final ec = context.ec;
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.confirmation_num_outlined, size: 48, color: Palette.kBorder),
-          SizedBox(height: 12),
+          IconBox(Icons.confirmation_num_outlined, size: 72, radius: 20, iconSize: 36),
+          const SizedBox(height: 14),
           Text('Sin cupones asignados',
-              style: TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 16)),
-          SizedBox(height: 4),
+              style: EnjoyTheme.heading(size: 16, color: ec.text)),
+          const SizedBox(height: 4),
           Text('No se encontraron cupones con ese filtro.',
-              style: TextStyle(color: Palette.kMuted, fontSize: 13)),
+              style: EnjoyTheme.body(size: 13, color: ec.textMute)),
         ],
       ),
     );
@@ -468,19 +437,20 @@ class _ErrorRetry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.wifi_off_rounded, size: 40, color: Colors.red),
-          const SizedBox(height: 12),
-          Text(message, style: const TextStyle(color: Palette.kMuted, fontSize: 13)),
+          IconBox(Icons.wifi_off_rounded, size: 64, radius: 18, iconSize: 32, color: ec.red),
+          const SizedBox(height: 14),
+          Text(message, style: EnjoyTheme.body(size: 13, color: ec.textMute)),
           const SizedBox(height: 16),
-          ElevatedButton.icon(
+          EnjoyButton(
+            label: 'Reintentar',
+            icon: Icons.refresh_rounded,
+            expand: false,
             onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded, size: 16),
-            label: const Text('Reintentar'),
-            style: ElevatedButton.styleFrom(backgroundColor: Palette.kAccent, foregroundColor: Colors.white),
           ),
         ],
       ),

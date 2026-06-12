@@ -1,5 +1,8 @@
 import 'package:enjoy/config/navigation/empresa_nav_config.dart';
+import 'package:enjoy/screens/chat/chat_entry_screen.dart';
 import 'package:enjoy/screens/usuarios/cupones_screen.dart';
+import 'package:enjoy/screens/usuarios/promos_flash/mis_promos_flash_screen.dart';
+import 'package:enjoy/screens/usuarios/reportes/reportes_landing_screen.dart';
 import 'package:enjoy/screens/usuarios/empleados_screen.dart';
 import 'package:enjoy/screens/usuarios/establecimientos_screen.dart';
 import 'package:enjoy/screens/usuarios/estadisticas_screen.dart';
@@ -11,10 +14,11 @@ import 'package:enjoy/screens/usuarios/usuarios_admin_screen.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/historico_cupon_service.dart';
 import 'package:enjoy/services/permissions_service.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:enjoy/services/session_flows.dart';
+import 'package:enjoy/widgets/account_switcher_section.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,10 +32,13 @@ class _HomeScreenState extends State<HomeScreen> {
   final _permissions = PermissionsService();
   final _historicoSvc = HistoricoCuponService();
 
+  /// Id virtual que representa la pantalla de "Panel de gestión" (dashboard).
+  static const _panelId = '__panel__';
+
   // ── Estado general ───────────────────────────────────────────────
   Map<String, dynamic>? _user;
   List<EmpresaNavItem> _items = [];
-  String _selectedId = 'cupones';
+  String _selectedId = _panelId;
   bool _initLoading = true;
 
   // ── Estado de cupones ────────────────────────────────────────────
@@ -49,14 +56,15 @@ class _HomeScreenState extends State<HomeScreen> {
     _user = await _auth.getUser();
     _items = await _buildItems();
 
-    if (_items.isNotEmpty) {
-      _selectedId = _items.first.id;
+    // admin-local / staff entran directo a Cupones (escanear), no al panel.
+    final rol = (_user?['rol'] ?? '').toString().toLowerCase();
+    if ((rol == 'admin-local' || rol == 'staff') &&
+        _items.any((i) => i.id == 'cupones')) {
+      _selectedId = 'cupones';
+      _loadCupones();
     }
 
     if (mounted) setState(() => _initLoading = false);
-
-    // Cargar cupones si es el módulo inicial
-    if (_selectedId == 'cupones') _loadCupones();
   }
 
   Future<List<EmpresaNavItem>> _buildItems() async {
@@ -109,8 +117,11 @@ class _HomeScreenState extends State<HomeScreen> {
     if (id == 'cupones' && !_cuponesLoaded) _loadCupones();
   }
 
+  void _goPanel() => setState(() => _selectedId = _panelId);
+
   // ── Título del módulo activo ─────────────────────────────────────
   String get _currentLabel {
+    if (_selectedId == _panelId) return 'Panel de gestión';
     try {
       return _items.firstWhere((i) => i.id == _selectedId).label;
     } catch (_) {
@@ -118,114 +129,54 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // ── Datos de usuario ─────────────────────────────────────────────
+  String get _nombre {
+    final n = (_user?['nombre'] ?? _user?['nombres'] ?? '').toString().trim();
+    final a = (_user?['apellidos'] ?? '').toString().trim();
+    final full = [n, a].where((s) => s.isNotEmpty).join(' ');
+    return full.isEmpty ? 'Usuario' : full;
+  }
+
+  String get _rol => (_user?['rol'] ?? '').toString().toLowerCase();
+
+  String _rolLabel(String rol) {
+    switch (rol) {
+      case 'admin-local':
+        return 'Admin Local';
+      case 'admin':
+        return 'Administrador';
+      case 'staff':
+        return 'Staff';
+      default:
+        return rol.isEmpty ? 'Usuario' : _capitalize(rol);
+    }
+  }
+
+  String _capitalize(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
   // ── Logout ───────────────────────────────────────────────────────
   Future<void> _confirmLogout() async {
     HapticFeedback.selectionClick();
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      barrierColor: Colors.black.withOpacity(0.25),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(ctx).viewInsets.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 5,
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.black12,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.logout_rounded, color: Colors.red),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    '¿Cerrar sesión?',
-                    style: TextStyle(
-                      color: Palette.kTitle,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Se cerrará tu sesión en esta aplicación.',
-                style: TextStyle(color: Palette.kMuted),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Palette.kBorder),
-                      foregroundColor: Palette.kMuted,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Cancelar'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
-                    ),
-                    child: const Text('Cerrar sesión'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-
-    if (ok == true && mounted) {
-      await _auth.logout();
-      if (mounted) context.go('/login');
-    }
+    // Pregunta si mantener la sesión guardada (biometría) y enruta.
+    await SessionFlows.confirmLogout(context);
   }
 
   // ── Body según módulo activo ─────────────────────────────────────
   Widget _buildBody() {
     switch (_selectedId) {
+      case _panelId:
+        return _PanelDashboard(
+          nombre: _nombre,
+          rolLabel: _rolLabel(_rol),
+          items: _items,
+          onSelect: _onSelect,
+          onLogout: _confirmLogout,
+        );
       case 'cupones':
         if (_cuponesLoading) {
-          return const Center(
-              child: CircularProgressIndicator(color: Palette.kAccent));
+          return Center(
+              child: CircularProgressIndicator(color: context.ec.orange));
         }
         return CuponesScreen(
           cupones: _cupones,
@@ -253,6 +204,12 @@ class _HomeScreenState extends State<HomeScreen> {
         return const NuevaCuponeraAdminScreen();
       case 'cupones_asignados':
         return const CuponesAsignadosScreen();
+      case 'chats':
+        return const ChatEntryScreen();
+      case 'promos_flash':
+        return const MisPromosFlashScreen(embedded: true);
+      case 'reportes':
+        return const ReportesLandingScreen(embedded: true);
       default:
         return const Center(child: Text('Módulo no disponible'));
     }
@@ -260,364 +217,142 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     if (_initLoading) {
-      return const Scaffold(
-        backgroundColor: Palette.kBg,
-        body: Center(child: CircularProgressIndicator(color: Palette.kAccent)),
+      return EnjoyScaffold(
+        body: Center(child: CircularProgressIndicator(color: ec.orange)),
       );
     }
 
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      drawer: _EmpresaDrawer(
-        user: _user,
-        items: _items,
-        selectedId: _selectedId,
-        onSelect: (id) {
-          Navigator.of(context).pop();
-          _onSelect(id);
-        },
-        onLogout: _confirmLogout,
-      ),
-      appBar: _buildAppBar(context),
-      body: _buildBody(),
-    );
-  }
+    final isPanel = _selectedId == _panelId;
 
-  AppBar _buildAppBar(BuildContext context) {
-    return AppBar(
-      backgroundColor: Palette.kSurface,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      titleSpacing: 0,
-      flexibleSpace: Container(
-        decoration: BoxDecoration(
-          color: Palette.kSurface,
-          border: Border(bottom: BorderSide(color: Palette.kBorder, width: 1)),
-        ),
-      ),
-      leading: Builder(
-        builder: (ctx) => GestureDetector(
-          onTap: () => Scaffold.of(ctx).openDrawer(),
-          child: Container(
-            margin: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Palette.kField,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Palette.kBorder),
+    return EnjoyScaffold(
+      padding: EdgeInsets.zero,
+      appBar: isPanel
+          ? null
+          : EnjoyAppBar(
+              title: _currentLabel,
+              showBack: true,
+              onBack: _goPanel,
+              actions: [
+                if (_selectedId == 'cupones')
+                  GlassIconButton(
+                    icon: Icons.refresh_rounded,
+                    onTap: () => _loadCupones(forceRefresh: true),
+                  ),
+              ],
             ),
-            child: const Icon(Icons.menu_rounded, color: Palette.kTitle, size: 20),
-          ),
-        ),
-      ),
-      title: Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Text(
-          _currentLabel,
-          style: const TextStyle(
-            color: Palette.kTitle,
-            fontWeight: FontWeight.w800,
-            fontSize: 17,
-            letterSpacing: .2,
-          ),
-        ),
-      ),
-      actions: [
-        if (_selectedId == 'cupones')
-          _ActionBtn(
-            icon: Icons.refresh_rounded,
-            color: Palette.kAccent,
-            tooltip: 'Actualizar cupones',
-            onTap: () => _loadCupones(forceRefresh: true),
-          ),
-        const SizedBox(width: 12),
-      ],
+      body: _buildBody(),
     );
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// DRAWER
-// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+// PANEL DASHBOARD — mockup #1
+// ══════════════════════════════════════════════════════════════════
 
-class _EmpresaDrawer extends StatelessWidget {
-  final Map<String, dynamic>? user;
-  final List<EmpresaNavItem> items;
-  final String selectedId;
-  final ValueChanged<String> onSelect;
-  final VoidCallback onLogout;
-
-  const _EmpresaDrawer({
-    required this.user,
+class _PanelDashboard extends StatelessWidget {
+  const _PanelDashboard({
+    required this.nombre,
+    required this.rolLabel,
     required this.items,
-    required this.selectedId,
     required this.onSelect,
     required this.onLogout,
   });
 
-  String get _nombre {
-    final n = (user?['nombre'] ?? user?['nombres'] ?? '').toString().trim();
-    final a = (user?['apellidos'] ?? '').toString().trim();
-    final full = [n, a].where((s) => s.isNotEmpty).join(' ');
-    return full.isEmpty ? 'Usuario' : full;
-  }
-
-  String get _correo =>
-      (user?['correo'] ?? user?['email'] ?? '').toString();
-
-  String get _rol => (user?['rol'] ?? '').toString().toLowerCase();
-
-  String _rolLabel(String rol) {
-    switch (rol) {
-      case 'admin-local': return 'Admin Local';
-      case 'admin': return 'Administrador';
-      case 'staff': return 'Staff';
-      default: return rol.isEmpty ? 'Usuario' : _capitalize(rol);
-    }
-  }
-
-  String _capitalize(String s) =>
-      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+  final String nombre;
+  final String rolLabel;
+  final List<EmpresaNavItem> items;
+  final ValueChanged<String> onSelect;
+  final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
-    final safeBottom = MediaQuery.of(context).padding.bottom;
-    final initial = _nombre.isNotEmpty ? _nombre[0].toUpperCase() : 'U';
-
-    return Drawer(
-      width: 285,
-      backgroundColor: Palette.kSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.horizontal(right: Radius.circular(24)),
-      ),
+    final ec = context.ec;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header ─────────────────────────────────────────────────
-          Container(
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF152A47), Color(0xFF1E3A6E)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(0),
-                bottomRight: Radius.circular(0),
-              ),
-            ),
-            padding: EdgeInsets.fromLTRB(
-              20,
-              MediaQuery.of(context).padding.top + 20,
-              20,
-              20,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Logo
-                Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Palette.kAccent, Palette.kAccentLight],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Palette.kAccent.withOpacity(0.4),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.local_activity_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'ENJOY',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                            letterSpacing: 1.2,
-                            height: 1,
-                          ),
-                        ),
-                        Text(
-                          'Panel de gestión',
-                          style: TextStyle(
-                            color: Colors.white54,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                // Usuario info
-                Row(
-                  children: [
-                    // Avatar
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Palette.kAccent, Palette.kAccentLight],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Palette.kAccent.withOpacity(0.35),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          initial,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _nombre,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                              height: 1.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          // Rol badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Palette.kAccent.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                  color: Palette.kAccent.withOpacity(0.35)),
-                            ),
-                            child: Text(
-                              _rolLabel(_rol),
-                              style: const TextStyle(
-                                color: Palette.kAccentLight,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: .3,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-
-                if (_correo.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      const Icon(Icons.email_outlined,
-                          size: 12, color: Colors.white38),
-                      const SizedBox(width: 5),
-                      Expanded(
-                        child: Text(
-                          _correo,
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 11,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          // ── Sección: MÓDULOS ────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+          // ── Cabecera: avatar + rol + logout ──
+          RiseIn(
             child: Row(
               children: [
-                Text(
-                  'MÓDULOS',
-                  style: TextStyle(
-                    color: Palette.kMuted.withOpacity(0.7),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.5,
+                EnjoyAvatar(nombre, size: 44, radius: 14),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        nombre,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: EnjoyTheme.heading(size: 15, color: ec.text),
+                      ),
+                      const SizedBox(height: 4),
+                      Pill(rolLabel, variant: PillVariant.blue, dense: true),
+                    ],
                   ),
+                ),
+                const SizedBox(width: 10),
+                GlassIconButton(
+                  icon: Icons.logout_rounded,
+                  color: ec.red,
+                  onTap: onLogout,
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 16),
 
-          // ── Items de navegación ─────────────────────────────────────
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              itemCount: items.length,
-              itemBuilder: (_, i) {
-                final item = items[i];
-                final isSelected = item.id == selectedId;
-                return _NavItem(
-                  item: item,
-                  isSelected: isSelected,
-                  onTap: () => onSelect(item.id),
-                );
-              },
+          // ── Card de bienvenida con KPIs ──
+          RiseIn(
+            delayMs: 60,
+            child: GlassCard(
+              accent: true,
+              padding: const EdgeInsets.all(18),
+              radius: 22,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Bienvenido a',
+                      style: EnjoyTheme.body(size: 12, color: ec.textMute)),
+                  const SizedBox(height: 2),
+                  Text(
+                    'ENJOY · Panel de gestión',
+                    style: EnjoyTheme.heading(size: 22, color: ec.orangeSoft),
+                  ),
+                ],
+              ),
             ),
           ),
+          const SizedBox(height: 18),
 
-          // ── Footer: logout ──────────────────────────────────────────
-          Container(
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: Palette.kBorder)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + safeBottom * 0),
-                child: _LogoutBtn(onTap: onLogout),
-              ),
+          // ── Cambiar de cuenta (solo si hay cuenta de cliente del mismo correo) ──
+          const AccountSwitcherSection(showAdd: false),
+
+          // ── Grid de módulos ──
+          SectionTitle('Módulos'),
+          const SizedBox(height: 12),
+          RiseIn(
+            delayMs: 120,
+            child: GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 11,
+              crossAxisSpacing: 11,
+              childAspectRatio: 0.95,
+              children: [
+                for (final item in items)
+                  _ModuleCard(
+                    item: item,
+                    accent: item.id == 'cupones',
+                    onTap: () => onSelect(item.id),
+                  ),
+              ],
             ),
           ),
         ],
@@ -626,151 +361,38 @@ class _EmpresaDrawer extends StatelessWidget {
   }
 }
 
-// ── Item de navegación ───────────────────────────────────────────────────────
+// ── Tarjeta de módulo ─────────────────────────────────────────────
 
-class _NavItem extends StatelessWidget {
-  final EmpresaNavItem item;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _NavItem({
+class _ModuleCard extends StatelessWidget {
+  const _ModuleCard({
     required this.item,
-    required this.isSelected,
+    required this.accent,
     required this.onTap,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        margin: const EdgeInsets.symmetric(vertical: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(
-                  colors: [Palette.kAccent, Palette.kAccentLight],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                )
-              : null,
-          color: isSelected ? null : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Palette.kAccent.withOpacity(0.25),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [],
-        ),
-        child: Row(
-          children: [
-            Icon(
-              item.icon,
-              size: 20,
-              color: isSelected ? Colors.white : Palette.kMuted,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                item.label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Palette.kTitle,
-                  fontWeight:
-                      isSelected ? FontWeight.w700 : FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-            if (isSelected)
-              Container(
-                width: 6,
-                height: 6,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Botón de logout ──────────────────────────────────────────────────────────
-
-class _LogoutBtn extends StatelessWidget {
-  final VoidCallback onTap;
-  const _LogoutBtn({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.red.withOpacity(0.12)),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.logout_rounded, size: 20, color: Colors.red.shade400),
-            const SizedBox(width: 12),
-            Text(
-              'Cerrar sesión',
-              style: TextStyle(
-                color: Colors.red.shade500,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Botón de app bar ─────────────────────────────────────────────────────────
-
-class _ActionBtn extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String tooltip;
+  final EmpresaNavItem item;
+  final bool accent;
   final VoidCallback onTap;
 
-  const _ActionBtn({
-    required this.icon,
-    required this.color,
-    required this.tooltip,
-    required this.onTap,
-  });
-
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.09),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withOpacity(0.18)),
+    final ec = context.ec;
+    return GlassCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconBox(item.icon, accent: accent),
+          const SizedBox(height: 8),
+          Text(
+            item.label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: EnjoyTheme.heading(size: 12, color: ec.text),
           ),
-          child: Icon(icon, size: 18, color: color),
-        ),
+        ],
       ),
     );
   }

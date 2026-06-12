@@ -68,6 +68,7 @@ Promotion mapBackendItemToPromotion(Map<String, dynamic> item) {
     startDate: _parseDate(d['startDate']),
     endDate: _parseDate(d['endDate']),
     isFlash: _safeBool(d['isFlash']),
+    tieneFlash: _safeBool(item['tieneFlash']),
     address: _safeStr(d['address'], ''),
 
     // NUEVOS:

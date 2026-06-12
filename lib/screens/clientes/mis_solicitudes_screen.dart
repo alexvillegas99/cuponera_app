@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:enjoy/services/solicitud_cuponera_service.dart';
+import 'package:flutter/material.dart';
 
 class MisSolicitudesScreen extends StatefulWidget {
   final String clienteId;
@@ -31,14 +31,25 @@ class _MisSolicitudesScreenState extends State<MisSolicitudesScreen> {
     }
   }
 
-  Color _estadoColor(String estado) {
+  Color _estadoColor(EnjoyColors ec, String estado) {
     switch (estado) {
       case 'APROBADO':
-        return const Color(0xFF16A34A);
+        return ec.green;
       case 'RECHAZADO':
-        return const Color(0xFFDC2626);
+        return ec.red;
       default:
-        return Palette.kAccent;
+        return ec.orange;
+    }
+  }
+
+  PillVariant _estadoPill(String estado) {
+    switch (estado) {
+      case 'APROBADO':
+        return PillVariant.green;
+      case 'RECHAZADO':
+        return PillVariant.red;
+      default:
+        return PillVariant.orange;
     }
   }
 
@@ -60,7 +71,7 @@ class _MisSolicitudesScreenState extends State<MisSolicitudesScreen> {
       case 'RECHAZADO':
         return 'Rechazada';
       default:
-        return 'Pendiente';
+        return 'En revisión';
     }
   }
 
@@ -76,156 +87,156 @@ class _MisSolicitudesScreenState extends State<MisSolicitudesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      appBar: AppBar(
-        title: const Text('Mis solicitudes', style: TextStyle(fontWeight: FontWeight.w600)),
-        backgroundColor: Palette.kPrimary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
+    final ec = context.ec;
+    return EnjoyScaffold(
+      padding: EdgeInsets.zero,
+      appBar: const EnjoyAppBar(title: 'Mis Solicitudes'),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Palette.kAccent))
+          ? Center(child: CircularProgressIndicator(color: ec.orange))
           : _solicitudes.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.receipt_long, size: 48, color: Colors.grey.shade300),
-                      const SizedBox(height: 12),
-                      const Text('No tienes solicitudes aún', style: TextStyle(color: Palette.kMuted)),
-                    ],
-                  ),
-                )
+              ? _emptyState(ec)
               : RefreshIndicator(
+                  color: ec.orange,
+                  backgroundColor: ec.glassStrong,
                   onRefresh: _cargar,
                   child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
                     itemCount: _solicitudes.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (_, i) {
-                      final s = _solicitudes[i];
-                      final estado = s['estado'] ?? 'PENDIENTE';
-                      final color = _estadoColor(estado);
-
-                      return Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 16,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Header: cuponera + estado
-                            Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: color.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Icon(_estadoIcon(estado), size: 18, color: color),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        s['cuponeraNombre'] ?? 'Membresía',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: Palette.kTitle,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                      Text(
-                                        _formatFecha(s['createdAt']),
-                                        style: const TextStyle(color: Palette.kMuted, fontSize: 12),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: color.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    _estadoLabel(estado),
-                                    style: TextStyle(
-                                      color: color,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            // Detalles
-                            Row(
-                              children: [
-                                _InfoChip(icon: Icons.attach_money, text: '\$${s['cuponeraPrecio'] ?? '0'}'),
-                                const SizedBox(width: 8),
-                                if (s['montoTransferido'] != null && s['montoTransferido'].toString().isNotEmpty)
-                                  _InfoChip(icon: Icons.wallet, text: 'Transferido: \$${s['montoTransferido']}'),
-                              ],
-                            ),
-
-                            // Nota admin
-                            if (s['notaAdmin'] != null && s['notaAdmin'].toString().isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: estado == 'RECHAZADO'
-                                      ? const Color(0xFFFEF2F2)
-                                      : Palette.kBg,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      Icons.info_outline,
-                                      size: 14,
-                                      color: estado == 'RECHAZADO' ? const Color(0xFFDC2626) : Palette.kMuted,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        s['notaAdmin'],
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: estado == 'RECHAZADO' ? const Color(0xFFDC2626) : Palette.kMuted,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      );
-                    },
+                    separatorBuilder: (_, __) => const SizedBox(height: 14),
+                    itemBuilder: (_, i) => _card(ec, _solicitudes[i]),
                   ),
                 ),
+    );
+  }
+
+  Widget _emptyState(EnjoyColors ec) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              color: ec.glass,
+              shape: BoxShape.circle,
+              border: Border.all(color: ec.stroke),
+            ),
+            child: Icon(Icons.receipt_long, size: 38, color: ec.textMute),
+          ),
+          const SizedBox(height: 16),
+          Text('No tienes solicitudes aún',
+              style: EnjoyTheme.body(
+                  weight: FontWeight.w600, color: ec.textSoft)),
+        ],
+      ),
+    );
+  }
+
+  Widget _card(EnjoyColors ec, dynamic s) {
+    final estado = (s['estado'] ?? 'PENDIENTE').toString();
+    final color = _estadoColor(ec, estado);
+    final aprobado = estado == 'APROBADO';
+    final rechazado = estado == 'RECHAZADO';
+
+    return GlassCard(
+      leftAccent: color,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Ícono de membresía (acento si está aprobada/pendiente)
+              IconBox(
+                Icons.local_activity_rounded,
+                accent: !rechazado,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      s['cuponeraNombre'] ?? 'Membresía',
+                      style: EnjoyTheme.heading(size: 15, color: ec.text),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatFecha(s['createdAt']),
+                      style: EnjoyTheme.body(size: 12, color: ec.textMute),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Pill de estado
+              Pill(
+                _estadoLabel(estado),
+                variant: _estadoPill(estado),
+                icon: _estadoIcon(estado),
+                dense: true,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          // Chips de detalle
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _InfoChip(
+                  icon: Icons.attach_money,
+                  text: '\$${s['cuponeraPrecio'] ?? '0'}'),
+              if (s['montoTransferido'] != null &&
+                  s['montoTransferido'].toString().isNotEmpty)
+                _InfoChip(
+                    icon: Icons.account_balance_wallet_outlined,
+                    text: 'Transferido: \$${s['montoTransferido']}'),
+              if (s['esRegalo'] == true)
+                _InfoChip(
+                  icon: Icons.card_giftcard_rounded,
+                  text: () {
+                    final para =
+                        (s['destinatarioNombre']?.toString().trim().isNotEmpty ?? false)
+                            ? '🎁 Para ${s['destinatarioNombre']}'
+                            : '🎁 Regalo';
+                    if (!aprobado) return para;
+                    return s['regaloAbierto'] == true
+                        ? '$para · Abierto'
+                        : '$para · Sin abrir';
+                  }(),
+                ),
+            ],
+          ),
+
+          // Nota admin
+          if (s['notaAdmin'] != null && s['notaAdmin'].toString().isNotEmpty) ...[
+            const EnjoyDivider(),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline,
+                    size: 15, color: rechazado ? ec.red : ec.textMute),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    s['notaAdmin'],
+                    style: EnjoyTheme.body(
+                      size: 12.5,
+                      height: 1.4,
+                      color: rechazado
+                          ? ec.red
+                          : (aprobado ? ec.textSoft : ec.textSoft),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -237,18 +248,22 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Palette.kBg,
-        borderRadius: BorderRadius.circular(8),
+        color: ec.glass,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: ec.stroke),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: Palette.kMuted),
-          const SizedBox(width: 4),
-          Text(text, style: const TextStyle(fontSize: 12, color: Palette.kTitle, fontWeight: FontWeight.w600)),
+          Icon(icon, size: 14, color: ec.orangeSoft),
+          const SizedBox(width: 5),
+          Text(text,
+              style: EnjoyTheme.body(
+                  size: 12, weight: FontWeight.w600, color: ec.text)),
         ],
       ),
     );

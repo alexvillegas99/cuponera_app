@@ -41,6 +41,12 @@ class Cuponera {
   final String secuencial;
   final String? versionId;
 
+  // Regalo
+  final bool esRegalo;
+  final bool regaloAbierto;
+  final String? regaloDe;
+  final String? regaloMensaje;
+
   Cuponera({
     required this.id,
     required this.nombre,
@@ -54,7 +60,14 @@ class Cuponera {
     required this.scans,
     required this.secuencial,
     this.versionId,
+    this.esRegalo = false,
+    this.regaloAbierto = true,
+    this.regaloDe,
+    this.regaloMensaje,
   });
+
+  /// Regalo recibido que aún no ha sido abierto por el destinatario.
+  bool get esRegaloPendiente => esRegalo && !regaloAbierto;
 
   factory Cuponera.fromJson(Map<String, dynamic> j) {
     final id = (j['_id'] ?? j['id'] ?? '').toString();
@@ -90,6 +103,10 @@ class Cuponera {
       scans: scans,
       secuencial: secuencial,
       versionId: j['versionId']?.toString(),
+      esRegalo: j['esRegalo'] == true,
+      regaloAbierto: j['esRegalo'] == true ? j['regaloAbierto'] == true : true,
+      regaloDe: j['regaloDe']?.toString(),
+      regaloMensaje: j['regaloMensaje']?.toString(),
     );
   }
 }

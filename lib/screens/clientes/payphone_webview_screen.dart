@@ -1,7 +1,6 @@
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-
-import '../../ui/palette.dart';
 
 class PayPhoneWebViewScreen extends StatefulWidget {
   final String formularioUrl;
@@ -54,30 +53,33 @@ class _PayPhoneWebViewScreenState extends State<PayPhoneWebViewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      appBar: AppBar(
-        backgroundColor: Palette.kPrimary,
-        foregroundColor: Colors.white,
-        title: const Text(
-          'Pago seguro',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(null),
-          tooltip: 'Cancelar pago',
+    final ec = context.ec;
+    return EnjoyScaffold(
+      padding: EdgeInsets.zero,
+      appBar: EnjoyAppBar(
+        title: 'Pago seguro',
+        leading: BackChip(
+          icon: Icons.close,
+          onTap: () => Navigator.of(context).pop(null),
         ),
       ),
-      body: Stack(
-        children: [
-          WebViewWidget(controller: _controller),
-          if (_loading)
-            const Center(
-              child: CircularProgressIndicator(color: Palette.kAccent),
-            ),
-        ],
+      body: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        child: Container(
+          color: ec.surfaceBottom,
+          child: Stack(
+            children: [
+              WebViewWidget(controller: _controller),
+              if (_loading)
+                Container(
+                  color: ec.bgBottom,
+                  child: Center(
+                    child: CircularProgressIndicator(color: ec.orange),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

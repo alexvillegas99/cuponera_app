@@ -86,8 +86,42 @@ class ComentarioMini {
   );
 }
 
+class PromoFlashMini {
+  final String id;
+  final String titulo;
+  final String descripcion;
+  final String imagenUrl;
+  final String tipo;
+  final String? etiqueta;
+  final bool canjeable;
+  final DateTime? vence;
+
+  PromoFlashMini({
+    required this.id,
+    required this.titulo,
+    required this.descripcion,
+    required this.imagenUrl,
+    required this.tipo,
+    this.etiqueta,
+    this.canjeable = false,
+    this.vence,
+  });
+
+  factory PromoFlashMini.fromJson(Map<String, dynamic> j) => PromoFlashMini(
+        id: (j['_id'] ?? '').toString(),
+        titulo: (j['titulo'] ?? '').toString(),
+        descripcion: (j['descripcion'] ?? '').toString(),
+        imagenUrl: (j['imagenUrl'] ?? '').toString(),
+        tipo: (j['tipo'] ?? '').toString(),
+        etiqueta: j['etiqueta']?.toString(),
+        canjeable: j['canjeable'] == true,
+        vence: DateTime.tryParse(j['vence']?.toString() ?? ''),
+      );
+}
+
 class ComercioMini {
   final PromoPrincipal? promoPrincipal;
+  final List<PromoFlashMini> promocionesFlash;
   final List<String> ciudades;
   final List<String> categorias;
   final double promedioCalificacion;
@@ -99,6 +133,7 @@ class ComercioMini {
 
   ComercioMini({
     required this.promoPrincipal,
+    this.promocionesFlash = const [],
     required this.ciudades,
     required this.categorias,
     required this.promedioCalificacion,
@@ -115,6 +150,10 @@ class ComercioMini {
       promoPrincipal: j['promoPrincipal'] == null
           ? null
           : PromoPrincipal.fromJson(j['promoPrincipal']),
+      promocionesFlash: ((j['promocionesFlash'] as List?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(PromoFlashMini.fromJson)
+          .toList(),
       ciudades: ((j['ciudades'] as List?) ?? const [])
           .map((e) => e?.toString() ?? '')
           .where((s) => s.isNotEmpty)

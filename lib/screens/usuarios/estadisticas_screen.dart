@@ -1,6 +1,6 @@
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/historico_cupon_service.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -116,6 +116,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
   }
 
   Future<void> _pickRange() async {
+    final ec = context.ec;
     final r = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2024),
@@ -123,7 +124,10 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
       initialDateRange: DateTimeRange(start: _desde, end: _hasta),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: Palette.kAccent, secondary: Palette.kPrimary),
+          colorScheme: Theme.of(ctx).colorScheme.copyWith(
+                primary: ec.orange,
+                secondary: ec.orangeSoft,
+              ),
         ),
         child: child!,
       ),
@@ -144,13 +148,15 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return RefreshIndicator(
       onRefresh: _load,
-      color: Palette.kPrimary,
+      color: ec.orange,
+      backgroundColor: ec.surfaceTop,
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          // ── Header con gradiente ──
+          // ── Header ──
           SliverToBoxAdapter(child: _buildHeader()),
 
           // ── Contenido ──
@@ -159,7 +165,10 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 if (_loading)
-                  const SizedBox(height: 300, child: Center(child: CircularProgressIndicator(color: Palette.kAccent)))
+                  SizedBox(
+                      height: 300,
+                      child: Center(
+                          child: CircularProgressIndicator(color: ec.orange)))
                 else if (_error != null)
                   _ErrorCard(_error!)
                 else ...[
@@ -184,25 +193,18 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
   // ── Header ──
   Widget _buildHeader() {
+    final ec = context.ec;
     final rangeLabel =
         '${DateFormat('dd MMM', 'es').format(_desde)} – ${DateFormat('dd MMM yyyy', 'es').format(_hasta)}';
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Palette.kPrimary, Color(0xFF1E3A5F)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Panel de operaciones',
-              style: TextStyle(color: Colors.white70, fontSize: 12, letterSpacing: 1.2, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          const Text('Estadísticas',
-              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+          FieldLabel('Panel de operaciones'),
+          Text('Estadísticas',
+              style: EnjoyTheme.heading(
+                  size: 22, weight: FontWeight.w800, color: ec.text)),
           const SizedBox(height: 16),
 
           // Selector de rango
@@ -212,20 +214,23 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                 child: GestureDetector(
                   onTap: _pickRange,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                      color: ec.glass,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: ec.stroke),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.date_range, color: Colors.white70, size: 16),
+                        Icon(Icons.date_range, color: ec.orangeSoft, size: 16),
                         const SizedBox(width: 8),
                         Text(rangeLabel,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                            style: EnjoyTheme.body(
+                                size: 13,
+                                weight: FontWeight.w600,
+                                color: ec.text)),
                         const Spacer(),
-                        const Icon(Icons.keyboard_arrow_down, color: Colors.white54, size: 18),
+                        Icon(Icons.keyboard_arrow_down, color: ec.textMute, size: 18),
                       ],
                     ),
                   ),
@@ -250,66 +255,43 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
       children: [
         Row(
           children: [
-            Expanded(child: _KpiTile(value: '$_total', label: 'Canjes totales', icon: Icons.qr_code_scanner_outlined, color: Palette.kAccent)),
+            Expanded(
+                child: StatCard(
+                    value: '$_total', label: 'Canjes totales')),
             const SizedBox(width: 12),
-            Expanded(child: _KpiTile(value: '$_hoy', label: 'Canjes hoy', icon: Icons.today_outlined, color: Palette.kAccent)),
+            Expanded(
+                child: StatCard(
+                    value: '$_hoy', label: 'Canjes hoy', accent: true)),
           ],
         ),
         const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: _KpiTile(
+              child: StatCard(
                 value: _promedio == 0 ? '—' : _promedio.toStringAsFixed(1),
                 label: 'Promedio por día',
-                icon: Icons.trending_up_outlined,
-                color: const Color(0xFF10B981),
+                valueSize: 22,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _KpiTile(
+              child: StatCard(
                 value: (_peak != null && _peak!.count > 0)
                     ? '${_peak!.count} el ${DateFormat('dd/MM').format(DateTime.parse(_peak!.fecha))}'
                     : '—',
                 label: 'Mejor día',
-                icon: Icons.emoji_events_outlined,
-                color: const Color(0xFFF59E0B),
+                valueSize: 22,
               ),
             ),
           ],
         ),
         if (_ultimoEscaneo != null) ...[
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: BoxDecoration(
-              color: Palette.kSurface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Palette.kBorder),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Palette.kAccent.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.access_time_outlined, size: 16, color: Palette.kAccent),
-                ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Último canje registrado',
-                        style: TextStyle(color: Palette.kMuted, fontSize: 11, fontWeight: FontWeight.w500)),
-                    Text(_ultimoEscaneo!,
-                        style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 13)),
-                  ],
-                ),
-              ],
-            ),
+          ListRowTile(
+            leading: const IconBox(Icons.access_time_outlined),
+            title: _ultimoEscaneo!,
+            subtitle: 'Último canje registrado',
           ),
         ],
       ],
@@ -318,14 +300,23 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
   // ── Gráfico ──
   Widget _buildChart() {
+    final ec = context.ec;
     final days = _chartDays;
     final maxY = days.isEmpty ? 5.0 : days.map((d) => d.count.toDouble()).reduce((a, b) => a > b ? a : b);
 
-    return _Card(
+    return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _CardHeader('Canjes por día', Icons.bar_chart_outlined),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Canjes por día',
+                  style: EnjoyTheme.heading(size: 14, color: ec.text)),
+              Text('Últimos 7 días',
+                  style: EnjoyTheme.body(size: 11, color: ec.textMute)),
+            ],
+          ),
           const SizedBox(height: 16),
           days.isEmpty
               ? const _EmptyState('Sin canjes en el período')
@@ -337,7 +328,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                         show: true,
                         drawVerticalLine: false,
                         getDrawingHorizontalLine: (_) =>
-                            FlLine(color: Palette.kBorder, strokeWidth: 1),
+                            FlLine(color: ec.stroke, strokeWidth: 1),
                       ),
                       borderData: FlBorderData(show: false),
                       alignment: BarChartAlignment.spaceAround,
@@ -353,7 +344,10 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                               final i = v.toInt();
                               if (i < 0 || i >= days.length) return const SizedBox.shrink();
                               return Text('${days[i].count}',
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Palette.kAccent));
+                                  style: EnjoyTheme.body(
+                                      size: 11,
+                                      weight: FontWeight.w800,
+                                      color: ec.orangeSoft));
                             },
                           ),
                         ),
@@ -368,7 +362,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
                                   DateFormat('dd/MM').format(DateTime.parse(days[i].fecha)),
-                                  style: const TextStyle(fontSize: 10, color: Palette.kMuted),
+                                  style: EnjoyTheme.body(size: 10, color: ec.textMute),
                                 ),
                               );
                             },
@@ -384,8 +378,11 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                             borderRadius: BorderRadius.circular(5),
                             gradient: LinearGradient(
                               colors: isToday
-                                  ? [Palette.kAccent, Palette.kAccent.withOpacity(0.7)]
-                                  : [const Color(0xFF8BA3C7), const Color(0xFF8BA3C7).withOpacity(0.55)],
+                                  ? [ec.orangeSoft, ec.orange]
+                                  : [
+                                      ec.blue,
+                                      ec.blue.withValues(alpha: 0.55)
+                                    ],
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                             ),
@@ -401,9 +398,9 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _Legend(color: Palette.kAccent, label: 'Hoy'),
+                  _Legend(color: ec.orange, label: 'Hoy'),
                   const SizedBox(width: 16),
-                  _Legend(color: const Color(0xFF8BA3C7), label: 'Días anteriores'),
+                  _Legend(color: ec.blue, label: 'Días anteriores'),
                 ],
               ),
             ),
@@ -414,16 +411,19 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
   // ── Equipo ──
   Widget _buildTeam() {
-    return _Card(
+    final ec = context.ec;
+    return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _CardHeader('Rendimiento del equipo', Icons.groups_outlined),
+          Text('Rendimiento del equipo',
+              style: EnjoyTheme.heading(size: 14, color: ec.text)),
           const SizedBox(height: 14),
           ..._scanners.asMap().entries.map((e) {
             final rank = e.key + 1;
             final p = e.value;
             final pct = _total > 0 ? p.count / _total : 0.0;
+            final isTop = rank == 1;
             return Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: Row(
@@ -434,19 +434,19 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                     height: 28,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: rank == 1
-                          ? const Color(0xFFF59E0B).withOpacity(0.15)
-                          : Palette.kBg,
+                      color: isTop
+                          ? ec.orange.withValues(alpha: 0.15)
+                          : ec.glassStrong,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: rank == 1 ? const Color(0xFFF59E0B) : Palette.kBorder,
+                        color: isTop ? ec.orange : ec.stroke,
                       ),
                     ),
                     child: Text('$rank',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: rank == 1 ? const Color(0xFFF59E0B) : Palette.kMuted,
+                        style: EnjoyTheme.body(
+                          size: 12,
+                          weight: FontWeight.w800,
+                          color: isTop ? ec.orangeSoft : ec.textMute,
                         )),
                   ),
                   const SizedBox(width: 10),
@@ -458,15 +458,22 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                           children: [
                             Expanded(
                               child: Text(p.nombre,
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Palette.kTitle),
+                                  style: EnjoyTheme.body(
+                                      weight: FontWeight.w600,
+                                      size: 13,
+                                      color: ec.text),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis),
                             ),
                             Text('${p.count} canje${p.count != 1 ? 's' : ''}',
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Palette.kAccent)),
+                                style: EnjoyTheme.body(
+                                    weight: FontWeight.w700,
+                                    size: 12,
+                                    color: ec.orangeSoft)),
                             const SizedBox(width: 4),
                             Text('· ${(pct * 100).toStringAsFixed(0)}%',
-                                style: const TextStyle(fontSize: 11, color: Palette.kMuted)),
+                                style: EnjoyTheme.body(
+                                    size: 11, color: ec.textMute)),
                           ],
                         ),
                         const SizedBox(height: 5),
@@ -475,9 +482,9 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                           child: LinearProgressIndicator(
                             value: pct,
                             minHeight: 6,
-                            backgroundColor: Palette.kBorder,
+                            backgroundColor: ec.glassStrong,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              rank == 1 ? Palette.kAccent : Palette.kAccent.withOpacity(0.45),
+                              isTop ? ec.orange : ec.orange.withValues(alpha: 0.45),
                             ),
                           ),
                         ),
@@ -502,65 +509,51 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
       });
     final top = recientes.take(5).toList();
 
-    return _Card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _CardHeader('Actividad reciente', Icons.history_outlined),
-          const SizedBox(height: 12),
-          if (top.isEmpty)
-            const _EmptyState('Sin actividad en el período')
-          else
-            ...top.asMap().entries.map((e) {
-              final item = e.value;
-              final isLast = e.key == top.length - 1;
-              final dt = DateTime.tryParse(item['fechaEscaneo'] ?? '')?.toLocal();
-              final fechaStr = dt != null
-                  ? DateFormat('dd/MM · hh:mm a', 'es').format(dt)
-                  : '—';
-              final cupon = item['cupon'];
-              final sec = (cupon is Map) ? cupon['secuencial']?.toString() : '—';
-              final ep = item['escaneadoPor'];
-              final scanner = (ep is Map) ? (ep['nombre']?.toString() ?? '—') : '—';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FieldLabel('Actividad reciente'),
+        if (top.isEmpty)
+          const _EmptyState('Sin actividad en el período')
+        else
+          ...top.map((item) {
+            final dt = DateTime.tryParse(item['fechaEscaneo'] ?? '')?.toLocal();
+            final fechaStr = dt != null
+                ? DateFormat('dd/MM · hh:mm a', 'es').format(dt)
+                : '—';
+            final cupon = item['cupon'];
+            final sec = (cupon is Map) ? cupon['secuencial']?.toString() : '—';
+            final ep = item['escaneadoPor'];
+            final scanner = (ep is Map) ? (ep['nombre']?.toString() ?? '—') : '—';
 
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: Palette.kAccent.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.qr_code_2, color: Palette.kAccent, size: 18),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Cupón #$sec',
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Palette.kTitle)),
-                              Text(scanner,
-                                  style: const TextStyle(fontSize: 12, color: Palette.kMuted)),
-                            ],
-                          ),
-                        ),
-                        Text(fechaStr,
-                            style: const TextStyle(fontSize: 11, color: Palette.kMuted, fontWeight: FontWeight.w500)),
-                      ],
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: ListRowTile(
+                leading: const IconBox(Icons.qr_code_2),
+                title: 'Cupón #$sec',
+                subtitle: scanner,
+                trailing: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Pill('Canjeado',
+                        variant: PillVariant.green, dense: true),
+                    const SizedBox(height: 4),
+                    Builder(
+                      builder: (context) => Text(
+                        fechaStr,
+                        style: EnjoyTheme.body(
+                            size: 11,
+                            weight: FontWeight.w500,
+                            color: context.ec.textMute),
+                      ),
                     ),
-                  ),
-                  if (!isLast) const Divider(height: 1, color: Palette.kBorder),
-                ],
-              );
-            }),
-        ],
-      ),
+                  ],
+                ),
+              ),
+            );
+          }),
+      ],
     );
   }
 }
@@ -581,94 +574,6 @@ class _PersonData {
 
 // ── Shared widgets ────────────────────────────────────────
 
-class _Card extends StatelessWidget {
-  final Widget child;
-  const _Card({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Palette.kBorder),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: child,
-    );
-  }
-}
-
-class _CardHeader extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  const _CardHeader(this.title, this.icon);
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: Palette.kAccent.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 16, color: Palette.kAccent),
-        ),
-        const SizedBox(width: 10),
-        Text(title,
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Palette.kTitle)),
-      ],
-    );
-  }
-}
-
-class _KpiTile extends StatelessWidget {
-  final String value, label;
-  final IconData icon;
-  final Color color;
-
-  const _KpiTile({required this.value, required this.label, required this.icon, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Palette.kBorder),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 15, color: color),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(label,
-                    style: const TextStyle(fontSize: 11, color: Palette.kMuted, fontWeight: FontWeight.w500),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(value,
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: color, height: 1)),
-        ],
-      ),
-    );
-  }
-}
-
 class _HeaderChip extends StatelessWidget {
   final String text;
   final VoidCallback onTap;
@@ -676,17 +581,19 @@ class _HeaderChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          color: ec.glassStrong,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: ec.stroke),
         ),
         child: Text(text,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+            style: EnjoyTheme.body(
+                size: 12, weight: FontWeight.w700, color: ec.textSoft)),
       ),
     );
   }
@@ -699,11 +606,12 @@ class _Legend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Row(
       children: [
         Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
         const SizedBox(width: 5),
-        Text(label, style: const TextStyle(fontSize: 11, color: Palette.kMuted)),
+        Text(label, style: EnjoyTheme.body(size: 11, color: ec.textMute)),
       ],
     );
   }
@@ -715,10 +623,11 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 20),
       child: Center(
-        child: Text(msg, style: const TextStyle(color: Palette.kMuted, fontSize: 13)),
+        child: Text(msg, style: EnjoyTheme.body(size: 13, color: ec.textMute)),
       ),
     );
   }
@@ -730,19 +639,22 @@ class _ErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade200),
+        color: ec.red.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ec.red.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: Colors.redAccent, size: 18),
+          Icon(Icons.error_outline, color: ec.red, size: 18),
           const SizedBox(width: 8),
-          Expanded(child: Text(msg, style: const TextStyle(color: Colors.redAccent, fontSize: 13))),
+          Expanded(
+              child: Text(msg,
+                  style: EnjoyTheme.body(size: 13, color: ec.red))),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:enjoy/screens/clientes/comercio_detalle_mini_screen.dart';
 import 'package:flutter/material.dart';
+import '../ui/enjoy_dark.dart';
 import '../ui/palette.dart';
 import '../models/promotion_models.dart';
 import 'chip_tiny_light.dart';
@@ -54,7 +55,7 @@ class PromoCardLight extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: Palette.kSurface,
+          color: ED.cardSolid,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -88,14 +89,14 @@ class PromoCardLight extends StatelessWidget {
                           cacheWidth: targetWidth,
                           loadingBuilder: (ctx, child, progress) {
                             if (progress == null) return child;
-                            return Container(color: Palette.kField);
+                            return Container(color: ED.field);
                           },
                           errorBuilder: (ctx, err, st) => Container(
-                            color: Palette.kField,
+                            color: ED.field,
                             alignment: Alignment.center,
                             child: const Icon(
                               Icons.broken_image_outlined,
-                              color: Palette.kMuted,
+                              color: ED.mute,
                             ),
                           ),
                         ),
@@ -150,6 +151,45 @@ class PromoCardLight extends StatelessWidget {
                       bottom: 10,
                       child: FlashCountdownLight(endAt: promo.endDate),
                     ),
+
+                  // Indicador: el local tiene una promoción flash activa
+                  if (promo.tieneFlash)
+                    Positioned(
+                      left: 10,
+                      bottom: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Palette.kAccent, Palette.kAccentLight],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Palette.kAccent.withOpacity(0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.bolt_rounded,
+                                color: Colors.white, size: 12),
+                            SizedBox(width: 3),
+                            Text('Flash',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800)),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -168,7 +208,7 @@ class PromoCardLight extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Palette.kTitle,
+                            color: ED.text,
                             fontWeight: FontWeight.w700,
                             fontSize: 16,
                           ),
@@ -183,7 +223,7 @@ class PromoCardLight extends StatelessWidget {
                         ),
                         Text(
                           promo.rating.toStringAsFixed(1),
-                          style: const TextStyle(color: Palette.kTitle),
+                          style: const TextStyle(color: ED.text),
                         ),
                       ],
                     ],
@@ -191,14 +231,14 @@ class PromoCardLight extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     promo.title,
-                    style: const TextStyle(color: Palette.kSub),
+                    style: const TextStyle(color: ED.sub),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     promo.description,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Palette.kMuted),
+                    style: const TextStyle(color: ED.mute),
                   ),
                   const SizedBox(height: 10),
 
@@ -228,17 +268,17 @@ class PromoCardLight extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: isFavorite
                                 ? Colors.redAccent.withOpacity(0.08)
-                                : Palette.kField,
+                                : ED.field,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: isFavorite
                                   ? Colors.redAccent.withOpacity(0.25)
-                                  : Palette.kBorder,
+                                  : ED.border,
                             ),
                           ),
                           child: Icon(
                             isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                            color: isFavorite ? Colors.redAccent : Palette.kMuted,
+                            color: isFavorite ? Colors.redAccent : ED.mute,
                             size: 17,
                           ),
                         ),
@@ -250,13 +290,13 @@ class PromoCardLight extends StatelessWidget {
                           width: 34,
                           height: 34,
                           decoration: BoxDecoration(
-                            color: Palette.kField,
+                            color: ED.field,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Palette.kBorder),
+                            border: Border.all(color: ED.border),
                           ),
                           child: const Icon(
                             Icons.ios_share,
-                            color: Palette.kMuted,
+                            color: ED.mute,
                             size: 17,
                           ),
                         ),
@@ -270,7 +310,7 @@ class PromoCardLight extends StatelessWidget {
                     children: [
                       const Icon(
                         Icons.location_on_outlined,
-                        color: Palette.kMuted,
+                        color: ED.mute,
                         size: 16,
                       ),
                       const SizedBox(width: 4),
@@ -282,7 +322,7 @@ class PromoCardLight extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           softWrap: true,
-                          style: const TextStyle(color: Palette.kSub),
+                          style: const TextStyle(color: ED.sub),
                         ),
                       ),
                       if (distanceOverride != null) ...[
@@ -347,7 +387,7 @@ class _LogoBadge extends StatelessWidget {
         errorBuilder: (_, __, ___) => const Icon(
           Icons.storefront_outlined,
           size: 20,
-          color: Palette.kMuted,
+          color: ED.mute,
         ),
       ),
     );
@@ -416,14 +456,14 @@ class _AdaptiveNetworkImageState extends State<AdaptiveNetworkImage> {
             cacheWidth: targetWidth,
             loadingBuilder: (ctx, child, progress) {
               if (progress == null) return child;
-              return Container(color: Palette.kField);
+              return Container(color: ED.field);
             },
             errorBuilder: (ctx, err, st) => Container(
-              color: Palette.kField,
+              color: ED.field,
               alignment: Alignment.center,
               child: const Icon(
                 Icons.broken_image_outlined,
-                color: Palette.kMuted,
+                color: ED.mute,
               ),
             ),
           ),

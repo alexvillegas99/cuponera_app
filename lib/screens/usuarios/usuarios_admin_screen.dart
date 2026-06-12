@@ -1,6 +1,6 @@
 import 'package:enjoy/services/core/api_client.dart';
 import 'package:enjoy/services/usuarios_empresa_service.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 
 class UsuariosAdminScreen extends StatefulWidget {
@@ -92,9 +92,21 @@ class _UsuariosAdminScreenState extends State<UsuariosAdminScreen> {
     if (actualizado == true) _cargar();
   }
 
+  Future<void> _abrirCrear() async {
+    final creado = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EditUsuarioSheet(svc: _svc), // usuario null = crear
+    );
+    if (creado == true) _cargar();
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(color: Palette.kAccent));
+    final ec = context.ec;
+    if (_loading) return Center(child: CircularProgressIndicator(color: ec.orange));
     if (_error != null) return _ErrorState(message: _error!, onRetry: _cargar);
 
     return Column(
@@ -106,29 +118,34 @@ class _UsuariosAdminScreenState extends State<UsuariosAdminScreen> {
             children: [
               TextField(
                 onChanged: (v) => setState(() => _busqueda = v),
-                decoration: InputDecoration(
+                style: EnjoyTheme.body(size: 14, color: ec.text),
+                cursorColor: ec.orange,
+                decoration: const InputDecoration(
                   hintText: 'Buscar usuario...',
-                  hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
-                  prefixIcon: const Icon(Icons.search_rounded, color: Palette.kMuted, size: 20),
-                  filled: true,
-                  fillColor: Palette.kSurface,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kAccent)),
+                  prefixIcon: Icon(Icons.search_rounded, size: 20),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               SizedBox(
                 height: 34,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   children: [
-                    _RolChip(label: 'Todos', selected: _filtroRol == null, onTap: () => setState(() => _filtroRol = null)),
-                    ..._rolesLista.map((r) => _RolChip(
-                          label: r.label,
-                          selected: _filtroRol == r.slug,
-                          onTap: () => setState(() => _filtroRol = _filtroRol == r.slug ? null : r.slug),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Pill(
+                        'Todos',
+                        variant: _filtroRol == null ? PillVariant.orange : PillVariant.glass,
+                        onTap: () => setState(() => _filtroRol = null),
+                      ),
+                    ),
+                    ..._rolesLista.map((r) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Pill(
+                            r.label,
+                            variant: _filtroRol == r.slug ? PillVariant.orange : PillVariant.glass,
+                            onTap: () => setState(() => _filtroRol = _filtroRol == r.slug ? null : r.slug),
+                          ),
                         )),
                   ],
                 ),
@@ -137,14 +154,21 @@ class _UsuariosAdminScreenState extends State<UsuariosAdminScreen> {
           ),
         ),
 
-        // Contador
+        // Contador + Agregar
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Row(
             children: [
               Text(
                 '${_filtrados.length} usuario${_filtrados.length != 1 ? 's' : ''}',
-                style: const TextStyle(color: Palette.kMuted, fontSize: 12, fontWeight: FontWeight.w500),
+                style: EnjoyTheme.body(size: 12, weight: FontWeight.w500, color: ec.textMute),
+              ),
+              const Spacer(),
+              Pill(
+                'Agregar',
+                icon: Icons.person_add_alt_1_rounded,
+                variant: PillVariant.orange,
+                onTap: _abrirCrear,
               ),
             ],
           ),
@@ -159,7 +183,7 @@ class _UsuariosAdminScreenState extends State<UsuariosAdminScreen> {
                   subtitulo: 'No se encontraron usuarios con ese filtro.',
                 )
               : RefreshIndicator(
-                  color: Palette.kAccent,
+                  color: ec.orange,
                   onRefresh: _cargar,
                   child: ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
@@ -178,34 +202,23 @@ class _UsuariosAdminScreenState extends State<UsuariosAdminScreen> {
 
 }
 
-// ── Chip de filtro ───────────────────────────────────────────────────────────
+// ── Helpers de rol (compartidos) ─────────────────────────────────────────────
 
-class _RolChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _RolChip({required this.label, required this.selected, required this.onTap});
+String _rolLabel(String rol) {
+  switch (rol.toLowerCase()) {
+    case 'admin-local': return 'Admin Local';
+    case 'admin': return 'Admin';
+    case 'staff': return 'Staff';
+    default: return rol.isEmpty ? 'Sin rol' : rol;
+  }
+}
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? Palette.kAccent : Palette.kSurface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? Palette.kAccent : Palette.kBorder),
-          boxShadow: selected ? [BoxShadow(color: Palette.kAccent.withOpacity(0.3), blurRadius: 6)] : [],
-        ),
-        child: Text(
-          label,
-          style: TextStyle(color: selected ? Colors.white : Palette.kMuted, fontSize: 12, fontWeight: FontWeight.w600),
-        ),
-      ),
-    );
+/// Variante de pill según el rol.
+PillVariant _rolPill(String rol) {
+  switch (rol.toLowerCase()) {
+    case 'admin': return PillVariant.orange;
+    case 'admin-local': return PillVariant.blue;
+    default: return PillVariant.glass;
   }
 }
 
@@ -227,86 +240,44 @@ class _UsuarioCard extends StatelessWidget {
   String get _rol => (usuario['rol'] ?? '').toString();
   bool get _activo => usuario['estado'] != false;
 
-  String _rolLabel(String rol) {
-    switch (rol.toLowerCase()) {
-      case 'admin-local': return 'Admin Local';
-      case 'admin': return 'Admin';
-      case 'staff': return 'Staff';
-      default: return rol.isEmpty ? 'Sin rol' : rol;
-    }
-  }
-
-  Color _rolColor(String rol) {
-    switch (rol.toLowerCase()) {
-      case 'admin': return const Color(0xFF7B2D8B);
-      case 'admin-local': return const Color(0xFF1565C0);
-      case 'staff': return Palette.kMuted;
-      default: return Palette.kAccent;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final initial = _nombre.isNotEmpty ? _nombre[0].toUpperCase() : '?';
-    final rolColor = _rolColor(_rol);
-
-    return GestureDetector(
+    final ec = context.ec;
+    return GlassCard(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Palette.kBorder),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              // Avatar
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: rolColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: rolColor.withOpacity(0.2)),
-                ),
-                child: Center(
-                  child: Text(initial, style: TextStyle(color: rolColor, fontWeight: FontWeight.w800, fontSize: 18)),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          EnjoyAvatar(_nombre, size: 48, radius: 14),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_nombre,
+                    style: EnjoyTheme.heading(size: 14, color: ec.text),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Text(_correo,
+                    style: EnjoyTheme.body(size: 12, color: ec.textMute),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 8),
+                Row(
                   children: [
-                    Text(_nombre,
-                        style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 14),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 2),
-                    Text(_correo,
-                        style: const TextStyle(color: Palette.kMuted, fontSize: 12),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        _Badge(label: _rolLabel(_rol), color: rolColor),
-                        const SizedBox(width: 6),
-                        _Badge(
-                          label: _activo ? 'Activo' : 'Inactivo',
-                          color: _activo ? Colors.green.shade700 : Colors.red.shade700,
-                        ),
-                      ],
+                    Pill(_rolLabel(_rol), variant: _rolPill(_rol), dense: true),
+                    const SizedBox(width: 6),
+                    Pill(
+                      _activo ? 'Activo' : 'Inactivo',
+                      variant: _activo ? PillVariant.green : PillVariant.red,
+                      dense: true,
                     ),
                   ],
                 ),
-              ),
-              const Icon(Icons.chevron_right_rounded, color: Palette.kBorder, size: 22),
-            ],
+              ],
+            ),
           ),
-        ),
+          Icon(Icons.chevron_right_rounded, color: ec.textMute, size: 22),
+        ],
       ),
     );
   }
@@ -317,9 +288,9 @@ class _UsuarioCard extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _EditUsuarioSheet extends StatefulWidget {
-  final Map<String, dynamic> usuario;
+  final Map<String, dynamic>? usuario; // null = crear
   final UsuariosEmpresaService svc;
-  const _EditUsuarioSheet({required this.usuario, required this.svc});
+  const _EditUsuarioSheet({this.usuario, required this.svc});
 
   @override
   State<_EditUsuarioSheet> createState() => _EditUsuarioSheetState();
@@ -342,6 +313,8 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
   bool _obscureClave = true;
   bool _obscureConfirmar = true;
 
+  bool get _isCreate => widget.usuario == null;
+
   List<({String slug, String label})> _rolesDisponibles = [];
   bool _rolesLoading = true;
 
@@ -354,7 +327,9 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
   @override
   void initState() {
     super.initState();
-    _original = Map<String, dynamic>.from(widget.usuario);
+    _original = widget.usuario != null
+        ? Map<String, dynamic>.from(widget.usuario!)
+        : <String, dynamic>{};
 
     _nombre = TextEditingController(text: _original['nombre']?.toString() ?? '');
     _email = TextEditingController(text: (_original['email'] ?? _original['correo'] ?? '').toString());
@@ -420,6 +395,39 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
       return;
     }
 
+    // ── Modo CREAR ──
+    if (_isCreate) {
+      final nombre = _nombre.text.trim();
+      final email = _email.text.trim();
+      if (nombre.isEmpty || email.isEmpty) {
+        _snack('Nombre y correo son obligatorios');
+        return;
+      }
+      final nuevo = <String, dynamic>{
+        'nombre': nombre,
+        'email': email,
+        if (_identificacion.text.trim().isNotEmpty)
+          'identificacion': _identificacion.text.trim(),
+        'rol': _rol,
+        'estado': _estado,
+        if (_clave.text.isNotEmpty) 'clave': _clave.text,
+      };
+      setState(() => _saving = true);
+      try {
+        await widget.svc.crear(nuevo);
+        if (mounted) {
+          _snack('Usuario creado. Se envió la clave por correo si no se definió.',
+              success: true);
+          Navigator.pop(context, true);
+        }
+      } catch (e) {
+        if (mounted) _snack('No se pudo crear el usuario');
+      } finally {
+        if (mounted) setState(() => _saving = false);
+      }
+      return;
+    }
+
     // Delta update: solo campos modificados
     final payload = <String, dynamic>{};
 
@@ -464,9 +472,10 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
   }
 
   void _snack(String msg, {bool success = false, bool info = false}) {
+    final ec = context.ec;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: success ? Colors.green.shade700 : info ? Colors.blue.shade700 : Colors.red.shade700,
+      backgroundColor: success ? ec.green : info ? ec.blue : ec.red,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ));
@@ -475,14 +484,14 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
   // ── UI ───────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final nombre = (_original['nombre'] ?? 'Usuario').toString();
-    final initial = nombre.isNotEmpty ? nombre[0].toUpperCase() : 'U';
-    final rolColor = _rolColor(_rol);
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        gradient: ec.surfaceGradient,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: ec.stroke),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -491,7 +500,7 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
           Padding(
             padding: const EdgeInsets.only(top: 12, bottom: 8),
             child: Container(width: 44, height: 5,
-                decoration: BoxDecoration(color: Palette.kBorder, borderRadius: BorderRadius.circular(99))),
+                decoration: BoxDecoration(color: ec.strokeStrong, borderRadius: BorderRadius.circular(99))),
           ),
 
           // Cabecera con avatar
@@ -499,29 +508,21 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
             child: Row(
               children: [
-                Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                    color: rolColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: rolColor.withOpacity(0.25)),
-                  ),
-                  child: Center(child: Text(initial, style: TextStyle(color: rolColor, fontWeight: FontWeight.w800, fontSize: 18))),
-                ),
+                EnjoyAvatar(nombre, size: 44, radius: 13),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Editar usuario', style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w800, fontSize: 17)),
-                      Text(nombre, style: const TextStyle(color: Palette.kMuted, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(_isCreate ? 'Nuevo usuario' : 'Editar usuario', style: EnjoyTheme.heading(size: 17, weight: FontWeight.w800, color: ec.text)),
+                      Text(nombre, style: EnjoyTheme.body(size: 12, color: ec.textMute), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: Palette.kBorder),
+          const EnjoyDivider(height: 1),
 
           // Formulario
           Flexible(
@@ -534,7 +535,7 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
                   children: [
 
                     // ── DATOS GENERALES ───────────────────────────
-                    _sectionLabel('DATOS GENERALES'),
+                    const FieldLabel('Datos generales'),
                     _field(_nombre, 'Nombre', Icons.person_rounded, required: true),
                     _field(_email, 'Correo electrónico', Icons.email_rounded,
                         keyboard: TextInputType.emailAddress, required: true),
@@ -543,48 +544,32 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
 
                     // ── ROL ───────────────────────────────────────
                     const SizedBox(height: 4),
-                    _sectionLabel('ROL'),
+                    const FieldLabel('Rol'),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _rolesLoading
                           ? Container(
-                              height: 50,
+                              height: 52,
                               decoration: BoxDecoration(
-                                color: Palette.kField,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Palette.kBorder),
+                                color: ec.glass,
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(color: ec.stroke),
                               ),
-                              child: const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Palette.kAccent))),
+                              child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: ec.orange))),
                             )
                           : DropdownButtonFormField<String>(
-                              value: _rolesDisponibles.any((r) => r.slug == _rol) ? _rol : null,
-                              decoration: InputDecoration(
-                                prefixIcon: Icon(Icons.manage_accounts_rounded, size: 18, color: _rolColor(_rol)),
-                                filled: true,
-                                fillColor: Palette.kField,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kAccent, width: 1.5)),
+                              initialValue: _rolesDisponibles.any((r) => r.slug == _rol) ? _rol : null,
+                              decoration: const InputDecoration(
+                                prefixIcon: Icon(Icons.manage_accounts_rounded, size: 20),
                               ),
-                              dropdownColor: Palette.kSurface,
-                              style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                              hint: const Text('Seleccionar rol', style: TextStyle(color: Palette.kMuted, fontSize: 13)),
+                              dropdownColor: ec.surfaceTop,
+                              style: EnjoyTheme.body(size: 14, color: ec.text),
+                              hint: Text('Seleccionar rol', style: EnjoyTheme.body(size: 13, color: ec.textMute)),
                               validator: (v) => (v == null || v.isEmpty) ? 'Selecciona un rol' : null,
                               items: _rolesDisponibles.map((r) {
-                                final rc = _rolColor(r.slug);
                                 return DropdownMenuItem<String>(
                                   value: r.slug,
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 8, height: 8,
-                                        decoration: BoxDecoration(color: rc, shape: BoxShape.circle),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(r.label),
-                                    ],
-                                  ),
+                                  child: Text(r.label),
                                 );
                               }).toList(),
                               onChanged: (v) { if (v != null) setState(() => _rol = v); },
@@ -594,35 +579,40 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
                     // ── ESTADO ────────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Palette.kField,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Palette.kBorder),
-                        ),
-                        child: SwitchListTile(
-                          title: const Text('Usuario activo',
-                              style: TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w600, fontSize: 14)),
-                          subtitle: Text(_estado ? 'Puede iniciar sesión' : 'Acceso bloqueado',
-                              style: TextStyle(
-                                  color: _estado ? Colors.green.shade600 : Colors.red.shade600,
-                                  fontSize: 11)),
-                          value: _estado,
-                          onChanged: (v) => setState(() => _estado = v),
-                          activeColor: Palette.kAccent,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: GlassCard(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                        blur: false,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Usuario activo',
+                                      style: EnjoyTheme.heading(size: 14, weight: FontWeight.w600, color: ec.text)),
+                                  const SizedBox(height: 2),
+                                  Text(_estado ? 'Puede iniciar sesión' : 'Acceso bloqueado',
+                                      style: EnjoyTheme.body(
+                                          size: 11, color: _estado ? ec.green : ec.red)),
+                                ],
+                              ),
+                            ),
+                            EnjoyToggle(
+                              value: _estado,
+                              onChanged: (v) => setState(() => _estado = v),
+                            ),
+                          ],
                         ),
                       ),
                     ),
 
                     // ── CONTRASEÑA ────────────────────────────────
-                    _sectionLabel('CONTRASEÑA'),
+                    const FieldLabel('Contraseña'),
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
+                      padding: const EdgeInsets.only(bottom: 8),
                       child: Text('Dejar vacío para no modificar la contraseña actual.',
-                          style: const TextStyle(color: Palette.kMuted, fontSize: 11)),
+                          style: EnjoyTheme.body(size: 11, color: ec.textMute)),
                     ),
-                    const SizedBox(height: 8),
                     _passwordField(_clave, 'Nueva contraseña (opcional)', _obscureClave,
                         () => setState(() => _obscureClave = !_obscureClave)),
                     _passwordField(_confirmarClave, 'Confirmar nueva contraseña', _obscureConfirmar,
@@ -638,31 +628,19 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton(
+                          child: EnjoyButton(
+                            label: 'Cancelar',
+                            variant: EnjoyButtonVariant.ghost,
                             onPressed: _saving ? null : () => Navigator.pop(context),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: Palette.kBorder),
-                              foregroundColor: Palette.kMuted,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: const Text('Cancelar'),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: ElevatedButton(
+                          child: EnjoyButton(
+                            label: 'Guardar cambios',
+                            icon: Icons.check_rounded,
+                            loading: _saving,
                             onPressed: _saving ? null : _guardar,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Palette.kAccent,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: _saving
-                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                : const Text('Guardar cambios', style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
                         ),
                       ],
@@ -677,42 +655,23 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
     );
   }
 
-  // ── Helpers de color ─────────────────────────────────────────────
-  Color _rolColor(String rol) {
-    switch (rol.toLowerCase()) {
-      case 'admin': return const Color(0xFF7B2D8B);
-      case 'admin-local': return const Color(0xFF1565C0);
-      default: return Palette.kMuted;
-    }
-  }
-
   // ── Helpers de UI ─────────────────────────────────────────────────
-  Widget _sectionLabel(String label) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Text(label, style: const TextStyle(color: Palette.kMuted, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
-  );
-
   Widget _field(TextEditingController ctrl, String hint, IconData icon, {
     TextInputType keyboard = TextInputType.text,
     bool required = false,
   }) {
+    final ec = context.ec;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TextFormField(
         controller: ctrl,
         keyboardType: keyboard,
-        style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+        cursorColor: ec.orange,
+        style: EnjoyTheme.body(size: 14, color: ec.text),
         validator: required ? (v) => (v == null || v.trim().isEmpty) ? 'Campo requerido' : null : null,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
-          prefixIcon: Icon(icon, size: 18, color: Palette.kMuted),
-          filled: true, fillColor: Palette.kField,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kAccent, width: 1.5)),
-          errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.red)),
+          prefixIcon: Icon(icon, size: 20),
         ),
       ),
     );
@@ -725,50 +684,24 @@ class _EditUsuarioSheetState extends State<_EditUsuarioSheet> {
     VoidCallback toggleObscure, {
     String? Function(String?)? validator,
   }) {
+    final ec = context.ec;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TextFormField(
         controller: ctrl,
         obscureText: obscure,
-        style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+        cursorColor: ec.orange,
+        style: EnjoyTheme.body(size: 14, color: ec.text),
         validator: validator,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
-          prefixIcon: const Icon(Icons.lock_rounded, size: 18, color: Palette.kMuted),
+          prefixIcon: const Icon(Icons.lock_rounded, size: 20),
           suffixIcon: IconButton(
             onPressed: toggleObscure,
-            icon: Icon(obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 18, color: Palette.kMuted),
+            icon: Icon(obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20),
           ),
-          filled: true, fillColor: Palette.kField,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kAccent, width: 1.5)),
-          errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.red)),
         ),
       ),
-    );
-  }
-}
-
-// ── Badge ────────────────────────────────────────────────────────────────────
-
-class _Badge extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _Badge({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.25)),
-      ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -783,21 +716,18 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 72, height: 72,
-              decoration: BoxDecoration(color: Palette.kField, borderRadius: BorderRadius.circular(20)),
-              child: Icon(icon, size: 36, color: Palette.kMuted),
-            ),
+            IconBox(icon, size: 72, radius: 20, iconSize: 36),
             const SizedBox(height: 16),
-            Text(titulo, style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 16)),
+            Text(titulo, style: EnjoyTheme.heading(size: 16, color: ec.text)),
             const SizedBox(height: 6),
-            Text(subtitulo, textAlign: TextAlign.center, style: const TextStyle(color: Palette.kMuted, fontSize: 13)),
+            Text(subtitulo, textAlign: TextAlign.center, style: EnjoyTheme.body(size: 13, color: ec.textMute)),
           ],
         ),
       ),
@@ -812,32 +742,24 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 72, height: 72,
-              decoration: BoxDecoration(color: Colors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(20)),
-              child: const Icon(Icons.wifi_off_rounded, size: 36, color: Colors.red),
-            ),
+            IconBox(Icons.wifi_off_rounded, size: 72, radius: 20, iconSize: 36, color: ec.red),
             const SizedBox(height: 16),
-            const Text('Error de conexión', style: TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 16)),
+            Text('Error de conexión', style: EnjoyTheme.heading(size: 16, color: ec.text)),
             const SizedBox(height: 6),
-            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Palette.kMuted, fontSize: 13)),
+            Text(message, textAlign: TextAlign.center, style: EnjoyTheme.body(size: 13, color: ec.textMute)),
             const SizedBox(height: 20),
-            ElevatedButton.icon(
+            EnjoyButton(
+              label: 'Reintentar',
+              icon: Icons.refresh_rounded,
+              expand: false,
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded, size: 16),
-              label: const Text('Reintentar'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Palette.kAccent,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
             ),
           ],
         ),

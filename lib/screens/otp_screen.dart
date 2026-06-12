@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:enjoy/services/otp_service.dart';
-import '../ui/palette.dart';
+import 'package:enjoy/ui/enjoy.dart';
 
 class OtpVerifyScreen extends StatefulWidget {
   const OtpVerifyScreen({
@@ -174,340 +174,169 @@ class OtpVerifyScreenState extends State<OtpVerifyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final sessionCritical = _sessionLeft < 60;
     final canConfirm = _filled == widget.length && !_validating;
     final canResendNow = _remaining == 0 && !_resending && !_validating;
 
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      appBar: AppBar(
-        backgroundColor: Palette.kSurface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        foregroundColor: Palette.kPrimary,
-        title: Text(
-          widget.title,
-          style: const TextStyle(
-            color: Palette.kTitle,
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
+    return EnjoyScaffold(
+      appBar: EnjoyAppBar(title: widget.title),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 8),
+
+          // ── Hero: ícono + título centrado ─────────────────
+          Column(
+            children: [
+              const SizedBox(height: 10),
+              IconBox(
+                Icons.mail_outline_rounded,
+                accent: true,
+                size: 74,
+                radius: 24,
+                iconSize: 30,
+              ),
+              const SizedBox(height: 22),
+              Text(
+                'Confirma tu identidad',
+                textAlign: TextAlign.center,
+                style: EnjoyTheme.heading(
+                    size: 22, weight: FontWeight.w800, color: ec.text),
+              ),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 280),
+                child: Text(
+                  widget.subtitle ??
+                      'Ingresa el código de ${widget.length} dígitos enviado a tu correo.',
+                  textAlign: TextAlign.center,
+                  style: EnjoyTheme.body(
+                      size: 14, color: ec.textSoft, height: 1.45),
+                ),
+              ),
+              const SizedBox(height: 14),
+              // Email pill
+              Pill(widget.email,
+                  variant: PillVariant.glass,
+                  icon: Icons.alternate_email_rounded),
+            ],
           ),
-        ),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            color: Palette.kSurface,
-            border: Border(
-              bottom: BorderSide(color: Palette.kBorder, width: 1),
+
+          const SizedBox(height: 30),
+
+          // ── OTP boxes ─────────────────────────────────────
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(
+              widget.length,
+              (i) => _OtpBox(
+                controller: _ctrs[i],
+                focusNode: _nodes[i],
+                onChanged: (v) => _onChanged(i, v),
+              ),
             ),
           ),
-        ),
-      ),
 
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          const SizedBox(height: 20),
+
+          // ── Progreso + timer ──────────────────────────────
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-
-              // ── Header card ───────────────────────────────────
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Palette.kSurface,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
-                      blurRadius: 20,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Ícono + título
-                    Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Palette.kAccent, Palette.kAccentLight],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Palette.kAccent.withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.shield_rounded,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text(
-                            'Confirma tu identidad',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Palette.kTitle,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Subtítulo
-                    Text(
-                      widget.subtitle ??
-                          'Ingresa el código de ${widget.length} dígitos enviado a tu correo.',
-                      style: const TextStyle(
-                        color: Palette.kMuted,
-                        fontSize: 13,
-                        height: 1.45,
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Email pill
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: Palette.kPrimary.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: Palette.kPrimary.withOpacity(0.15)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.alternate_email_rounded,
-                              color: Palette.kPrimary, size: 13),
-                          const SizedBox(width: 5),
-                          Text(
-                            widget.email,
-                            style: const TextStyle(
-                              color: Palette.kPrimary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              Text(
+                '$_filled de ${widget.length} dígitos',
+                style: EnjoyTheme.body(size: 12, color: ec.textMute),
               ),
-
-              const SizedBox(height: 32),
-
-              // ── OTP boxes ─────────────────────────────────────
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(
-                  widget.length,
-                  (i) => _OtpBox(
-                    controller: _ctrs[i],
-                    focusNode: _nodes[i],
-                    onChanged: (v) => _onChanged(i, v),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // ── Progreso + timer ──────────────────────────────
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Progreso
-                  Text(
-                    '$_filled de ${widget.length} dígitos',
-                    style: const TextStyle(color: Palette.kMuted, fontSize: 12),
-                  ),
-                  // Timer pill
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: sessionCritical
-                          ? Colors.redAccent.withOpacity(0.08)
-                          : Palette.kField,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: sessionCritical
-                            ? Colors.redAccent.withOpacity(0.25)
-                            : Palette.kBorder,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.timer_outlined,
-                          size: 13,
-                          color: sessionCritical
-                              ? Colors.redAccent
-                              : Palette.kMuted,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _fmt(_sessionLeft),
-                          style: TextStyle(
-                            color: sessionCritical
-                                ? Colors.redAccent
-                                : Palette.kTitle,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              // ── Reenviar ──────────────────────────────────────
-              if (widget.canResend)
-                Center(
-                  child: GestureDetector(
-                    onTap: canResendNow ? _resend : null,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: canResendNow
-                            ? Palette.kAccent.withOpacity(0.08)
-                            : Palette.kField,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: canResendNow
-                              ? Palette.kAccent.withOpacity(0.25)
-                              : Palette.kBorder,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_resending)
-                            const SizedBox(
-                              width: 13,
-                              height: 13,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                color: Palette.kAccent,
-                              ),
-                            )
-                          else
-                            Icon(
-                              Icons.refresh_rounded,
-                              size: 15,
-                              color: canResendNow
-                                  ? Palette.kAccent
-                                  : Palette.kMuted,
-                            ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _remaining > 0
-                                ? 'Reenviar en ${_fmt(_remaining)}'
-                                : (_resending
-                                    ? 'Enviando...'
-                                    : 'Reenviar código'),
-                            style: TextStyle(
-                              color: canResendNow
-                                  ? Palette.kAccent
-                                  : Palette.kMuted,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-              const Spacer(),
-
-              // ── Botón confirmar ───────────────────────────────
-              GestureDetector(
-                onTap: canConfirm ? _confirm : null,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  height: 52,
-                  decoration: BoxDecoration(
-                    gradient: canConfirm
-                        ? const LinearGradient(
-                            colors: [Palette.kAccent, Palette.kAccentLight],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
-                        : null,
-                    color: canConfirm ? null : Palette.kBorder,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: canConfirm
-                        ? [
-                            BoxShadow(
-                              color: Palette.kAccent.withOpacity(0.35),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  alignment: Alignment.center,
-                  child: _validating
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.check_rounded,
-                              color: canConfirm ? Colors.white : Palette.kMuted,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Confirmar',
-                              style: TextStyle(
-                                color: canConfirm
-                                    ? Colors.white
-                                    : Palette.kMuted,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
+              Pill(
+                _fmt(_sessionLeft),
+                variant: sessionCritical ? PillVariant.red : PillVariant.glass,
+                icon: Icons.timer_outlined,
+                dense: true,
               ),
             ],
           ),
+
+          const SizedBox(height: 16),
+
+          // ── Reenviar ──────────────────────────────────────
+          if (widget.canResend)
+            Center(
+              child: _ResendChip(
+                enabled: canResendNow,
+                resending: _resending,
+                label: _remaining > 0
+                    ? 'Reenviar en ${_fmt(_remaining)}'
+                    : (_resending ? 'Enviando...' : 'Reenviar código'),
+                onTap: canResendNow ? _resend : null,
+              ),
+            ),
+
+          const Spacer(),
+
+          // ── Botón confirmar ───────────────────────────────
+          EnjoyButton(
+            label: 'Confirmar',
+            icon: Icons.check_rounded,
+            loading: _validating,
+            onPressed: canConfirm ? _confirm : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Chip de reenvío (glass/naranja según estado) ───────────────────────
+class _ResendChip extends StatelessWidget {
+  const _ResendChip({
+    required this.enabled,
+    required this.resending,
+    required this.label,
+    this.onTap,
+  });
+
+  final bool enabled;
+  final bool resending;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ec = context.ec;
+    final fg = enabled ? ec.orangeSoft : ec.textMute;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        decoration: BoxDecoration(
+          color: enabled ? ec.orange.withValues(alpha: 0.10) : ec.glassStrong,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: enabled ? ec.orange.withValues(alpha: 0.28) : ec.stroke,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (resending)
+              SizedBox(
+                width: 13,
+                height: 13,
+                child: CircularProgressIndicator(
+                    strokeWidth: 1.5, color: ec.orangeSoft),
+              )
+            else
+              Icon(Icons.refresh_rounded, size: 15, color: fg),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: EnjoyTheme.body(
+                  size: 13, weight: FontWeight.w600, color: fg),
+            ),
+          ],
         ),
       ),
     );
@@ -528,31 +357,30 @@ class _OtpBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final filled = controller.text.isNotEmpty;
     final focused = focusNode.hasFocus;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
-      width: 54,
+      width: 46,
       height: 58,
       decoration: BoxDecoration(
-        color: filled
-            ? Palette.kAccent.withOpacity(0.06)
-            : Palette.kSurface,
+        color: filled ? ec.orange.withValues(alpha: 0.08) : ec.glass,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: focused
-              ? Palette.kAccent
+              ? ec.orange
               : filled
-                  ? Palette.kAccent.withOpacity(0.35)
-                  : Palette.kBorder,
+                  ? ec.orange.withValues(alpha: 0.45)
+                  : ec.stroke,
           width: focused ? 2 : 1.2,
         ),
         boxShadow: focused
             ? [
                 BoxShadow(
-                  color: Palette.kAccent.withOpacity(0.15),
-                  blurRadius: 8,
+                  color: ec.orange.withValues(alpha: 0.18),
+                  blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
               ]
@@ -563,15 +391,17 @@ class _OtpBox extends StatelessWidget {
         focusNode: focusNode,
         maxLength: 1,
         textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w800,
-          color: filled ? Palette.kAccent : Palette.kTitle,
+        cursorColor: ec.orange,
+        style: EnjoyTheme.heading(
+          size: 22,
+          weight: FontWeight.w800,
+          color: filled ? ec.orangeSoft : ec.text,
         ),
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         decoration: const InputDecoration(
           counterText: '',
+          filled: false,
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,

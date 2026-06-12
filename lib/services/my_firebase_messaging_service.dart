@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:enjoy/config/router/app_router.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -181,6 +182,23 @@ class MyFirebaseMessagingService {
 
   void _safeOnMessageOpened(RemoteMessage m) {
     debugPrint("📩 OPENED: ${m.notification?.title}");
+
+    // Notificación de chat → llevar a la conversación.
+    final tipo = m.data['tipo']?.toString();
+    if (tipo == 'chat') {
+      final convId = m.data['conversacionId']?.toString();
+      final esSoporte = m.data['autorTipo']?.toString() == 'LOCAL';
+      if (convId != null && convId.isNotEmpty) {
+        appRouter?.push('/chat/$convId${esSoporte ? '?soporte=1' : ''}');
+        return;
+      }
+    }
+
+    // Campaña / notificación masiva → abre la pantalla de notificaciones.
+    if (tipo == 'campana') {
+      appRouter?.push('/notificaciones');
+      return;
+    }
 
     final url = m.data['link']?.toString();
     if (url != null && url.isNotEmpty) _abrirEnlace(url);

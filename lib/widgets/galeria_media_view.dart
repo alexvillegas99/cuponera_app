@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import 'package:enjoy/ui/widgets/enjoy_image.dart';
 import '../models/media_item.dart';
 
 /// Carrusel de galería del local para el detalle del cliente.
@@ -55,10 +56,10 @@ class _GaleriaMediaViewState extends State<GaleriaMediaView> {
                 if (m.isVideo) {
                   return _MutedAutoplayVideo(url: m.url);
                 }
-                return Image.network(
+                return EnjoyImage(
                   m.url,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorWidget: Container(
                     color: const Color(0xFFEDEFF5),
                     child: const Icon(Icons.broken_image_rounded,
                         color: Colors.grey, size: 40),
@@ -149,8 +150,8 @@ class _GaleriaHeroViewState extends State<GaleriaHeroView> {
 
   Widget _fallback() {
     if ((widget.fallbackImageUrl ?? '').isNotEmpty) {
-      return Image.network(widget.fallbackImageUrl!, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(color: const Color(0xFFD9DEEA)));
+      return EnjoyImage(widget.fallbackImageUrl!, fit: BoxFit.cover,
+          errorWidget: Container(color: const Color(0xFFD9DEEA)));
     }
     return Container(color: const Color(0xFFD9DEEA));
   }
@@ -170,10 +171,10 @@ class _GaleriaHeroViewState extends State<GaleriaHeroView> {
           itemBuilder: (_, i) {
             final m = items[i];
             if (m.isVideo) return _MutedAutoplayVideo(url: m.url);
-            return Image.network(
+            return EnjoyImage(
               m.url,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _fallback(),
+              errorWidget: _fallback(),
             );
           },
         ),

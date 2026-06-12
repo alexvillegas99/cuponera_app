@@ -14,6 +14,25 @@ class CiudadesService {
     return Provincia.listFrom(resp.data);
   }
 
+  /// Ciudades disponibles para el flujo de registro (todas las activas de
+  /// una provincia, no solo las que tienen promos).
+  Future<List<Ciudad>> getParaRegistro({String? provinciaId}) async {
+    final params = <String, dynamic>{};
+    if (provinciaId != null && provinciaId.isNotEmpty) {
+      params['provincia'] = provinciaId;
+    }
+    final resp = await ApiClient.instance.get(
+      '/ciudades/registro',
+      queryParameters: params.isEmpty ? null : params,
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Error ${resp.statusCode}: ${resp.data}');
+    }
+    return (resp.data as List)
+        .map((e) => Ciudad.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Ciudades activas para promociones, opcionalmente filtradas por provincia.
   Future<List<Ciudad>> getParaPromosPorProvincia(String provinciaId) async {
     final resp = await ApiClient.instance.get(

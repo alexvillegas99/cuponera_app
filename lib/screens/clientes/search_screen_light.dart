@@ -1,7 +1,7 @@
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
-import '../../ui/palette.dart';
 import '../../models/promotion_models.dart';
-import '../../widgets/promo_card_light.dart';
+import '../../screens/clientes/comercio_detalle_mini_screen.dart';
 
 class SearchScreenLight extends StatefulWidget {
   final List<Promotion> all;
@@ -22,8 +22,19 @@ class SearchScreenLight extends StatefulWidget {
 class _SearchScreenLightState extends State<SearchScreenLight> {
   String q = '';
 
+  void _openDetalle(Promotion p) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ComercioDetalleMiniScreen(usuarioId: p.id),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final query = q.trim().toLowerCase();
 
     final List<Promotion> results = query.isEmpty
@@ -40,47 +51,49 @@ class _SearchScreenLightState extends State<SearchScreenLight> {
           }).toList();
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Text('Buscar', style: EnjoyTheme.heading(size: 20, color: ec.text)),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: TextField(
             onChanged: (v) => setState(() => q = v),
-            decoration: InputDecoration(
+            style: EnjoyTheme.body(size: 14, color: ec.text),
+            cursorColor: ec.orange,
+            decoration: const InputDecoration(
               hintText: 'Buscar promociones…',
-              prefixIcon: const Icon(Icons.search),
-              filled: true,
-              fillColor: Palette.kField,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Palette.kBorder),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Palette.kAccent),
-              ),
+              prefixIcon: Icon(Icons.search),
             ),
           ),
         ),
         Expanded(
           child: results.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'Busca por nombre, categoría o tag',
-                    style: TextStyle(color: Palette.kMuted),
+                    style: EnjoyTheme.body(size: 13, color: ec.textMute),
                   ),
                 )
               : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 90),
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 90),
                   itemCount: results.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => PromoCardLight(
-                    promo: results[i],
-                    style: CardStyle.normal,
-                    isFavorite: widget.isFavorite(results[i]),
-                    onTap: () {},
-                    onFavorite: () => widget.onFavorite(results[i]),
-                    onShare: () {},
-                  ),
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) {
+                    final p = results[i];
+                    return PromoCard(
+                      title: p.placeName.isNotEmpty ? p.placeName : p.title,
+                      subtitle: p.title,
+                      imageUrl: p.coverUrl,
+                      topBadge: p.categories.isNotEmpty ? p.categories.first : null,
+                      discount: p.isTwoForOne ? '2x1' : null,
+                      isFavorite: widget.isFavorite(p),
+                      onFavorite: () => widget.onFavorite(p),
+                      onTap: () => _openDetalle(p),
+                    );
+                  },
                 ),
         ),
       ],

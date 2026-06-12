@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../ui/enjoy_dark.dart';
 import '../ui/palette.dart';
 
 class CategoryTileLight extends StatelessWidget {
@@ -30,10 +31,10 @@ class CategoryTileLight extends StatelessWidget {
           decoration: BoxDecoration(
             color: selected
                 ? Palette.kAccent.withOpacity(0.12)
-                : Palette.kSurface,
+                : ED.cardSolid,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? Palette.kAccent : Palette.kBorder,
+              color: selected ? Palette.kAccent : ED.border,
               width: selected ? 1.2 : 1,
             ),
           ),
@@ -44,7 +45,7 @@ class CategoryTileLight extends StatelessWidget {
               Icon(
                 icon,
                 size: 26,
-                color: selected ? Palette.kAccent : Palette.kMuted,
+                color: selected ? Palette.kAccent : ED.mute,
               ),
               const SizedBox(height: 8),
               Text(
@@ -56,7 +57,7 @@ class CategoryTileLight extends StatelessWidget {
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,
                   height: 1.2,
-                  color: selected ? Palette.kAccent : Palette.kTitle,
+                  color: selected ? Palette.kAccent : ED.text,
                 ),
               ),
             ],

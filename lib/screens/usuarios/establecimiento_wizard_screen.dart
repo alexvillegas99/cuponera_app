@@ -6,7 +6,8 @@ import 'package:enjoy/screens/usuarios/establecimiento_form_screen.dart' show Se
 import 'package:enjoy/services/categorias_service.dart';
 import 'package:enjoy/services/ciudades_service.dart';
 import 'package:enjoy/services/establecimientos_empresa_service.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:enjoy/services/geocoding_service.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:enjoy/widgets/horario_builder.dart';
 import 'package:enjoy/utils/image_pick.dart';
 import 'package:flutter/material.dart';
@@ -31,7 +32,6 @@ class _EstablecimientoWizardScreenState
   final _svc = EstablecimientosEmpresaService();
   final _ciudadesSvc = CiudadesService();
   final _categoriasSvc = CategoriasService();
-  final _page = PageController();
 
   // ── Estado de carga de referencias ──
   bool _loadingRefs = true;
@@ -49,9 +49,9 @@ class _EstablecimientoWizardScreenState
     'Promoción',
     'Imágenes',
     'Catálogo',
-    'Resumen',
   ];
   int _step = 0;
+  bool _menuOpen = true; // true = menú de secciones; false = sección abierta
 
   // ── Campos: Datos ──
   final _nombre = TextEditingController();
@@ -72,7 +72,6 @@ class _EstablecimientoWizardScreenState
   final _titulo = TextEditingController();
   final _descripcion = TextEditingController();
   String _horarioLabel = '';
-  bool _isTwoForOne = false;
   bool _aplicaTodosLosDias = true;
   final List<String> _diasAplicables = [];
   final Map<String, Map<String, String>> _horarioPorDia = {};
@@ -138,7 +137,6 @@ class _EstablecimientoWizardScreenState
     _descripcion.text = dp['description']?.toString() ?? '';
     _horarioLabel = dp['scheduleLabel']?.toString() ?? '';
     _direccion.text = dp['address']?.toString() ?? '';
-    _isTwoForOne = dp['isTwoForOne'] == true;
     _aplicaTodosLosDias = dp['aplicaTodosLosDias'] != false;
     final t = dp['tags'];
     if (t is List) _tags.addAll(t.map((e) => e.toString()));
@@ -182,12 +180,13 @@ class _EstablecimientoWizardScreenState
     if (tel.isEmpty) return tel;
     var limpio = tel.replaceAll(RegExp(r'\D'), '');
     if (limpio.startsWith('593')) limpio = limpio.substring(3);
+    // Restaurar el 0 inicial del formato local (ej. 999... → 0999...).
+    if (limpio.length == 9 && limpio.startsWith('9')) limpio = '0$limpio';
     return limpio;
   }
 
   @override
   void dispose() {
-    _page.dispose();
     _nombre.dispose();
     _email.dispose();
     _identificacion.dispose();
@@ -241,99 +240,13 @@ class _EstablecimientoWizardScreenState
     }
   }
 
-  // ── Navegación ──
-  void _next() {
-    if (!_validarPaso(_step)) return;
-    if (_step < _labels.length - 1) {
-      setState(() => _step++);
-      _page.animateToPage(_step,
-          duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
-    }
-  }
-
-  void _prev() {
-    if (_step > 0) {
-      setState(() => _step--);
-      _page.animateToPage(_step,
-          duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
-    }
-  }
-
   void _snack(String msg, {bool ok = false}) {
+    final ec = context.ec;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: ok ? Colors.green.shade700 : Colors.redAccent,
+      backgroundColor: ok ? ec.green : ec.red,
       behavior: SnackBarBehavior.floating,
     ));
-  }
-
-  // ── Validación por paso ──
-  bool _validarPaso(int step) {
-    final errores = _erroresPaso(step);
-    if (errores.isNotEmpty) {
-      _snack(errores.first);
-      return false;
-    }
-    return true;
-  }
-
-  List<String> _erroresPaso(int step) {
-    final e = <String>[];
-    switch (step) {
-      case 0:
-        if (_nombre.text.trim().isEmpty) e.add('El nombre es obligatorio');
-        final email = _email.text.trim();
-        if (email.isEmpty) {
-          e.add('El email es obligatorio');
-        } else if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
-          e.add('Ingresa un email válido');
-        }
-        final id = _identificacion.text.trim();
-        if (id.isEmpty) {
-          e.add('La identificación es obligatoria');
-        } else if (!RegExp(r'^\d{10}(\d{3})?$').hasMatch(id)) {
-          e.add('CI (10 dígitos) o RUC (13 dígitos)');
-        }
-        final tel = _telefono.text.trim();
-        if (tel.isNotEmpty &&
-            !RegExp(r'^[0-9]{7,10}$').hasMatch(tel.replaceFirst(RegExp(r'^0'), ''))) {
-          e.add('Teléfono inválido (7-10 dígitos)');
-        }
-        break;
-      case 1:
-        if (_selProvincia == null) e.add('Selecciona la provincia');
-        if (_selCiudades.isEmpty) e.add('Selecciona al menos una ciudad');
-        if (_selCategorias.isEmpty) e.add('Selecciona al menos una categoría');
-        break;
-      case 2:
-        if (_titulo.text.trim().isEmpty) e.add('El título de la promoción es obligatorio');
-        if (_horarioLabel.trim().isEmpty) {
-          e.add('Arma el horario de la promoción');
-        }
-        if (!_aplicaTodosLosDias && _diasAplicables.isEmpty) {
-          e.add('Selecciona al menos un día o marca "Aplica todos los días"');
-        }
-        break;
-      case 4:
-        for (var i = 0; i < _productos.length; i++) {
-          final p = _productos[i];
-          final foto = (p['base64'] ?? '').isNotEmpty;
-          final nom = (p['nombre'] ?? '').trim().isNotEmpty;
-          if (foto && !nom) e.add('Producto ${i + 1}: falta el nombre');
-          if (nom && !foto) e.add('Producto ${i + 1}: falta la foto');
-        }
-        break;
-    }
-    return e;
-  }
-
-  List<String> get _faltantes {
-    final all = <String>[];
-    for (var s = 0; s <= 2; s++) {
-      all.addAll(_erroresPaso(s));
-    }
-    all.addAll(_erroresPaso(4));
-    return all;
   }
 
   // ── Builders de payload (reutilizados por crear y guardar-por-sección) ──
@@ -406,11 +319,6 @@ class _EstablecimientoWizardScreenState
 
   // ── Crear (POST) o, en edición, guardar TODO (PATCH) ──
   Future<void> _crear() async {
-    final faltan = _faltantes;
-    if (faltan.isNotEmpty) {
-      _snack(faltan.first);
-      return;
-    }
     setState(() => _saving = true);
     try {
       final detalle = _promoDetalle();
@@ -485,19 +393,20 @@ class _EstablecimientoWizardScreenState
 
   /// Renderiza la imagen de un item {base64} o {url}.
   Widget _itemImage(Map<String, String> item, {BoxFit fit = BoxFit.cover}) {
+    final ec = context.ec;
     final b64 = item['base64'];
     if (b64 != null && b64.isNotEmpty) {
       return Image.memory(bytesFromDataUrl(b64)!, fit: fit);
     }
     final url = item['url'];
     if (url != null && url.isNotEmpty) {
-      return Image.network(url,
+      return EnjoyImage(url,
           fit: fit,
-          errorBuilder: (_, __, ___) => Container(
-              color: Palette.kSurface,
-              child: const Icon(Icons.broken_image_rounded, color: Palette.kMuted)));
+          errorWidget: Container(
+              color: ec.glassStrong,
+              child: Icon(Icons.broken_image_rounded, color: ec.textMute)));
     }
-    return Container(color: Palette.kField);
+    return Container(color: ec.glassStrong);
   }
 
   // ── Imágenes ──
@@ -526,14 +435,13 @@ class _EstablecimientoWizardScreenState
 
   Future<(String, String)?> _dialogoProducto(
       {String nombre = '', String descripcion = ''}) async {
+    final ec = context.ec;
     final n = TextEditingController(text: nombre);
     final d = TextEditingController(text: descripcion);
     final res = await showDialog<(String, String)>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Palette.kSurface,
-        title: const Text('Producto',
-            style: TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700)),
+        title: const Text('Producto'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           _dialogField(n, 'Nombre', autofocus: true),
           const SizedBox(height: 10),
@@ -542,9 +450,9 @@ class _EstablecimientoWizardScreenState
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar', style: TextStyle(color: Palette.kMuted))),
+              child: Text('Cancelar',
+                  style: EnjoyTheme.body(color: ec.textMute))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Palette.kAccent),
             onPressed: () {
               if (n.text.trim().isEmpty) return;
               Navigator.pop(ctx, (n.text.trim(), d.text.trim()));
@@ -561,19 +469,14 @@ class _EstablecimientoWizardScreenState
 
   Widget _dialogField(TextEditingController c, String label,
       {bool autofocus = false, int lines = 1}) {
+    final ec = context.ec;
     return TextField(
       controller: c,
       autofocus: autofocus,
       minLines: lines,
       maxLines: lines,
-      style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
-        filled: true,
-        fillColor: Palette.kField,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+      style: EnjoyTheme.body(size: 14, color: ec.text),
+      decoration: InputDecoration(labelText: label),
     );
   }
 
@@ -596,6 +499,11 @@ class _EstablecimientoWizardScreenState
         _lat = pos.latitude;
         _lng = pos.longitude;
       });
+      // Autocompleta la dirección desde las coordenadas (igual que la web).
+      final dir = await GeocodingService.reverse(pos.latitude, pos.longitude);
+      if (mounted && dir != null && dir.isNotEmpty) {
+        setState(() => _direccion.text = dir);
+      }
     } catch (e) {
       if (mounted) _snack(e.toString().replaceFirst('Exception: ', ''));
     } finally {
@@ -605,250 +513,228 @@ class _EstablecimientoWizardScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      appBar: AppBar(
-        backgroundColor: Palette.kSurface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              size: 18, color: Palette.kTitle),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(_isEdit ? 'Editar establecimiento' : 'Nuevo establecimiento',
-            style: TextStyle(
-                color: Palette.kTitle, fontWeight: FontWeight.w800, fontSize: 17)),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: Palette.kBorder),
-        ),
-      ),
+    final ec = context.ec;
+    return EnjoyScaffold(
+      padding: EdgeInsets.zero,
+      appBar: EnjoyAppBar(
+          title: _isEdit ? 'Editar establecimiento' : 'Nuevo establecimiento'),
       body: _loadingRefs
-          ? const Center(child: CircularProgressIndicator(color: Palette.kAccent))
-          : Column(
+          ? Center(child: CircularProgressIndicator(color: ec.orange))
+          : (_menuOpen ? _buildMenu(ec) : _buildSeccionView(ec)),
+    );
+  }
+
+  static const _secciones = [
+    (i: 0, icon: Icons.store_rounded, sub: 'Nombre, correo, identificación, teléfono'),
+    (i: 1, icon: Icons.place_outlined, sub: 'Provincia, ciudades, categorías y GPS'),
+    (i: 2, icon: Icons.local_offer_outlined, sub: 'Título, descripción y horario'),
+    (i: 3, icon: Icons.photo_library_outlined, sub: 'Logo y galería del local'),
+    (i: 4, icon: Icons.restaurant_menu_outlined, sub: 'Productos/servicios con foto'),
+  ];
+
+  // ── Menú de secciones ──
+  Widget _buildMenu(EnjoyColors ec) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
+      children: [
+        if (_isEdit) ...[
+          GlassCard(
+            accent: true,
+            child: Row(
               children: [
-                _buildStepper(),
+                const IconBox(Icons.storefront_rounded, accent: true),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: PageView(
-                    controller: _page,
-                    physics: const NeverScrollableScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _stepDatos(),
-                      _stepUbicacion(),
-                      _stepPromocion(),
-                      _stepImagenes(),
-                      _stepCatalogo(),
-                      _stepResumen(),
+                      Text(
+                        _nombre.text.trim().isEmpty
+                            ? 'Establecimiento'
+                            : _nombre.text.trim(),
+                        style: EnjoyTheme.heading(size: 16, color: ec.text),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text('Toca una sección para editarla',
+                          style:
+                              EnjoyTheme.body(size: 12, color: ec.textMute)),
                     ],
                   ),
                 ),
-                _buildNav(),
               ],
             ),
+          ),
+          const SizedBox(height: 12),
+          GlassCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_estado ? 'Activo' : 'Inactivo',
+                          style: EnjoyTheme.heading(
+                              size: 14,
+                              weight: FontWeight.w600,
+                              color: _estado ? ec.text : ec.textMute)),
+                      const SizedBox(height: 2),
+                      Text(_estado ? 'Visible en la app' : 'Oculto en la app',
+                          style:
+                              EnjoyTheme.body(size: 12, color: ec.textMute)),
+                    ],
+                  ),
+                ),
+                EnjoyToggle(
+                  value: _estado,
+                  onChanged: (v) async {
+                    setState(() => _estado = v);
+                    if (_isEdit && _id != null) {
+                      try {
+                        await _svc.actualizar(_id!, {'estado': v});
+                        if (mounted) _snack('Estado actualizado', ok: true);
+                      } catch (_) {}
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        ..._secciones.map((s) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: ListRowTile(
+                leading: IconBox(s.icon),
+                title: _labels[s.i],
+                subtitle: s.sub,
+                trailing:
+                    Icon(Icons.chevron_right_rounded, color: ec.textMute),
+                onTap: () => setState(() {
+                  _step = s.i;
+                  _menuOpen = false;
+                }),
+              ),
+            )),
+        if (!_isEdit) ...[
+          const SizedBox(height: 16),
+          EnjoyButton(
+            label: 'Crear establecimiento',
+            icon: Icons.add_business_rounded,
+            loading: _saving,
+            onPressed: _saving ? null : _crear,
+          ),
+        ],
+      ],
     );
   }
 
-  // ── Indicador de pasos ──
-  Widget _buildStepper() {
-    return Container(
-      color: Palette.kSurface,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Paso ${_step + 1} de ${_labels.length} · ${_labels[_step]}',
-              style: const TextStyle(
-                  color: Palette.kMuted, fontSize: 12, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
-          Row(
+  // ── Vista de una sección ──
+  Widget _buildSeccionView(EnjoyColors ec) {
+    final builders = [
+      _stepDatos,
+      _stepUbicacion,
+      _stepPromocion,
+      _stepImagenes,
+      _stepCatalogo,
+    ];
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(6, 4, 16, 4),
+          child: Row(
             children: [
-              for (var i = 0; i < _labels.length; i++) ...[
-                _dot(i),
-                if (i < _labels.length - 1)
-                  Expanded(
-                    child: Container(
-                      height: 2,
-                      color: i < _step ? Palette.kAccent : Palette.kBorder,
-                    ),
+              IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: () => setState(() => _menuOpen = true),
+              ),
+              Expanded(
+                child: Text(_labels[_step],
+                    style: EnjoyTheme.heading(size: 18, color: ec.text)),
+              ),
+            ],
+          ),
+        ),
+        Expanded(child: builders[_step]()),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+              16, 8, 16, 12 + MediaQuery.of(context).padding.bottom),
+          child: Row(
+            children: [
+              Expanded(
+                child: EnjoyButton(
+                  label: 'Volver al menú',
+                  variant: EnjoyButtonVariant.ghost,
+                  dense: true,
+                  onPressed: _saving ? null : () => setState(() => _menuOpen = true),
+                ),
+              ),
+              if (_isEdit) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: EnjoyButton(
+                    label: 'Guardar',
+                    icon: Icons.check_rounded,
+                    dense: true,
+                    loading: _saving,
+                    onPressed: _saving
+                        ? null
+                        : () async {
+                            await _guardarSeccion();
+                            if (mounted) setState(() => _menuOpen = true);
+                          },
                   ),
+                ),
               ],
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _dot(int i) {
-    final done = i < _step;
-    final active = i == _step;
-    return GestureDetector(
-      onTap: i <= _step
-          ? () {
-              setState(() => _step = i);
-              _page.animateToPage(i,
-                  duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
-            }
-          : null,
-      child: Container(
-        width: 26,
-        height: 26,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: active ? Palette.kAccent : (done ? Palette.kAccent.withOpacity(0.15) : Palette.kField),
-          shape: BoxShape.circle,
-          border: Border.all(
-              color: active || done ? Palette.kAccent : Palette.kBorder, width: 1.5),
         ),
-        child: done
-            ? const Icon(Icons.check_rounded, size: 15, color: Palette.kAccent)
-            : Text('${i + 1}',
-                style: TextStyle(
-                    color: active ? Colors.white : Palette.kMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700)),
-      ),
-    );
-  }
-
-  // ── Navegación inferior ──
-  Widget _buildNav() {
-    final last = _step == _labels.length - 1;
-    return Container(
-      color: Palette.kSurface,
-      padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + MediaQuery.of(context).padding.bottom),
-      child: Row(
-        children: [
-          if (_step > 0)
-            OutlinedButton.icon(
-              onPressed: _saving ? null : _prev,
-              icon: const Icon(Icons.chevron_left_rounded, size: 18),
-              label: const Text('Atrás'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Palette.kTitle,
-                side: BorderSide(color: Palette.kBorder),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-              ),
-            ),
-          // En edición: guardar SOLO esta sección (no en el resumen)
-          if (_isEdit && !last) ...[
-            OutlinedButton.icon(
-              onPressed: _saving ? null : _guardarSeccion,
-              icon: const Icon(Icons.check_rounded, size: 18),
-              label: const Text('Guardar sección'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Palette.kAccent,
-                side: const BorderSide(color: Palette.kAccent),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          const Spacer(),
-          if (!last)
-            ElevatedButton.icon(
-              onPressed: _next,
-              icon: const Icon(Icons.chevron_right_rounded, size: 18),
-              label: const Text('Siguiente'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Palette.kAccent,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
-              ),
-            )
-          else
-            ElevatedButton(
-              onPressed: _saving ? null : _crear,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Palette.kAccent,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
-              ),
-              child: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : Text(_isEdit ? 'Guardar cambios' : 'Crear establecimiento',
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
-            ),
-        ],
-      ),
+      ],
     );
   }
 
   // ════════════════════════ PASOS ════════════════════════
   Widget _stepScroll(List<Widget> children) => ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
         children: children,
       );
 
-  Widget _hint(String t) => Padding(
-        padding: const EdgeInsets.only(bottom: 14),
-        child: Text(t, style: const TextStyle(color: Palette.kMuted, fontSize: 12.5)),
-      );
+  Widget _hint(String t) {
+    final ec = context.ec;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Text(t, style: EnjoyTheme.body(size: 12.5, color: ec.textMute)),
+    );
+  }
 
-  Widget _label(String t, {bool req = false}) => Padding(
-        padding: const EdgeInsets.only(bottom: 6, top: 4),
-        child: RichText(
-          text: TextSpan(
-            text: t,
-            style: const TextStyle(
-                color: Palette.kTitle, fontSize: 13, fontWeight: FontWeight.w600),
-            children: req
-                ? const [TextSpan(text: ' *', style: TextStyle(color: Colors.redAccent))]
-                : null,
-          ),
-        ),
-      );
+  Widget _label(String t, {bool req = false}) =>
+      FieldLabel(req ? '$t *' : t);
 
   Widget _input(TextEditingController c, String hint,
       {TextInputType? kb, int lines = 1}) {
+    final ec = context.ec;
     return TextField(
       controller: c,
       keyboardType: kb,
       minLines: lines,
       maxLines: lines,
-      style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
-        filled: true,
-        fillColor: Palette.kSurface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Palette.kBorder)),
-        enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Palette.kBorder)),
-        focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Palette.kAccent)),
-      ),
+      style: EnjoyTheme.body(size: 14, color: ec.text),
+      decoration: InputDecoration(hintText: hint),
     );
   }
 
   Widget _switch(String label, bool value, ValueChanged<bool> onChanged) {
+    final ec = context.ec;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Expanded(
               child: Text(label,
-                  style: const TextStyle(color: Palette.kTitle, fontSize: 14))),
-          Switch(
-            value: value,
-            activeColor: Palette.kAccent,
-            onChanged: onChanged,
-          ),
+                  style: EnjoyTheme.body(size: 14, color: ec.text))),
+          EnjoyToggle(value: value, onChanged: onChanged),
         ],
       ),
     );
@@ -873,184 +759,172 @@ class _EstablecimientoWizardScreenState
       ]);
 
   // ── Paso 2: Ubicación y categorías ──
-  Widget _stepUbicacion() => _stepScroll([
-        _hint('¿Dónde está y qué tipo de local es? Elige la provincia, sus ciudades y al menos una categoría.'),
-        _label('Provincia', req: true),
-        SearchablePickerField(
-          label: 'Provincia',
-          icon: Icons.map_rounded,
-          value: _selProvincia,
-          items: _provincias.map((p) => (id: p.id, label: p.nombre)).toList(),
-          onChanged: _onProvinciaChange,
-        ),
-        const SizedBox(height: 14),
-        _label('Ciudades', req: true),
-        if (_selProvincia == null)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text('Selecciona primero una provincia.',
-                style: TextStyle(color: Palette.kMuted, fontSize: 13)),
-          )
-        else if (_loadingCiudades)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text('Cargando ciudades…',
-                style: TextStyle(color: Palette.kMuted, fontSize: 13)),
-          )
-        else
-          SearchableChips(
-            items: _ciudades.map((c) => (id: c.id, label: c.nombre)).toList(),
-            selected: _selCiudades,
-            color: Palette.kPrimary,
-            hint: 'Buscar ciudad',
-            emptyText: 'No hay ciudades en esta provincia',
-            onToggle: (id) => setState(() => _selCiudades.contains(id)
-                ? _selCiudades.remove(id)
-                : _selCiudades.add(id)),
-          ),
-        const SizedBox(height: 8),
-        _label('Categorías', req: true),
+  Widget _stepUbicacion() {
+    final ec = context.ec;
+    return _stepScroll([
+      _hint('¿Dónde está y qué tipo de local es? Elige la provincia, sus ciudades y al menos una categoría.'),
+      _label('Provincia', req: true),
+      SearchablePickerField(
+        label: 'Provincia',
+        icon: Icons.map_rounded,
+        value: _selProvincia,
+        items: _provincias.map((p) => (id: p.id, label: p.nombre)).toList(),
+        onChanged: _onProvinciaChange,
+      ),
+      const SizedBox(height: 14),
+      _label('Ciudades', req: true),
+      if (_selProvincia == null)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text('Selecciona primero una provincia.',
+              style: EnjoyTheme.body(size: 13, color: ec.textMute)),
+        )
+      else if (_loadingCiudades)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text('Cargando ciudades…',
+              style: EnjoyTheme.body(size: 13, color: ec.textMute)),
+        )
+      else
         SearchableChips(
-          items: _categorias.map((c) => (id: c.id, label: c.nombre)).toList(),
-          selected: _selCategorias,
-          color: Palette.kAccent,
-          hint: 'Buscar categoría',
-          emptyText: 'No hay categorías disponibles',
-          onToggle: (id) => setState(() => _selCategorias.contains(id)
-              ? _selCategorias.remove(id)
-              : _selCategorias.add(id)),
+          items: _ciudades.map((c) => (id: c.id, label: c.nombre)).toList(),
+          selected: _selCiudades,
+          color: ec.blue,
+          hint: 'Buscar ciudad',
+          emptyText: 'No hay ciudades en esta provincia',
+          onToggle: (id) => setState(() => _selCiudades.contains(id)
+              ? _selCiudades.remove(id)
+              : _selCiudades.add(id)),
         ),
-        const SizedBox(height: 8),
-        _label('Dirección'),
-        _input(_direccion, 'Calle, número, referencia'),
-        const SizedBox(height: 14),
-        _label('Ubicación en el mapa (GPS)'),
-        Row(children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _geoLoading ? null : _usarGps,
-              icon: _geoLoading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.my_location_rounded, size: 18),
-              label: Text(_geoLoading ? 'Obteniendo…' : 'Usar mi ubicación'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Palette.kAccent,
-                side: const BorderSide(color: Palette.kAccent),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
+      const SizedBox(height: 8),
+      _label('Categorías', req: true),
+      SearchableChips(
+        items: _categorias.map((c) => (id: c.id, label: c.nombre)).toList(),
+        selected: _selCategorias,
+        color: ec.orange,
+        hint: 'Buscar categoría',
+        emptyText: 'No hay categorías disponibles',
+        onToggle: (id) => setState(() => _selCategorias.contains(id)
+            ? _selCategorias.remove(id)
+            : _selCategorias.add(id)),
+      ),
+      const SizedBox(height: 8),
+      _label('Dirección'),
+      _input(_direccion, 'Calle, número, referencia'),
+      const SizedBox(height: 14),
+      _label('Ubicación en el mapa (GPS)'),
+      EnjoyButton(
+        label: _geoLoading ? 'Obteniendo…' : 'Usar mi ubicación',
+        icon: Icons.my_location_rounded,
+        variant: EnjoyButtonVariant.ghost,
+        loading: _geoLoading,
+        onPressed: _geoLoading ? null : _usarGps,
+      ),
+      if (_lat != null && _lng != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Pill(
+            '${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}',
+            variant: PillVariant.green,
+            icon: Icons.location_on_rounded,
           ),
-        ]),
-        if (_lat != null && _lng != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text('📍 ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}',
-                style: const TextStyle(color: Palette.kMuted, fontSize: 12)),
-          ),
-      ]);
+        ),
+    ]);
+  }
 
   // ── Paso 3: Promoción y horarios ──
-  Widget _stepPromocion() => _stepScroll([
-        _hint('La promoción principal y el horario que verá el cliente.'),
-        _label('Título de la promoción', req: true),
-        _input(_titulo, 'Ej: 2x1 en pizzas'),
-        const SizedBox(height: 14),
-        _label('Horario de la promoción', req: true),
-        _hint('Elige días y rango de hora; el texto se arma solo en formato estándar.'),
-        if (_horarioLabel.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Text('Actual: $_horarioLabel',
-                style: const TextStyle(
-                    color: Palette.kTitle, fontSize: 13, fontWeight: FontWeight.w600)),
-          ),
-        HorarioBuilder(
-          onChanged: (v) => setState(() => _horarioLabel = v),
+  Widget _stepPromocion() {
+    final ec = context.ec;
+    return _stepScroll([
+      _hint('La promoción principal y el horario que verá el cliente.'),
+      _label('Título de la promoción', req: true),
+      _input(_titulo, 'Ej: 2x1 en pizzas'),
+      const SizedBox(height: 14),
+      _label('Horario de la promoción', req: true),
+      _hint('Elige días y rango de hora; el texto se arma solo en formato estándar.'),
+      if (_horarioLabel.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text('Actual: $_horarioLabel',
+              style: EnjoyTheme.body(
+                  size: 13, weight: FontWeight.w600, color: ec.text)),
         ),
-        const SizedBox(height: 14),
-        _label('Descripción'),
-        _input(_descripcion, 'Describe la promoción…', lines: 3),
-        const SizedBox(height: 6),
-        // 2x1 ya no es editable: todas las promos son 2x1 (siempre true).
-        _switch('Aplica todos los días', _aplicaTodosLosDias,
-            (v) => setState(() => _aplicaTodosLosDias = v)),
-        if (!_aplicaTodosLosDias) ...[
-          const SizedBox(height: 8),
-          _label('Días que aplica', req: true),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _dias.map((d) {
-              final sel = _diasAplicables.contains(d);
-              return GestureDetector(
-                onTap: () => setState(() {
-                  if (sel) {
-                    _diasAplicables.remove(d);
-                    _horarioPorDia.remove(d);
-                  } else {
-                    _diasAplicables.add(d);
-                    _horarioPorDia[d] = {'abre': '09:00', 'cierra': '18:00'};
-                  }
-                }),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: sel ? Palette.kAccent : Palette.kField,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: sel ? Palette.kAccent : Palette.kBorder),
-                  ),
-                  child: Text(d,
-                      style: TextStyle(
-                          color: sel ? Colors.white : Palette.kMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600)),
-                ),
-              );
-            }).toList(),
+      HorarioBuilder(
+        onChanged: (v) => setState(() => _horarioLabel = v),
+      ),
+      const SizedBox(height: 14),
+      _label('Descripción'),
+      _input(_descripcion, 'Describe la promoción…', lines: 3),
+      const SizedBox(height: 6),
+      // 2x1 ya no es editable: todas las promos son 2x1 (siempre true).
+      _switch('Aplica todos los días', _aplicaTodosLosDias,
+          (v) => setState(() => _aplicaTodosLosDias = v)),
+      if (!_aplicaTodosLosDias) ...[
+        const SizedBox(height: 8),
+        _label('Días que aplica', req: true),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _dias.map((d) {
+            final sel = _diasAplicables.contains(d);
+            return Pill(
+              d,
+              variant: sel ? PillVariant.orange : PillVariant.glass,
+              onTap: () => setState(() {
+                if (sel) {
+                  _diasAplicables.remove(d);
+                  _horarioPorDia.remove(d);
+                } else {
+                  _diasAplicables.add(d);
+                  _horarioPorDia[d] = {'abre': '09:00', 'cierra': '18:00'};
+                }
+              }),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        for (final d in _diasAplicables) _horarioRow(d),
+      ],
+      const SizedBox(height: 14),
+      _label('Etiquetas (tags)'),
+      Row(children: [
+        Expanded(child: _input(_tagInput, 'Agregar etiqueta')),
+        const SizedBox(width: 8),
+        GlassIconButton(
+          icon: Icons.add_rounded,
+          accent: true,
+          onTap: () {
+            final t = _tagInput.text.trim();
+            if (t.isNotEmpty && !_tags.contains(t)) {
+              setState(() {
+                _tags.add(t);
+                _tagInput.clear();
+              });
+            }
+          },
+        ),
+      ]),
+      if (_tags.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _tags
+                .map((t) => Pill(
+                      t,
+                      variant: PillVariant.glass,
+                      icon: Icons.close_rounded,
+                      onTap: () => setState(() => _tags.remove(t)),
+                    ))
+                .toList(),
           ),
-          const SizedBox(height: 12),
-          for (final d in _diasAplicables) _horarioRow(d),
-        ],
-        const SizedBox(height: 14),
-        _label('Etiquetas (tags)'),
-        Row(children: [
-          Expanded(child: _input(_tagInput, 'Agregar etiqueta')),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: () {
-              final t = _tagInput.text.trim();
-              if (t.isNotEmpty && !_tags.contains(t)) {
-                setState(() {
-                  _tags.add(t);
-                  _tagInput.clear();
-                });
-              }
-            },
-            icon: const Icon(Icons.add_circle, color: Palette.kAccent),
-          ),
-        ]),
-        if (_tags.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: _tags
-                  .map((t) => Chip(
-                        label: Text(t, style: const TextStyle(fontSize: 12)),
-                        onDeleted: () => setState(() => _tags.remove(t)),
-                        backgroundColor: Palette.kField,
-                      ))
-                  .toList(),
-            ),
-          ),
-      ]);
+        ),
+    ]);
+  }
 
   Widget _horarioRow(String dia) {
+    final ec = context.ec;
     final h = _horarioPorDia[dia] ?? {'abre': '09:00', 'cierra': '18:00'};
     Future<void> pick(String key) async {
       final parts = (h[key] ?? '09:00').split(':');
@@ -1075,12 +949,11 @@ class _EstablecimientoWizardScreenState
           SizedBox(
               width: 90,
               child: Text(dia,
-                  style: const TextStyle(
-                      color: Palette.kTitle, fontSize: 13, fontWeight: FontWeight.w600))),
+                  style: EnjoyTheme.heading(size: 13, color: ec.text))),
           _timeChip(h['abre'] ?? '09:00', () => pick('abre')),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Text('—', style: TextStyle(color: Palette.kMuted)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text('—', style: EnjoyTheme.body(color: ec.textMute)),
           ),
           _timeChip(h['cierra'] ?? '18:00', () => pick('cierra')),
         ],
@@ -1088,147 +961,152 @@ class _EstablecimientoWizardScreenState
     );
   }
 
-  Widget _timeChip(String value, VoidCallback onTap) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Palette.kField,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Palette.kBorder),
-          ),
-          child: Text(value, style: const TextStyle(color: Palette.kTitle, fontSize: 13)),
-        ),
-      );
+  Widget _timeChip(String value, VoidCallback onTap) =>
+      Pill(value, variant: PillVariant.glass, onTap: onTap);
 
   // ── Paso 4: Imágenes ──
-  Widget _stepImagenes() => _stepScroll([
-        _hint('Logo y galería del local. La portada se toma de la primera foto de la galería.'),
-        _label('Logo'),
-        GestureDetector(
-          onTap: _pickLogo,
-          child: Container(
-            height: 110,
-            width: 110,
-            decoration: BoxDecoration(
-              color: Palette.kField,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Palette.kAccent.withOpacity(0.4), width: 1.5),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: _logoBase64 != null
-                ? Image.memory(bytesFromDataUrl(_logoBase64)!, fit: BoxFit.cover)
-                : (_logoUrl != null && _logoUrl!.isNotEmpty)
-                ? Image.network(_logoUrl!, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(
-                        Icons.broken_image_rounded, color: Palette.kMuted))
-                : const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_a_photo_rounded, color: Palette.kAccent, size: 26),
-                      SizedBox(height: 4),
-                      Text('Logo', style: TextStyle(color: Palette.kAccent, fontSize: 11)),
-                    ],
-                  ),
+  Widget _stepImagenes() {
+    final ec = context.ec;
+    return _stepScroll([
+      _hint('Logo y galería del local. La portada se toma de la primera foto de la galería.'),
+      _label('Logo'),
+      GestureDetector(
+        onTap: _pickLogo,
+        child: Container(
+          height: 110,
+          width: 110,
+          decoration: BoxDecoration(
+            color: ec.glass,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: ec.orange.withValues(alpha: 0.4), width: 1.5),
           ),
+          clipBehavior: Clip.antiAlias,
+          child: _logoBase64 != null
+              ? Image.memory(bytesFromDataUrl(_logoBase64)!, fit: BoxFit.cover)
+              : (_logoUrl != null && _logoUrl!.isNotEmpty)
+                  ? EnjoyImage(_logoUrl!,
+                      fit: BoxFit.cover,
+                      errorWidget: Icon(
+                          Icons.broken_image_rounded, color: ec.textMute))
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_a_photo_rounded,
+                            color: ec.orangeSoft, size: 26),
+                        const SizedBox(height: 4),
+                        Text('Logo',
+                            style: EnjoyTheme.body(
+                                size: 11,
+                                weight: FontWeight.w600,
+                                color: ec.orangeSoft)),
+                      ],
+                    ),
         ),
-        const SizedBox(height: 20),
-        _label('Galería (${_galeria.length}/$_maxGaleria)'),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            for (var i = 0; i < _galeria.length; i++)
-              SizedBox(
-                width: 92,
-                height: 92,
-                child: Stack(fit: StackFit.expand, children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(11),
-                    child: _itemImage(_galeria[i]),
-                  ),
-                  Positioned(
-                    top: 3,
-                    right: 3,
-                    child: GestureDetector(
-                      onTap: () => setState(() => _galeria.removeAt(i)),
-                      child: Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: const BoxDecoration(
-                            color: Colors.black54, shape: BoxShape.circle),
-                        child: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
-                      ),
+      ),
+      const SizedBox(height: 20),
+      _label('Galería (${_galeria.length}/$_maxGaleria)'),
+      Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          for (var i = 0; i < _galeria.length; i++)
+            SizedBox(
+              width: 92,
+              height: 92,
+              child: Stack(fit: StackFit.expand, children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(13),
+                  child: _itemImage(_galeria[i]),
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: GestureDetector(
+                    onTap: () => setState(() => _galeria.removeAt(i)),
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                          color: Colors.black54, shape: BoxShape.circle),
+                      child: const Icon(Icons.close_rounded,
+                          size: 14, color: Colors.white),
                     ),
                   ),
-                ]),
-              ),
-            if (_galeria.length < _maxGaleria)
-              GestureDetector(
-                onTap: _addGaleria,
-                child: Container(
-                  width: 92,
-                  height: 92,
-                  decoration: BoxDecoration(
-                    color: Palette.kField,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Palette.kAccent.withOpacity(0.4), width: 1.5),
-                  ),
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_photo_alternate_rounded, color: Palette.kAccent, size: 24),
-                      SizedBox(height: 4),
-                      Text('Foto', style: TextStyle(color: Palette.kAccent, fontSize: 11)),
-                    ],
-                  ),
+                ),
+              ]),
+            ),
+          if (_galeria.length < _maxGaleria)
+            GestureDetector(
+              onTap: _addGaleria,
+              child: Container(
+                width: 92,
+                height: 92,
+                decoration: BoxDecoration(
+                  color: ec.glass,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: ec.orange.withValues(alpha: 0.4), width: 1.5),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_photo_alternate_rounded,
+                        color: ec.orangeSoft, size: 24),
+                    const SizedBox(height: 4),
+                    Text('Foto',
+                        style: EnjoyTheme.body(
+                            size: 11,
+                            weight: FontWeight.w600,
+                            color: ec.orangeSoft)),
+                  ],
                 ),
               ),
-          ],
-        ),
-      ]);
+            ),
+        ],
+      ),
+    ]);
+  }
 
   // ── Paso 5: Catálogo ──
-  Widget _stepCatalogo() => _stepScroll([
-        _hint('Productos o servicios que ofrece el local (foto + nombre + descripción). Sin límite.'),
-        for (var i = 0; i < _productos.length; i++) _productoCard(i),
-        const SizedBox(height: 4),
-        GestureDetector(
-          onTap: _addProducto,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: Palette.kField,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Palette.kAccent.withOpacity(0.4), width: 1.5),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.add_rounded, color: Palette.kAccent),
-                SizedBox(width: 6),
-                Text('Agregar producto',
-                    style: TextStyle(
-                        color: Palette.kAccent, fontWeight: FontWeight.w700, fontSize: 13)),
-              ],
-            ),
+  Widget _stepCatalogo() {
+    final ec = context.ec;
+    return _stepScroll([
+      _hint('Productos o servicios que ofrece el local (foto + nombre + descripción). Sin límite.'),
+      for (var i = 0; i < _productos.length; i++) _productoCard(i),
+      const SizedBox(height: 4),
+      GestureDetector(
+        onTap: _addProducto,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: ec.glass,
+            borderRadius: BorderRadius.circular(14),
+            border:
+                Border.all(color: ec.orange.withValues(alpha: 0.4), width: 1.5),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_rounded, color: ec.orangeSoft),
+              const SizedBox(width: 6),
+              Text('Agregar producto',
+                  style: EnjoyTheme.heading(size: 13, color: ec.orangeSoft)),
+            ],
           ),
         ),
-      ]);
+      ),
+    ]);
+  }
 
   Widget _productoCard(int i) {
+    final ec = context.ec;
     final p = _productos[i];
-    return Container(
+    return GlassCard(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Palette.kField,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Palette.kBorder),
-      ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(11),
           child: SizedBox(
             width: 64,
             height: 64,
@@ -1239,17 +1117,16 @@ class _EstablecimientoWizardScreenState
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(p['nombre'] ?? '',
-                style: const TextStyle(
-                    color: Palette.kTitle, fontSize: 14, fontWeight: FontWeight.w700)),
+                style: EnjoyTheme.heading(size: 14, color: ec.text)),
             if ((p['descripcion'] ?? '').isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(p['descripcion']!,
-                    style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+                    style: EnjoyTheme.body(size: 12, color: ec.textMute),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis),
               ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Row(children: [
               GestureDetector(
                 onTap: () async {
@@ -1262,13 +1139,13 @@ class _EstablecimientoWizardScreenState
                     });
                   }
                 },
-                child: const Icon(Icons.edit_rounded, size: 18, color: Palette.kMuted),
+                child: Icon(Icons.edit_rounded, size: 18, color: ec.textSoft),
               ),
               const SizedBox(width: 14),
               GestureDetector(
                 onTap: () => setState(() => _productos.removeAt(i)),
                 child: Icon(Icons.delete_outline_rounded,
-                    size: 18, color: Colors.red.shade400),
+                    size: 18, color: ec.red),
               ),
             ]),
           ]),
@@ -1277,90 +1154,4 @@ class _EstablecimientoWizardScreenState
     );
   }
 
-  // ── Paso 6: Resumen ──
-  Widget _stepResumen() {
-    final faltan = _faltantes;
-    return _stepScroll([
-      _hint('Revisa antes de crear.'),
-      if (faltan.isNotEmpty)
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.amber.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.amber.shade200),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Icon(Icons.warning_amber_rounded, size: 18, color: Colors.amber.shade800),
-              const SizedBox(width: 6),
-              Text('Falta completar:',
-                  style: TextStyle(
-                      color: Colors.amber.shade900, fontWeight: FontWeight.w700, fontSize: 13)),
-            ]),
-            const SizedBox(height: 6),
-            ...faltan.map((f) => Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text('• $f',
-                      style: TextStyle(color: Colors.amber.shade900, fontSize: 12)),
-                )),
-          ]),
-        )
-      else
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.green.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.green.shade200),
-          ),
-          child: Row(children: [
-            Icon(Icons.check_circle_rounded, size: 18, color: Colors.green.shade700),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text('Todo listo para crear el establecimiento.',
-                  style: TextStyle(color: Colors.green.shade800, fontSize: 13)),
-            ),
-          ]),
-        ),
-      const SizedBox(height: 16),
-      _resumenRow('Nombre', _nombre.text.trim().isEmpty ? '—' : _nombre.text.trim()),
-      _resumenRow('Email', _email.text.trim().isEmpty ? '—' : _email.text.trim()),
-      _resumenRow('Ciudades / Categorías',
-          '${_selCiudades.length} ciudad(es) · ${_selCategorias.length} categoría(s)'),
-      _resumenRow('Promoción', _titulo.text.trim().isEmpty ? '—' : _titulo.text.trim()),
-      _resumenRow('Galería', '${_galeria.length} foto(s)'),
-      _resumenRow('Catálogo', '${_productos.length} producto(s)'),
-      const SizedBox(height: 10),
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Palette.kAccent.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Palette.kAccent.withOpacity(0.25)),
-        ),
-        child: const Text(
-          'Se creará como Inactivo. Un administrador deberá activarlo desde el panel para que aparezca al cliente. Se envía una clave temporal por correo.',
-          style: TextStyle(color: Palette.kTitle, fontSize: 12),
-        ),
-      ),
-    ]);
-  }
-
-  Widget _resumenRow(String k, String v) => Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Palette.kBorder),
-        ),
-        child: Row(children: [
-          Expanded(
-              child: Text(k, style: const TextStyle(color: Palette.kMuted, fontSize: 12))),
-          Text(v,
-              style: const TextStyle(
-                  color: Palette.kTitle, fontSize: 13, fontWeight: FontWeight.w600)),
-        ]),
-      );
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../ui/enjoy_dark.dart';
 import '../models/promotion_models.dart';
 import '../ui/palette.dart';
 import '../utils/distancia.dart';
@@ -50,7 +51,7 @@ class PromosListLight extends StatelessWidget {
             const Text(
               'Sin promociones',
               style: TextStyle(
-                color: Palette.kTitle,
+                color: ED.text,
                 fontWeight: FontWeight.w700,
                 fontSize: 15,
               ),
@@ -58,7 +59,7 @@ class PromosListLight extends StatelessWidget {
             const SizedBox(height: 4),
             const Text(
               'No hay resultados para los filtros seleccionados',
-              style: TextStyle(color: Palette.kMuted, fontSize: 12),
+              style: TextStyle(color: ED.mute, fontSize: 12),
               textAlign: TextAlign.center,
             ),
           ],
@@ -138,7 +139,7 @@ class _PromoCompactTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Palette.kSurface,
+          color: ED.cardSolid,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -166,15 +167,15 @@ class _PromoCompactTile extends StatelessWidget {
                       height: 90,
                       fit: BoxFit.cover,
                       loadingBuilder: (_, child, progress) =>
-                          progress == null ? child : Container(color: Palette.kField),
+                          progress == null ? child : Container(color: ED.field),
                       errorBuilder: (_, __, ___) => Container(
                         width: 90,
                         height: 90,
-                        color: Palette.kField,
+                        color: ED.field,
                         alignment: Alignment.center,
                         child: const Icon(
                           Icons.image_not_supported_outlined,
-                          color: Palette.kMuted,
+                          color: ED.mute,
                           size: 20,
                         ),
                       ),
@@ -237,7 +238,7 @@ class _PromoCompactTile extends StatelessWidget {
                           errorBuilder: (_, __, ___) => const Icon(
                             Icons.storefront_outlined,
                             size: 14,
-                            color: Palette.kMuted,
+                            color: ED.mute,
                           ),
                         ),
                       ),
@@ -263,7 +264,7 @@ class _PromoCompactTile extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Palette.kTitle,
+                            color: ED.text,
                             fontWeight: FontWeight.w700,
                             fontSize: 14,
                           ),
@@ -280,7 +281,7 @@ class _PromoCompactTile extends StatelessWidget {
                         Text(
                           promo.rating.toStringAsFixed(1),
                           style: const TextStyle(
-                            color: Palette.kTitle,
+                            color: ED.text,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -296,7 +297,7 @@ class _PromoCompactTile extends StatelessWidget {
                     promo.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: Palette.kMuted),
+                    style: const TextStyle(fontSize: 12, color: ED.mute),
                   ),
 
                   const SizedBox(height: 7),
@@ -352,7 +353,7 @@ class _PromoCompactTile extends StatelessWidget {
                     children: [
                       const Icon(
                         Icons.schedule_rounded,
-                        color: Palette.kMuted,
+                        color: ED.mute,
                         size: 12,
                       ),
                       const SizedBox(width: 4),
@@ -362,7 +363,7 @@ class _PromoCompactTile extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Palette.kMuted,
+                            color: ED.mute,
                             fontSize: 11,
                           ),
                         ),
@@ -378,7 +379,7 @@ class _PromoCompactTile extends StatelessWidget {
                     children: [
                       const Icon(
                         Icons.location_on_outlined,
-                        color: Palette.kMuted,
+                        color: ED.mute,
                         size: 12,
                       ),
                       const SizedBox(width: 4),
@@ -388,7 +389,7 @@ class _PromoCompactTile extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Palette.kMuted,
+                            color: ED.mute,
                             fontSize: 11,
                           ),
                         ),
@@ -412,19 +413,19 @@ class _PromoCompactTile extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: isFavorite
                                 ? Colors.redAccent.withOpacity(0.08)
-                                : Palette.kField,
+                                : ED.field,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: isFavorite
                                   ? Colors.redAccent.withOpacity(0.25)
-                                  : Palette.kBorder,
+                                  : ED.border,
                             ),
                           ),
                           child: Icon(
                             isFavorite
                                 ? Icons.favorite_rounded
                                 : Icons.favorite_border_rounded,
-                            color: isFavorite ? Colors.redAccent : Palette.kMuted,
+                            color: isFavorite ? Colors.redAccent : ED.mute,
                             size: 15,
                           ),
                         ),

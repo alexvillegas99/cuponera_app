@@ -57,6 +57,14 @@ const List<EmpresaNavItem> kEmpresaNavItems = [
     fallbackRoles: ['admin-local'],
   ),
   EmpresaNavItem(
+    id: 'promos_flash',
+    label: 'Promociones flash',
+    icon: Icons.bolt_rounded,
+    // Mismo gating que el perfil del local (solo el admin del local).
+    permission: 'perfil-local.ver',
+    fallbackRoles: ['admin-local'],
+  ),
+  EmpresaNavItem(
     id: 'perfil_local',
     label: 'Perfil del Local',
     icon: Icons.store_rounded,
@@ -99,5 +107,20 @@ const List<EmpresaNavItem> kEmpresaNavItems = [
     icon: Icons.confirmation_num_rounded,
     permission: 'cupones.ver',
     fallbackRoles: ['admin'],
+  ),
+  EmpresaNavItem(
+    id: 'reportes',
+    label: 'Reportes',
+    icon: Icons.bar_chart_rounded,
+    permission: 'reportes.ver',
+    fallbackRoles: ['admin'],
+  ),
+
+  // ─── Soporte (al FINAL del menú, visible para todos los usuarios empresa) ──
+  EmpresaNavItem(
+    id: 'chats',
+    label: 'Soporte',
+    icon: Icons.support_agent_rounded,
+    fallbackRoles: ['admin', 'admin-local', 'staff', 'vendedor', 'marketing'],
   ),
 ];

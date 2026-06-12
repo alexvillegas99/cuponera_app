@@ -1,3 +1,7 @@
+import 'package:enjoy/screens/chat/chat_conversacion_screen.dart';
+import 'package:enjoy/screens/chat/chat_entry_screen.dart';
+import 'package:enjoy/screens/clientes/notificacion_prefs_screen.dart';
+import 'package:enjoy/screens/clientes/notificaciones_screen.dart';
 import 'package:enjoy/screens/clientes/perfil_cofiguraicon/edit_profile_screen.dart';
 import 'package:enjoy/screens/clientes/perfil_cofiguraicon/notifications_screen.dart';
 import 'package:enjoy/screens/clientes/perfil_cofiguraicon/privacy_screen.dart';
@@ -10,6 +14,8 @@ import 'package:enjoy/screens/register_cliente_screen.dart';
 import 'package:enjoy/screens/restablecer_password_screen.dart';
 import 'package:enjoy/screens/solicitud_empresa_screen.dart';
 import 'package:enjoy/screens/clientes/home_user_screen.dart';
+import 'package:enjoy/screens/account_picker_screen.dart';
+import 'package:enjoy/screens/switching_screen.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -20,28 +26,44 @@ Future<String> getInitialRoute() async {
   // 1) ¿Modo invitado?
   if (await auth.isGuest()) return '/home_guest';
 
-  // 2) ¿Hay token?
+  // 2) ¿Hay sesión activa con token?
   final hasToken = await auth.hasToken();
-  if (!hasToken) return '/login';
-
-  // 3) Refrescar token para validar que la sesión esté vigente
-  final tokenValido = await auth.renewToken();
-  if (!tokenValido) {
+  if (hasToken) {
+    // Refrescar token para validar que la sesión esté vigente.
+    final tokenValido = await auth.renewToken();
+    if (tokenValido) return auth.getTargetHomeRoute();
+    // Sesión activa expirada: la quitamos pero conservamos otras guardadas.
     await auth.logout();
-    return '/login';
   }
 
-  // 4) Decidir home por rol/kind
-  return auth.getTargetHomeRoute();
+  // 3) Sin sesión activa: ¿hay cuentas guardadas? → selector estilo Facebook.
+  if (await auth.hasSavedAccounts()) return '/cuentas';
+
+  // 4) Nada guardado → login.
+  return '/login';
 }
 
+/// Referencia global al router para navegar desde lugares sin context
+/// (p.ej. handlers de FCM en background).
+GoRouter? appRouter;
+
 GoRouter buildRouter(String initialRoute) {
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: initialRoute,
     routes: [
       GoRoute(
         path: '/login',
         pageBuilder: (context, state) => _slidePage(state, const LoginScreen()),
+      ),
+      GoRoute(
+        path: '/cuentas',
+        pageBuilder: (context, state) =>
+            _slidePage(state, const AccountPickerScreen()),
+      ),
+      GoRoute(
+        path: '/switching',
+        pageBuilder: (context, state) =>
+            _slidePage(state, const SwitchingScreen()),
       ),
       GoRoute(
         path: '/registro-cliente',
@@ -60,6 +82,21 @@ GoRouter buildRouter(String initialRoute) {
       GoRoute(
         path: '/home',
         pageBuilder: (context, state) => _slidePage(state, const HomeScreen()),
+      ),
+      GoRoute(
+        path: '/chat',
+        pageBuilder: (context, state) =>
+            _slidePage(state, const ChatEntryScreen()),
+      ),
+      GoRoute(
+        path: '/chat/:id',
+        pageBuilder: (context, state) => _slidePage(
+          state,
+          ChatConversacionScreen(
+            hiloId: state.pathParameters['id']!,
+            esSoporte: state.uri.queryParameters['soporte'] == '1',
+          ),
+        ),
       ),
       GoRoute(
         path: '/home_user',
@@ -107,8 +144,20 @@ GoRouter buildRouter(String initialRoute) {
         path: '/perfil/privacidad',
         pageBuilder: (context, state) => _slidePage(state, const PrivacyScreen()),
       ),
+      GoRoute(
+        path: '/notificaciones',
+        pageBuilder: (context, state) =>
+            _slidePage(state, const NotificacionesScreen()),
+      ),
+      GoRoute(
+        path: '/notificaciones/preferencias',
+        pageBuilder: (context, state) =>
+            _slidePage(state, const NotificacionPrefsScreen()),
+      ),
     ],
   );
+  appRouter = router;
+  return router;
 }
 
 /// Helper para transición deslizante desde la derecha

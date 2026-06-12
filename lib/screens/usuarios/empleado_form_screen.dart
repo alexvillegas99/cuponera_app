@@ -1,5 +1,5 @@
 import 'package:enjoy/services/usuarios_empresa_service.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 
 /// Pantalla de creación / edición de un empleado (staff).
@@ -80,7 +80,7 @@ class _EmpleadoFormScreenState extends State<EmpleadoFormScreen> {
       if (!mounted) return;
       final msg = e.toString().replaceFirst('Exception: ', '');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
+        SnackBar(content: Text(msg), backgroundColor: context.ec.red),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -89,38 +89,16 @@ class _EmpleadoFormScreenState extends State<EmpleadoFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      appBar: AppBar(
-        backgroundColor: Palette.kSurface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Palette.kTitle),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          _isEdit ? 'Editar empleado' : 'Nuevo empleado',
-          style: const TextStyle(
-            color: Palette.kTitle,
-            fontWeight: FontWeight.w800,
-            fontSize: 17,
-          ),
-        ),
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            color: Palette.kSurface,
-            border: Border(bottom: BorderSide(color: Palette.kBorder)),
-          ),
-        ),
-      ),
+    final ec = context.ec;
+    return EnjoyScaffold(
+      padding: EdgeInsets.zero,
+      appBar: EnjoyAppBar(title: _isEdit ? 'Editar empleado' : 'Nuevo empleado'),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
           children: [
-            _SectionLabel(label: _isEdit ? 'Datos del empleado' : 'Información personal'),
-            const SizedBox(height: 12),
+            FieldLabel(_isEdit ? 'Datos del empleado' : 'Información personal'),
 
             _Field(
               controller: _nombre,
@@ -153,12 +131,11 @@ class _EmpleadoFormScreenState extends State<EmpleadoFormScreen> {
               const SizedBox(height: 20),
             ],
 
-            _SectionLabel(
-              label: _isEdit
+            FieldLabel(
+              _isEdit
                   ? 'Nueva contraseña (dejar vacío para no cambiar)'
                   : 'Contraseña',
             ),
-            const SizedBox(height: 12),
 
             _Field(
               controller: _clave,
@@ -168,8 +145,8 @@ class _EmpleadoFormScreenState extends State<EmpleadoFormScreen> {
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscureClave ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                  color: Palette.kMuted,
-                  size: 18,
+                  color: ec.textMute,
+                  size: 20,
                 ),
                 onPressed: () => setState(() => _obscureClave = !_obscureClave),
               ),
@@ -186,66 +163,47 @@ class _EmpleadoFormScreenState extends State<EmpleadoFormScreen> {
 
             if (_isEdit) ...[
               const SizedBox(height: 20),
-              const _SectionLabel(label: 'Estado de la cuenta'),
-              const SizedBox(height: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: Palette.kSurface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Palette.kBorder),
-                ),
-                child: SwitchListTile(
-                  title: Text(
-                    _estado ? 'Activo' : 'Inactivo',
-                    style: TextStyle(
-                      color: _estado ? Palette.kTitle : Palette.kMuted,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+              FieldLabel('Estado de la cuenta'),
+              GlassCard(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _estado ? 'Activo' : 'Inactivo',
+                            style: EnjoyTheme.heading(
+                                size: 14,
+                                weight: FontWeight.w600,
+                                color: _estado ? ec.text : ec.textMute),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _estado
+                                ? 'El empleado puede iniciar sesión'
+                                : 'Cuenta desactivada',
+                            style: EnjoyTheme.body(size: 12, color: ec.textMute),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  subtitle: Text(
-                    _estado
-                        ? 'El empleado puede iniciar sesión'
-                        : 'Cuenta desactivada',
-                    style: const TextStyle(color: Palette.kMuted, fontSize: 12),
-                  ),
-                  value: _estado,
-                  onChanged: (v) => setState(() => _estado = v),
-                  activeColor: Palette.kAccent,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    EnjoyToggle(
+                      value: _estado,
+                      onChanged: (v) => setState(() => _estado = v),
+                    ),
+                  ],
                 ),
               ),
             ],
 
             const SizedBox(height: 32),
 
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _saving ? null : _guardar,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Palette.kAccent,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  disabledBackgroundColor: Palette.kAccent.withOpacity(0.5),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                child: _saving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : Text(
-                        _isEdit ? 'Guardar cambios' : 'Crear empleado',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 15),
-                      ),
-              ),
+            EnjoyButton(
+              label: _isEdit ? 'Guardar cambios' : 'Crear empleado',
+              loading: _saving,
+              onPressed: _saving ? null : _guardar,
             ),
           ],
         ),
@@ -255,24 +213,6 @@ class _EmpleadoFormScreenState extends State<EmpleadoFormScreen> {
 }
 
 // ── Widgets privados ──────────────────────────────────────────────────────────
-
-class _SectionLabel extends StatelessWidget {
-  final String label;
-  const _SectionLabel({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label.toUpperCase(),
-      style: const TextStyle(
-        color: Palette.kMuted,
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.8,
-      ),
-    );
-  }
-}
 
 class _Field extends StatelessWidget {
   final TextEditingController controller;
@@ -295,41 +235,22 @@ class _Field extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscure,
       validator: validator,
-      style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+      cursorColor: ec.orange,
+      style: EnjoyTheme.body(size: 14, color: ec.text),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
-        prefixIcon: Icon(icon, color: Palette.kMuted, size: 18),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 14, right: 10),
+          child: Icon(icon, color: ec.orangeSoft, size: 20),
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: Palette.kField,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Palette.kBorder),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Palette.kBorder),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Palette.kAccent),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.redAccent),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.redAccent),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }

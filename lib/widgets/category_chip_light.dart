@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../ui/enjoy_dark.dart';
 import '../ui/palette.dart';
 
 class CategoryChipLight extends StatelessWidget {
@@ -32,10 +33,10 @@ class CategoryChipLight extends StatelessWidget {
                     end: Alignment.bottomRight,
                   )
                 : null,
-            color: selected ? null : Palette.kSurface,
+            color: selected ? null : ED.field,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: selected ? Colors.transparent : Palette.kBorder,
+              color: selected ? Colors.transparent : ED.border,
             ),
             boxShadow: selected
                 ? [
@@ -53,7 +54,7 @@ class CategoryChipLight extends StatelessWidget {
               Icon(
                 icon,
                 size: 15,
-                color: selected ? Colors.white : Palette.kMuted,
+                color: selected ? Colors.white : ED.mute,
               ),
               const SizedBox(width: 5),
               Text(
@@ -61,7 +62,7 @@ class CategoryChipLight extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: selected ? Colors.white : Palette.kTitle,
+                  color: selected ? Colors.white : ED.text,
                 ),
               ),
             ],

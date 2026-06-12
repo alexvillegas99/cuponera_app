@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../ui/enjoy_dark.dart';
 import '../ui/palette.dart';
 
 class SegmentedTabsLight extends StatelessWidget {
@@ -11,9 +12,9 @@ class SegmentedTabsLight extends StatelessWidget {
       height: 44,
       child: Container(
         decoration: BoxDecoration(
-          color: Palette.kField,
+          color: ED.field,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Palette.kBorder),
+          border: Border.all(color: ED.border),
         ),
         child: TabBar(
           controller: controller,
@@ -39,7 +40,7 @@ class SegmentedTabsLight extends StatelessWidget {
           labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
           labelColor: Colors.white,
-          unselectedLabelColor: Palette.kMuted,
+          unselectedLabelColor: ED.mute,
           tabs: const [
             Tab(
               child: Row(

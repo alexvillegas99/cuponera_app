@@ -213,6 +213,39 @@ Future<Map<String, dynamic>> findByIdRaw(String cuponId) async {
     return [];
   }
 
+  /// 🎁 El destinatario abre su regalo. Marca regaloAbierto=true en backend.
+  /// PATCH /cupones/:cuponId/abrir-regalo  body { clienteId }
+  Future<bool> abrirRegalo(String cuponId, String clienteId) async {
+    try {
+      final resp = await ApiClient.instance.patch(
+        '/cupones/$cuponId/abrir-regalo',
+        data: {'clienteId': clienteId},
+      );
+      // Invalidar caché de cuponeras para que el siguiente listado refleje
+      // regaloAbierto=true.
+      _cuponerasCache.clear();
+      return resp.statusCode == 200 || resp.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 🎁 Buscar destinatario para un regalo por email o identificación.
+  /// GET /clientes/buscar-destinatario?q=...
+  /// Devuelve {exists, id?, nombre?, email?}.
+  Future<Map<String, dynamic>> buscarDestinatario(String q) async {
+    try {
+      final resp = await ApiClient.instance.get(
+        '/clientes/buscar-destinatario',
+        queryParameters: {'q': q},
+      );
+      if (resp.data is Map) {
+        return Map<String, dynamic>.from(resp.data);
+      }
+    } catch (_) {}
+    return {'exists': false};
+  }
+
   /// Ids de los locales donde el cliente tiene cupón disponible para canjear.
   Future<List<String>> localesDisponibles(String clienteId) async {
     final resp = await ApiClient.instance.get(

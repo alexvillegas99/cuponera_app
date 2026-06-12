@@ -1,11 +1,16 @@
 import 'package:enjoy/services/auth_service.dart';
+import 'package:enjoy/services/session_flows.dart';
+import 'package:enjoy/state/theme_controller.dart';
+import 'package:enjoy/ui/enjoy.dart';
+import 'package:enjoy/widgets/account_switcher_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import '../../ui/palette.dart';
+import 'package:provider/provider.dart';
 import '../../models/profile_info.dart';
 import '../../services/informacion_perfil_cliente_service.dart';
 import '../../services/configuracion_service.dart';
+import '../../utils/image_pick.dart';
 
 class ProfileScreenLight extends StatefulWidget {
   const ProfileScreenLight({super.key});
@@ -21,6 +26,7 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
   ProfileInfo? _data;
   bool _loading = true;
   String? _error;
+  bool _uploadingPhoto = false;
 
   /// Controla la visibilidad de la opción "Eliminar cuenta" (config remota).
   /// Solo aparece cuando la clave `mostrar_eliminar_cuenta` = "true".
@@ -56,63 +62,66 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
     }
   }
 
-  String _initials(String name) {
-    final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts[0][0].toUpperCase();
-    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  /// Elige una foto (galería/cámara, con recorte) y la sube como avatar.
+  Future<void> _changePhoto() async {
+    if (_uploadingPhoto) return;
+    final dataUrl = await pickAndCropImage();
+    if (dataUrl == null || !mounted) return;
+    setState(() => _uploadingPhoto = true);
+    try {
+      await authService.updateAvatar(dataUrl);
+      if (!mounted) return;
+      await _load(); // refresca el perfil con la nueva foto
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Foto de perfil actualizada.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final p = _data;
 
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      appBar: AppBar(
-        backgroundColor: Palette.kSurface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        foregroundColor: Palette.kPrimary,
-        title: const Text(
-          'Mi perfil',
-          style: TextStyle(
-            color: Palette.kTitle,
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
-          ),
-        ),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            color: Palette.kSurface,
-            border: Border(bottom: BorderSide(color: Palette.kBorder, width: 1)),
-          ),
-        ),
-      ),
-
+    return EnjoyScaffold(
+      padding: EdgeInsets.zero,
+      appBar: const EnjoyAppBar(title: 'Mi perfil'),
       body: RefreshIndicator(
         onRefresh: _load,
-        color: Palette.kAccent,
+        color: context.ec.orange,
+        backgroundColor: context.ec.glassStrong,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
           children: [
             if (_loading) _buildLoadingState(),
             if (!_loading && _error != null) _buildErrorCard(_error!),
             if (!_loading && _error == null && p != null) ...[
-
               // ── Hero header ─────────────────────────────────────
               _buildHeroHeader(p),
-
               const SizedBox(height: 12),
 
               // ── Stats ────────────────────────────────────────────
               _buildStats(p),
+              const SizedBox(height: 18),
 
-              const SizedBox(height: 12),
+              // ── Preferencias ─────────────────────────────────────
+              _buildPreferences(),
+              const SizedBox(height: 18),
+
+              // ── Cambiar de cuenta (multi-cuenta + biometría) ─────
+              const AccountSwitcherSection(),
 
               // ── Cuenta ───────────────────────────────────────────
               _buildAccountCard(p),
-
               const SizedBox(height: 24),
 
               // ── Zona peligrosa ───────────────────────────────────
@@ -126,117 +135,92 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
 
   // ── Hero header ────────────────────────────────────────────────────
   Widget _buildHeroHeader(ProfileInfo p) {
-    final initials = _initials(p.name.isEmpty ? 'U' : p.name);
+    final ec = context.ec;
     final displayName = p.name.isEmpty ? 'Invitado' : p.name;
 
-    return Container(
+    return GlassCard(
+      accent: true,
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 20),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
       child: Column(
         children: [
-          // Avatar
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [Palette.kAccent, Palette.kAccentLight],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Palette.kAccent.withOpacity(0.35),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              initials,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 14),
-
-          // Nombre
-          Text(
-            displayName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Palette.kTitle,
-              fontWeight: FontWeight.w800,
-              fontSize: 18,
-            ),
-          ),
-
-          if (p.email != null && p.email!.isNotEmpty) ...[
-            const SizedBox(height: 3),
-            Text(
-              p.email!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Palette.kMuted, fontSize: 13),
-            ),
-          ],
-
-          const SizedBox(height: 16),
-
-          // Botón editar
           GestureDetector(
-            onTap: () => context.push('/perfil/editar'),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Palette.kAccent, Palette.kAccentLight],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Palette.kAccent.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
+            onTap: _changePhoto,
+            child: SizedBox(
+              width: 84,
+              height: 84,
+              child: Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  Icon(Icons.edit_rounded, color: Colors.white, size: 14),
-                  SizedBox(width: 6),
-                  Text(
-                    'Editar perfil',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                  Center(
+                    child: EnjoyAvatar(
+                      displayName,
+                      size: 76,
+                      imageUrl: p.avatarUrl,
+                    ),
+                  ),
+                  if (_uploadingPhoto)
+                    Center(
+                      child: Container(
+                        width: 76,
+                        height: 76,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black54,
+                        ),
+                        child: const Center(
+                          child: SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2.4, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    right: 2,
+                    bottom: 2,
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        gradient: ec.accentGradient,
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(color: ec.surfaceTop, width: 2),
+                      ),
+                      child: Icon(Icons.camera_alt_rounded,
+                          size: 14, color: ec.onAccent),
                     ),
                   ),
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            displayName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: EnjoyTheme.heading(
+                size: 19, weight: FontWeight.w800, color: ec.text),
+          ),
+          if (p.email.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Text(
+              p.email,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: EnjoyTheme.body(size: 13, color: ec.textSoft),
+            ),
+          ],
+          const SizedBox(height: 16),
+          EnjoyButton(
+            label: 'Editar perfil',
+            icon: Icons.edit_rounded,
+            variant: EnjoyButtonVariant.ghost,
+            expand: false,
+            dense: true,
+            onPressed: () => context.push('/perfil/editar'),
           ),
         ],
       ),
@@ -248,28 +232,23 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
     return Row(
       children: [
         Expanded(
-          child: _StatCard(
-            icon: Icons.favorite_rounded,
-            iconColor: Colors.redAccent,
-            value: p.favoritos,
+          child: StatCard(
+            value: '${p.cuponeras}',
+            label: 'Membresías',
+            accent: true,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: StatCard(
+            value: '${p.favoritos}',
             label: 'Favoritos',
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _StatCard(
-            icon: Icons.qr_code_2_rounded,
-            iconColor: Palette.kPrimary,
-            value: p.cuponeras,
-            label: 'Membresías',
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.history_rounded,
-            iconColor: Palette.kAccent,
-            value: p.escaneos,
+          child: StatCard(
+            value: '${p.escaneos}',
             label: 'Escaneos',
           ),
         ),
@@ -277,116 +256,60 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
     );
   }
 
-  // ── Section card ───────────────────────────────────────────────────
-  Widget _buildSection({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required Widget child,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
+  // ── Preferencias (tema) ────────────────────────────────────────────
+  Widget _buildPreferences() {
+    final theme = context.watch<ThemeController>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const FieldLabel('Apariencia'),
+        ListRowTile(
+          leading: IconBox(
+            theme.isDark
+                ? Icons.dark_mode_rounded
+                : Icons.light_mode_rounded,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: iconColor, size: 16),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Palette.kTitle,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                ),
-              ),
-            ],
+          title: 'Tema oscuro',
+          subtitle: theme.isDark ? 'Activado' : 'Desactivado',
+          trailing: EnjoyToggle(
+            value: theme.isDark,
+            onChanged: (_) => context.read<ThemeController>().toggle(),
           ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   // ── Account card ───────────────────────────────────────────────────
   Widget _buildAccountCard(ProfileInfo p) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          _SettingTile(
-            icon: Icons.person_outline_rounded,
-            iconColor: Palette.kPrimary,
-            title: 'Editar perfil',
-            subtitle: 'Nombre y correo',
-            onTap: () => context.push('/perfil/editar'),
-          ),
-          const Divider(height: 1, color: Palette.kBorder, indent: 56),
-          _SettingTile(
-            icon: Icons.notifications_outlined,
-            iconColor: Palette.kAccent,
-            title: 'Notificaciones',
-            subtitle: 'Promociones y alertas',
-            onTap: () => context.push('/perfil/notificaciones'),
-          ),
-          const Divider(height: 1, color: Palette.kBorder, indent: 56),
-          _SettingTile(
-            icon: Icons.logout_rounded,
-            iconColor: Colors.redAccent,
-            title: 'Cerrar sesión',
-            subtitle: 'Salir de tu cuenta',
-            danger: true,
-            onTap: () async {
-              final ok = await _showConfirmSheet(
-                context,
-                title: '¿Cerrar sesión?',
-                message: 'Se cerrará tu sesión en esta aplicación.',
-                confirmLabel: 'Cerrar sesión',
-                icon: Icons.logout_rounded,
-              );
-              if (ok == true) {
-                await authService.logout();
-                if (mounted) context.go('/login');
-              }
-            },
-          ),
-        ],
-      ),
+    final ec = context.ec;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const FieldLabel('Cuenta'),
+        ListRowTile(
+          leading: const IconBox(Icons.notifications_outlined),
+          title: 'Notificaciones',
+          subtitle: 'Promociones y alertas',
+          trailing:
+              Icon(Icons.chevron_right_rounded, color: ec.textMute, size: 20),
+          onTap: () => context.push('/perfil/notificaciones'),
+        ),
+        const SizedBox(height: 10),
+        ListRowTile(
+          leading: IconBox(Icons.logout_rounded, color: ec.red),
+          title: 'Cerrar sesión',
+          subtitle: 'Salir de tu cuenta',
+          titleColor: ec.red,
+          borderColor: ec.red.withValues(alpha: .3),
+          onTap: () => SessionFlows.confirmLogout(context),
+        ),
+      ],
     );
   }
 
-  Future<void> _confirmDeleteAccount(BuildContext context) async {
+  Future<void> _confirmDeleteAccount() async {
+    final ec = context.ec;
     // Paso 1: bottom sheet informativo
     final paso1 = await _showConfirmSheet(
       context,
@@ -402,60 +325,47 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
     final paso2 = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: Colors.white,
-        icon: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.red.shade50,
-            shape: BoxShape.circle,
+      builder: (ctx) {
+        final dc = ctx.ec;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: dc.surfaceTop,
+          icon: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: dc.red.withValues(alpha: .14),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.delete_forever_rounded, color: dc.red, size: 28),
           ),
-          child: Icon(Icons.delete_forever_rounded, color: Colors.red.shade700, size: 28),
-        ),
-        title: const Text(
-          'Confirmación final',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-        ),
-        content: Text(
-          '¿Confirmas que deseas eliminar permanentemente tu cuenta? Esta acción no se puede deshacer.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
+          title: Text(
+            'Confirmación final',
+            textAlign: TextAlign.center,
+            style: EnjoyTheme.heading(
+                size: 16, weight: FontWeight.w800, color: dc.text),
+          ),
+          content: Text(
+            '¿Confirmas que deseas eliminar permanentemente tu cuenta? Esta acción no se puede deshacer.',
+            textAlign: TextAlign.center,
+            style: EnjoyTheme.body(size: 13, color: dc.textSoft),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actions: [
+            EnjoyButton(
+              label: 'Sí, eliminar mi cuenta',
+              variant: EnjoyButtonVariant.red,
               onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade700,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
-              child: const Text('Sí, eliminar mi cuenta', style: TextStyle(fontWeight: FontWeight.w700)),
             ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
+            const SizedBox(height: 8),
+            EnjoyButton(
+              label: 'Cancelar',
+              variant: EnjoyButtonVariant.ghost,
               onPressed: () => Navigator.pop(ctx, false),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Palette.kBorder),
-                foregroundColor: Palette.kMuted,
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Cancelar'),
             ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
     if (paso2 != true || !mounted) return;
 
@@ -467,7 +377,7 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: ec.red,
         ),
       );
     }
@@ -477,73 +387,20 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
   Widget _buildDangerZone() {
     // Solo se muestra si la configuración remota lo habilita.
     if (!_mostrarEliminar) return const SizedBox.shrink();
+    final ec = context.ec;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 10),
-          child: Text(
-            'Zona de peligro',
-            style: TextStyle(
-              color: Colors.red.shade700,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.red.shade50,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.red.shade100, width: 1.5),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () => _confirmDeleteAccount(context),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade100,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(Icons.no_accounts_rounded, color: Colors.red.shade700, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Eliminar cuenta',
-                            style: TextStyle(
-                              color: Colors.red.shade700,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Acción permanente e irreversible',
-                            style: TextStyle(color: Colors.red.shade400, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.chevron_right_rounded, color: Colors.red.shade300, size: 20),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        FieldLabel('Zona de peligro', padding: const EdgeInsets.only(bottom: 9)),
+        ListRowTile(
+          leading: IconBox(Icons.no_accounts_rounded, color: ec.red),
+          title: 'Eliminar cuenta',
+          subtitle: 'Acción permanente e irreversible',
+          titleColor: ec.red,
+          borderColor: ec.red.withValues(alpha: .3),
+          trailing:
+              Icon(Icons.chevron_right_rounded, color: ec.red, size: 20),
+          onTap: _confirmDeleteAccount,
         ),
       ],
     );
@@ -551,70 +408,48 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
 
   // ── Loading ────────────────────────────────────────────────────────
   Widget _buildLoadingState() {
-    return Container(
-      height: 160,
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
+    final ec = context.ec;
+    return GlassCard(
+      child: SizedBox(
+        height: 130,
+        child: Center(
+          child: CircularProgressIndicator(color: ec.orange, strokeWidth: 2),
+        ),
       ),
-      alignment: Alignment.center,
-      child: const CircularProgressIndicator(color: Palette.kAccent, strokeWidth: 2),
     );
   }
 
   // ── Error ──────────────────────────────────────────────────────────
   Widget _buildErrorCard(String msg) {
-    return Container(
+    final ec = context.ec;
+    return GlassCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
       child: Column(
         children: [
           Container(
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: Colors.redAccent.withOpacity(0.08),
+              color: ec.red.withValues(alpha: .12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.error_outline, color: Colors.redAccent),
+            child: Icon(Icons.error_outline, color: ec.red),
           ),
           const SizedBox(height: 12),
-          Text(msg, style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: _load,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
-              decoration: BoxDecoration(
-                color: Palette.kAccent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                'Reintentar',
-                style: TextStyle(
-                  color: Palette.kAccent,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-            ),
+          Text(
+            msg,
+            textAlign: TextAlign.center,
+            style: EnjoyTheme.body(
+                size: 14, weight: FontWeight.w600, color: ec.text),
+          ),
+          const SizedBox(height: 14),
+          EnjoyButton(
+            label: 'Reintentar',
+            icon: Icons.refresh_rounded,
+            variant: EnjoyButtonVariant.ghost,
+            expand: false,
+            dense: true,
+            onPressed: _load,
           ),
         ],
       ),
@@ -631,16 +466,18 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
     IconData icon = Icons.logout,
   }) {
     HapticFeedback.selectionClick();
+    final ec = context.ec;
     return showModalBottomSheet<bool>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      barrierColor: Colors.black.withOpacity(0.25),
+      backgroundColor: ec.surfaceTop,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
+        final sc = ctx.ec;
         final bottom = MediaQuery.of(ctx).viewInsets.bottom;
         return Padding(
           padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
@@ -652,21 +489,14 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
                 height: 5,
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.black12,
+                  color: sc.stroke,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.redAccent.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(icon, color: Colors.redAccent, size: 22),
-                  ),
+                  IconBox(icon, color: sc.red),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -674,16 +504,15 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
                       children: [
                         Text(
                           title,
-                          style: const TextStyle(
-                            color: Palette.kTitle,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 17,
-                          ),
+                          style: EnjoyTheme.heading(
+                              size: 17,
+                              weight: FontWeight.w800,
+                              color: sc.text),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           message,
-                          style: const TextStyle(color: Palette.kMuted, fontSize: 13),
+                          style: EnjoyTheme.body(size: 13, color: sc.textSoft),
                         ),
                       ],
                     ),
@@ -694,33 +523,18 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton(
+                    child: EnjoyButton(
+                      label: cancelLabel,
+                      variant: EnjoyButtonVariant.ghost,
                       onPressed: () => Navigator.pop(ctx, false),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Palette.kBorder),
-                        foregroundColor: Palette.kMuted,
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(cancelLabel),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: ElevatedButton(
+                    child: EnjoyButton(
+                      label: confirmLabel,
+                      variant: EnjoyButtonVariant.red,
                       onPressed: () => Navigator.pop(ctx, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: Text(confirmLabel),
                     ),
                   ),
                 ],
@@ -730,166 +544,6 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
           ),
         );
       },
-    );
-  }
-}
-
-// ── Stat card ──────────────────────────────────────────────────────────
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final int value;
-  final String label;
-
-  const _StatCard({
-    required this.icon,
-    required this.iconColor,
-    required this.value,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 18),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '$value',
-            style: TextStyle(
-              color: iconColor,
-              fontWeight: FontWeight.w800,
-              fontSize: 20,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(color: Palette.kMuted, fontSize: 11),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Chip ───────────────────────────────────────────────────────────────
-class _Chip extends StatelessWidget {
-  final String text;
-  const _Chip(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Palette.kAccent.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Palette.kAccent.withOpacity(0.2)),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Palette.kAccent,
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-}
-
-// ── Setting tile ───────────────────────────────────────────────────────
-class _SettingTile extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String? subtitle;
-  final bool danger;
-  final VoidCallback onTap;
-
-  const _SettingTile({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    this.subtitle,
-    this.danger = false,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: iconColor, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: danger ? Colors.redAccent : Palette.kTitle,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: TextStyle(
-                        color: danger
-                            ? Colors.redAccent.withOpacity(0.7)
-                            : Palette.kMuted,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (!danger)
-              Icon(Icons.chevron_right_rounded, color: Palette.kMuted, size: 20),
-          ],
-        ),
-      ),
     );
   }
 }

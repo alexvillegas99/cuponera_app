@@ -18,6 +18,8 @@ import 'package:enjoy/services/favorites_service.dart';
 import 'package:enjoy/services/my_firebase_messaging_service.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/state/favorites_store.dart';
+import 'package:enjoy/state/theme_controller.dart';
+import 'package:enjoy/ui/enjoy_theme.dart';
 
 // Conectividad
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -54,6 +56,12 @@ Future<void> main() async {
   HttpOverrides.global = MyHttpOverrides();
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Caché de imágenes más grande: evita que las imágenes se "recarguen" al
+  // navegar entre pantallas (el default ~100MB/1000 se llenaba y las expulsaba).
+  final imageCache = PaintingBinding.instance.imageCache;
+  imageCache.maximumSize = 2000; // entradas (default 1000)
+  imageCache.maximumSizeBytes = 300 << 20; // 300 MB (default ~100 MB)
+
   await dotenv.load();
 
   /// 🔴 SOLO inicializa Firebase si NO es iOS
@@ -72,6 +80,7 @@ Future<void> main() async {
 
   final String initialRoute = await getInitialRoute();
   final GoRouter router = buildRouter(initialRoute);
+  final ThemeController themeController = await ThemeController.load();
 
   // Configurar cierre de sesión automático cuando el token expira
   ApiClient.onSessionExpired = () {
@@ -86,6 +95,7 @@ Future<void> main() async {
           create: (_) => FavoritesStore(FavoritosService()),
         ),
         ChangeNotifierProvider(create: (_) => ConnectivityStore()..start()),
+        ChangeNotifierProvider.value(value: themeController),
       ],
       child: RootApp(router: router),
     ),
@@ -99,9 +109,12 @@ class RootApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = context.watch<ThemeController>().mode;
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true),
+      theme: EnjoyTheme.light(),
+      darkTheme: EnjoyTheme.dark(),
+      themeMode: themeMode,
       routerConfig: router,
       builder: (context, child) {
         return Consumer<ConnectivityStore>(

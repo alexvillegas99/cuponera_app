@@ -1,9 +1,9 @@
 import 'package:enjoy/screens/otp_screen.dart';
 import 'package:enjoy/widgets/branded_modal.dart';
 import 'package:flutter/material.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/otp_service.dart';
-import 'package:enjoy/ui/palette.dart';
 
 enum RecoveryMode { cliente, empresa }
 
@@ -73,6 +73,7 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
 
   /// Checklist en vivo de los requisitos de una contraseña segura.
   Widget _requisitosClave() {
+    final ec = context.ec;
     final p = _passCtrl.text;
     final reglas = <(String, bool)>[
       ('Al menos 8 caracteres', p.length >= 8),
@@ -89,13 +90,11 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
           child: Row(
             children: [
               Icon(ok ? Icons.check_circle_rounded : Icons.circle_outlined,
-                  size: 15,
-                  color: ok ? Colors.green.shade600 : Palette.kMuted),
+                  size: 15, color: ok ? ec.green : ec.textMute),
               const SizedBox(width: 6),
               Text(r.$1,
-                  style: TextStyle(
-                      color: ok ? Colors.green.shade700 : Palette.kMuted,
-                      fontSize: 12)),
+                  style: EnjoyTheme.body(
+                      size: 12, color: ok ? ec.green : ec.textMute)),
             ],
           ),
         );
@@ -113,20 +112,58 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
     );
   }
 
-  InputDecoration _inputDec(String hint, {IconData? icon, Widget? suffix}) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
-      prefixIcon: icon != null ? Icon(icon, color: Palette.kMuted, size: 20) : null,
-      suffixIcon: suffix,
-      filled: true,
-      fillColor: Palette.kBg,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kAccent, width: 1.5)),
-      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent)),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent, width: 1.5)),
+  // Modal: si el correo tiene cuenta de cliente Y empresa, pregunta cuál.
+  Future<RecoveryMode?> _chooseTypeSheet() {
+    final ec = context.ec;
+    return showModalBottomSheet<RecoveryMode>(
+      context: context,
+      backgroundColor: ec.surfaceMid,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: ec.strokeStrong,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('¿Qué cuenta quieres recuperar?',
+                  style: EnjoyTheme.heading(
+                      size: 18, weight: FontWeight.w800, color: ec.text)),
+              const SizedBox(height: 4),
+              Text('Este correo tiene cuenta de cliente y de empresa.',
+                  style: EnjoyTheme.body(size: 13, color: ec.textSoft)),
+              const SizedBox(height: 16),
+              ListRowTile(
+                leading: const IconBox(Icons.person_rounded, accent: true),
+                title: 'Cuenta de cliente',
+                trailing: Icon(Icons.chevron_right_rounded, color: ec.textMute),
+                onTap: () => Navigator.pop(ctx, RecoveryMode.cliente),
+              ),
+              const SizedBox(height: 10),
+              ListRowTile(
+                leading: const IconBox(Icons.storefront_rounded),
+                title: 'Cuenta de empresa',
+                trailing: Icon(Icons.chevron_right_rounded, color: ec.textMute),
+                onTap: () => Navigator.pop(ctx, RecoveryMode.empresa),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -136,6 +173,26 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
     final correo = _correoCtrl.text.trim();
     setState(() => _loading = true);
     try {
+      // Detecta el tipo de cuenta por el correo (cliente/empresa).
+      final types = await _auth.checkAccountTypes(correo);
+      if (!mounted) return;
+      if (!types.cliente && !types.usuario) {
+        setState(() => _loading = false);
+        _snack('No encontramos una cuenta con ese correo.');
+        return;
+      }
+      if (types.cliente && types.usuario) {
+        final m = await _chooseTypeSheet();
+        if (m == null) {
+          if (mounted) setState(() => _loading = false);
+          return;
+        }
+        _mode = m;
+      } else {
+        _mode = types.cliente ? RecoveryMode.cliente : RecoveryMode.empresa;
+      }
+      if (mounted) setState(() {});
+
       await _otp.sendOtp(correo);
       if (!mounted) return;
 
@@ -202,300 +259,143 @@ class _RecuperarCuentaScreenState extends State<RecuperarCuentaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      body: Column(
-        children: [
-          // ── Header hero con degradado ──
-          Container(
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF152A47), Color(0xFF1E3A6E)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(28),
-                bottomRight: Radius.circular(28),
-              ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(6, 4, 20, 22),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.arrow_back_rounded,
-                              color: Colors.white),
-                        ),
-                        const Expanded(
-                          child: Text('Recuperar credenciales',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700)),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                  color: Colors.white.withOpacity(0.2)),
-                            ),
-                            child: const Icon(Icons.lock_reset_rounded,
-                                color: Colors.white, size: 28),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _esEmpresa
-                                      ? 'CUENTA DE EMPRESA'
-                                      : 'CUENTA DE CLIENTE',
-                                  style: const TextStyle(
-                                    color: Palette.kAccentLight,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.6,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  _otpOk
-                                      ? 'Crea tu nueva contraseña'
-                                      : 'Verifica tu identidad para continuar',
-                                  style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 13,
-                                      height: 1.3),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+    final ec = context.ec;
+    return EnjoyScaffold(
+      appBar: const EnjoyAppBar(title: 'Recuperar credenciales'),
+      padding: EdgeInsets.zero,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Stepper de pasos ──
+                Steps(count: 2, current: _otpOk ? 2 : 1),
+                const SizedBox(height: 16),
+                Text(
+                  _esEmpresa ? 'CUENTA DE EMPRESA' : 'CUENTA DE CLIENTE',
+                  style: EnjoyTheme.body(
+                          size: 11,
+                          weight: FontWeight.w800,
+                          color: ec.orangeSoft)
+                      .copyWith(letterSpacing: 0.6),
                 ),
-              ),
-            ),
-          ),
+                const SizedBox(height: 4),
+                Text(
+                  _otpOk
+                      ? 'Crea tu nueva contraseña'
+                      : 'Verifica tu identidad para continuar',
+                  style: EnjoyTheme.body(
+                      size: 13, color: ec.textSoft, height: 1.3),
+                ),
+                const SizedBox(height: 18),
 
-          // ── Contenido ──
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 480),
-                  child: Column(
-                    children: [
-                      // ── Stepper de pasos ──
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _stepDot(1, 'Verificación',
-                              done: _otpOk, active: !_otpOk),
-                          Expanded(
-                            child: Container(
-                              height: 2,
-                              margin: const EdgeInsets.only(top: 14),
-                              color: _otpOk ? Palette.kAccent : Palette.kBorder,
-                            ),
-                          ),
-                          _stepDot(2, 'Contraseña',
-                              done: false, active: _otpOk),
-                        ],
-                      ),
-                      const SizedBox(height: 22),
-
-                  // ── Paso 1: Email ──
-                  if (!_otpOk)
-                    _Card(
-                      icon: Icons.mail_outline,
-                      title: 'Ingresa tu correo',
-                      subtitle: 'Te enviaremos un código para verificar tu identidad.',
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            TextFormField(
-                              controller: _correoCtrl,
-                              validator: _emailVal,
-                              keyboardType: TextInputType.emailAddress,
-                              cursorColor: Palette.kAccent,
-                              style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                              decoration: _inputDec('email@ejemplo.com', icon: Icons.alternate_email),
-                              onFieldSubmitted: (_) => _sendOtpAndValidate(),
-                            ),
-                            const SizedBox(height: 16),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: ElevatedButton.icon(
-                                onPressed: _loading ? null : _sendOtpAndValidate,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Palette.kAccent,
-                                  foregroundColor: Colors.white,
-                                  disabledBackgroundColor: Palette.kAccent.withOpacity(0.5),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                ),
-                                icon: _loading
-                                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                    : const Icon(Icons.send, size: 18),
-                                label: Text(_loading ? 'Enviando…' : 'Enviar código', style: const TextStyle(fontWeight: FontWeight.w600)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                  // ── Acceso empresa (discreto) ──
-                  if (!_otpOk) ...[
-                    const SizedBox(height: 16),
-                    GestureDetector(
-                      onTap: () => setState(() => _mode = _mode == RecoveryMode.cliente
-                          ? RecoveryMode.empresa
-                          : RecoveryMode.cliente),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.business_outlined, size: 13, color: Palette.kMuted.withOpacity(0.6)),
-                          const SizedBox(width: 5),
-                          Text(
-                            _mode == RecoveryMode.empresa
-                                ? 'Volver a acceso cliente'
-                                : 'Recuperar contraseña empresas',
-                            style: TextStyle(
-                              color: Palette.kMuted.withOpacity(0.6),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  // ── Paso 2: Nueva contraseña ──
-                  if (_otpOk)
-                    _Card(
-                      icon: Icons.lock_outline,
-                      title: 'Nueva contraseña',
-                      subtitle: 'Ingresa y confirma tu nueva contraseña.',
+                // ── Paso 1: Email ──
+                if (!_otpOk)
+                  _Card(
+                    icon: Icons.mail_outline,
+                    title: 'Ingresa tu correo',
+                    subtitle:
+                        'Te enviaremos un código para verificar tu identidad.',
+                    child: Form(
+                      key: _formKey,
                       child: Column(
                         children: [
-                          TextField(
-                            controller: _passCtrl,
-                            obscureText: !_showPass,
-                            cursorColor: Palette.kAccent,
-                            onChanged: (_) => setState(() {}),
-                            style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                            decoration: _inputDec('Nueva contraseña', icon: Icons.lock_outline, suffix: IconButton(
-                              icon: Icon(_showPass ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Palette.kMuted, size: 20),
-                              onPressed: () => setState(() => _showPass = !_showPass),
-                            )),
-                          ),
-                          const SizedBox(height: 10),
-                          _requisitosClave(),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _pass2Ctrl,
-                            obscureText: !_showPass2,
-                            cursorColor: Palette.kAccent,
-                            style: const TextStyle(color: Palette.kTitle, fontSize: 14),
-                            decoration: _inputDec('Repetir contraseña', icon: Icons.lock_outline, suffix: IconButton(
-                              icon: Icon(_showPass2 ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Palette.kMuted, size: 20),
-                              onPressed: () => setState(() => _showPass2 = !_showPass2),
-                            )),
+                          TextFormField(
+                            controller: _correoCtrl,
+                            validator: _emailVal,
+                            keyboardType: TextInputType.emailAddress,
+                            cursorColor: ec.orange,
+                            style: EnjoyTheme.body(size: 14, color: ec.text),
+                            decoration: const InputDecoration(
+                              hintText: 'email@ejemplo.com',
+                              prefixIcon:
+                                  Icon(Icons.alternate_email, size: 20),
+                            ),
+                            onFieldSubmitted: (_) => _sendOtpAndValidate(),
                           ),
                           const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: ElevatedButton.icon(
-                              onPressed: _loading ? null : _resetPassword,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Palette.kAccent,
-                                foregroundColor: Colors.white,
-                                disabledBackgroundColor: Palette.kAccent.withOpacity(0.5),
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                              ),
-                              icon: _loading
-                                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                  : const Icon(Icons.check, size: 18),
-                              label: Text(_loading ? 'Actualizando…' : 'Actualizar contraseña', style: const TextStyle(fontWeight: FontWeight.w600)),
-                            ),
+                          EnjoyButton(
+                            label: _loading ? 'Enviando…' : 'Enviar código',
+                            icon: Icons.send,
+                            loading: _loading,
+                            onPressed: _loading ? null : _sendOtpAndValidate,
                           ),
                         ],
                       ),
                     ),
-                    ],
                   ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  /// Indicador de paso del stepper (círculo numerado + etiqueta).
-  Widget _stepDot(int n, String label,
-      {required bool done, required bool active}) {
-    final on = done || active;
-    return SizedBox(
-      width: 88,
-      child: Column(
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: on ? Palette.kAccent : Palette.kField,
-              shape: BoxShape.circle,
-              border: Border.all(
-                  color: on ? Palette.kAccent : Palette.kBorder, width: 1.5),
+                // ── Paso 2: Nueva contraseña ──
+                if (_otpOk)
+                  _Card(
+                    icon: Icons.lock_outline,
+                    title: 'Nueva contraseña',
+                    subtitle: 'Ingresa y confirma tu nueva contraseña.',
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _passCtrl,
+                          obscureText: !_showPass,
+                          cursorColor: ec.orange,
+                          onChanged: (_) => setState(() {}),
+                          style: EnjoyTheme.body(size: 14, color: ec.text),
+                          decoration: InputDecoration(
+                            hintText: 'Nueva contraseña',
+                            prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                  _showPass
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                  color: ec.textMute,
+                                  size: 20),
+                              onPressed: () =>
+                                  setState(() => _showPass = !_showPass),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        _requisitosClave(),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _pass2Ctrl,
+                          obscureText: !_showPass2,
+                          cursorColor: ec.orange,
+                          style: EnjoyTheme.body(size: 14, color: ec.text),
+                          decoration: InputDecoration(
+                            hintText: 'Repetir contraseña',
+                            prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                  _showPass2
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                  color: ec.textMute,
+                                  size: 20),
+                              onPressed: () =>
+                                  setState(() => _showPass2 = !_showPass2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        EnjoyButton(
+                          label: _loading
+                              ? 'Actualizando…'
+                              : 'Actualizar contraseña',
+                          icon: Icons.check,
+                          loading: _loading,
+                          onPressed: _loading ? null : _resetPassword,
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
-            alignment: Alignment.center,
-            child: done
-                ? const Icon(Icons.check_rounded, color: Colors.white, size: 17)
-                : Text('$n',
-                    style: TextStyle(
-                        color: active ? Colors.white : Palette.kMuted,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13)),
           ),
-          const SizedBox(height: 5),
-          Text(label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: on ? Palette.kTitle : Palette.kMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600)),
-        ],
+        ),
       ),
     );
   }
@@ -512,28 +412,22 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4))],
-      ),
+    final ec = context.ec;
+    return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(color: Palette.kAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-              child: Icon(icon, size: 18, color: Palette.kAccent),
-            ),
+            IconBox(icon, size: 36, radius: 10, iconSize: 18),
             const SizedBox(width: 12),
-            Expanded(child: Text(title, style: const TextStyle(color: Palette.kTitle, fontSize: 16, fontWeight: FontWeight.w700))),
+            Expanded(
+              child: Text(title,
+                  style: EnjoyTheme.heading(
+                      size: 16, weight: FontWeight.w700, color: ec.text)),
+            ),
           ]),
           const SizedBox(height: 6),
-          Text(subtitle, style: const TextStyle(color: Palette.kMuted, fontSize: 13)),
+          Text(subtitle, style: EnjoyTheme.body(size: 13, color: ec.textSoft)),
           const SizedBox(height: 16),
           child,
         ],
@@ -541,4 +435,3 @@ class _Card extends StatelessWidget {
     );
   }
 }
-

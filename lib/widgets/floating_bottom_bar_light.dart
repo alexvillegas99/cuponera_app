@@ -25,9 +25,10 @@ class FloatingBottomBarLight extends StatelessWidget {
     return Container(
       height: 64,
       decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 4))],
+        color: const Color(0xF20E1B2E), // navy glass
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.45), blurRadius: 24, offset: const Offset(0, 10))],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Row(

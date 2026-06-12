@@ -48,6 +48,14 @@ class UsuariosEmpresaService {
     await _api.patch('/usuarios/$id', data: data);
   }
 
+  /// Crea un usuario (admin/admin-local/staff). Endpoint: POST /usuarios.
+  /// Si no se envía clave, el backend genera una temporal y la envía por correo.
+  Future<Map<String, dynamic>> crear(Map<String, dynamic> data) async {
+    final resp = await _api.post('/usuarios', data: data);
+    if (resp.data is Map<String, dynamic>) return resp.data as Map<String, dynamic>;
+    return {};
+  }
+
   List<Map<String, dynamic>> _parseList(dynamic data) {
     if (data is List) return List<Map<String, dynamic>>.from(data);
     if (data is Map) {

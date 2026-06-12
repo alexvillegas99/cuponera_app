@@ -1,30 +1,43 @@
-// This is a basic Flutter widget test.
+// Smoke test del Design System "Premium Dark + Glow".
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// El antiguo test referenciaba `MyApp` (clase inexistente; la app usa
+// `RootApp` y requiere Firebase/dotenv para arrancar). Lo reemplazamos por
+// una verificación ligera de que el tema y los widgets base renderizan.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:enjoy/main.dart';
+import 'package:enjoy/ui/enjoy.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('EnjoyTheme + widgets base renderizan (dark)',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: EnjoyTheme.dark(),
+        home: const EnjoyScaffold(
+          body: Column(
+            children: [
+              Pill('Activa', variant: PillVariant.green),
+              EnjoyButton(label: 'Continuar'),
+            ],
+          ),
+        ),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('Activa'), findsOneWidget);
+    expect(find.text('Continuar'), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('EnjoyTheme claro también construye',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: EnjoyTheme.light(),
+        home: const EnjoyScaffold(body: Text('Hola')),
+      ),
+    );
+    expect(find.text('Hola'), findsOneWidget);
   });
 }

@@ -1,8 +1,7 @@
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 import '../../models/promotion_models.dart';
-import '../../ui/palette.dart';
-import '../../widgets/promos_list_light.dart';
-import '../../widgets/promo_card_light.dart';
+import '../../screens/clientes/comercio_detalle_mini_screen.dart';
 
 class FavoritesScreenLight extends StatefulWidget {
   final List<Promotion> promos;
@@ -32,7 +31,17 @@ class _FavoritesScreenLightState extends State<FavoritesScreenLight> {
     }).toList();
   }
 
-  Widget _emptyState() {
+  void _openDetalle(Promotion p) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ComercioDetalleMiniScreen(usuarioId: p.id),
+      ),
+    );
+  }
+
+  Widget _emptyState(EnjoyColors ec) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -41,28 +50,25 @@ class _FavoritesScreenLightState extends State<FavoritesScreenLight> {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: Colors.redAccent.withOpacity(0.08),
+              color: ec.orange.withValues(alpha: 0.12),
               shape: BoxShape.circle,
+              border: Border.all(color: ec.orange.withValues(alpha: 0.28)),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.favorite_border_rounded,
-              color: Colors.redAccent,
+              color: ec.orangeSoft,
               size: 30,
             ),
           ),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'Sin favoritos aún',
-            style: TextStyle(
-              color: Palette.kTitle,
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-            ),
+            style: EnjoyTheme.heading(size: 15, color: ec.text),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Guarda promociones para encontrarlas rápido',
-            style: TextStyle(color: Palette.kMuted, fontSize: 12),
+            style: EnjoyTheme.body(size: 12, color: ec.textMute),
             textAlign: TextAlign.center,
           ),
         ],
@@ -72,54 +78,59 @@ class _FavoritesScreenLightState extends State<FavoritesScreenLight> {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
+
     if (widget.promos.isEmpty) {
-      return _emptyState();
+      return _emptyState(ec);
     }
 
     final list = _filtered;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Buscador de favoritos
+        // Título + buscador de favoritos
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Text('Favoritos', style: EnjoyTheme.heading(size: 20, color: ec.text)),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: TextField(
             onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
-            style: const TextStyle(color: Palette.kTitle),
-            cursorColor: Palette.kAccent,
-            decoration: InputDecoration(
+            style: EnjoyTheme.body(size: 14, color: ec.text),
+            cursorColor: ec.orange,
+            decoration: const InputDecoration(
               hintText: 'Buscar en favoritos…',
-              hintStyle: const TextStyle(color: Palette.kMuted),
-              prefixIcon:
-                  const Icon(Icons.search, color: Palette.kMuted, size: 22),
-              filled: true,
-              fillColor: Palette.kField,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Palette.kBorder),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Palette.kAccent, width: 1.2),
-              ),
+              prefixIcon: Icon(Icons.search),
             ),
           ),
         ),
         Expanded(
           child: list.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'Sin resultados',
-                    style: TextStyle(color: Palette.kMuted),
+                    style: EnjoyTheme.body(size: 13, color: ec.textMute),
                   ),
                 )
-              : PromosListLight(
-                  promos: list,
-                  cardStyle: CardStyle.compact,
-                  isFavorite: (_) => true,
-                  onFavorite: (p) async => widget.onUnfavorite(p),
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 100),
+                  itemCount: list.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) {
+                    final p = list[i];
+                    return PromoCard(
+                      title: p.placeName.isNotEmpty ? p.placeName : p.title,
+                      subtitle: p.title,
+                      imageUrl: p.coverUrl,
+                      topBadge: p.categories.isNotEmpty ? p.categories.first : null,
+                      discount: p.isTwoForOne ? '2x1' : null,
+                      isFavorite: true,
+                      onFavorite: () => widget.onUnfavorite(p),
+                      onTap: () => _openDetalle(p),
+                    );
+                  },
                 ),
         ),
       ],

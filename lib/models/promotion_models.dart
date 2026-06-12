@@ -29,6 +29,9 @@ class Promotion {
   final DateTime endDate;
   final bool isFlash;
 
+  /// El local tiene al menos una promoción flash ACTIVA y vigente.
+  final bool tieneFlash;
+
   final bool? aplicaTodosLosDias;
   final List<String>? diasAplicables;
   final Map<String, dynamic>? horarioPorDia;
@@ -56,6 +59,7 @@ class Promotion {
     required this.startDate,
     required this.endDate,
     required this.isFlash,
+    this.tieneFlash = false,
     this.address,
     this.aplicaTodosLosDias,
     this.diasAplicables,
@@ -102,6 +106,7 @@ class Promotion {
       startDate: DateTime.tryParse(d['startDate'] ?? '') ?? DateTime.now(),
       endDate: DateTime.tryParse(d['endDate'] ?? '') ?? DateTime.now(),
       isFlash: (d['isFlash'] ?? false) as bool,
+      tieneFlash: j['tieneFlash'] == true,
       aplicaTodosLosDias: d['aplicaTodosLosDias'] as bool?,
       diasAplicables: (d['diasAplicables'] as List?)?.map((e) => e.toString()).toList(),
       horarioPorDia: d['horarioPorDia'] as Map<String, dynamic>?,

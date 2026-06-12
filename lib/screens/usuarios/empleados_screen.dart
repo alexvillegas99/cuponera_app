@@ -1,7 +1,7 @@
 import 'package:enjoy/screens/usuarios/empleado_form_screen.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/usuarios_empresa_service.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 
 class EmpleadosScreen extends StatefulWidget {
@@ -93,8 +93,10 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
+
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: Palette.kAccent));
+      return Center(child: CircularProgressIndicator(color: ec.orange));
     }
 
     if (_error != null) {
@@ -110,25 +112,11 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: TextField(
                 onChanged: (v) => setState(() => _busqueda = v),
-                decoration: InputDecoration(
+                cursorColor: ec.orange,
+                style: EnjoyTheme.body(size: 14, color: ec.text),
+                decoration: const InputDecoration(
                   hintText: 'Buscar empleado...',
-                  hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
-                  prefixIcon: const Icon(Icons.search_rounded, color: Palette.kMuted, size: 20),
-                  filled: true,
-                  fillColor: Palette.kSurface,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Palette.kBorder),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Palette.kBorder),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Palette.kAccent),
-                  ),
+                  prefixIcon: Icon(Icons.search_rounded, size: 20),
                 ),
               ),
             ),
@@ -140,11 +128,8 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
                 children: [
                   Text(
                     '${_filtrados.length} empleado${_filtrados.length != 1 ? 's' : ''}',
-                    style: const TextStyle(
-                      color: Palette.kMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: EnjoyTheme.body(
+                        size: 12, weight: FontWeight.w500, color: ec.textMute),
                   ),
                 ],
               ),
@@ -159,7 +144,8 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
                       subtitulo: 'Toca + para agregar el primer empleado.',
                     )
                   : RefreshIndicator(
-                      color: Palette.kAccent,
+                      color: ec.orange,
+                      backgroundColor: ec.surfaceTop,
                       onRefresh: _cargar,
                       child: ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
@@ -181,8 +167,8 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
           bottom: 24,
           child: FloatingActionButton(
             onPressed: _abrirCrear,
-            backgroundColor: Palette.kAccent,
-            foregroundColor: Colors.white,
+            backgroundColor: ec.orange,
+            foregroundColor: ec.onAccent,
             elevation: 4,
             child: const Icon(Icons.add_rounded),
           ),
@@ -212,92 +198,28 @@ class _EmpleadoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = _nombre.isNotEmpty ? _nombre[0].toUpperCase() : '?';
-
-    return GestureDetector(
+    final isAdmin = _rol.toLowerCase().contains('admin');
+    return ListRowTile(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Palette.kBorder),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              // Avatar con inicial
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Palette.kAccent, Palette.kAccentLight],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(
-                    initial,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _nombre,
-                      style: const TextStyle(
-                        color: Palette.kTitle,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _correo,
-                      style: const TextStyle(color: Palette.kMuted, fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        _Badge(label: _rolLabel(_rol), color: _rolColor(_rol)),
-                        const SizedBox(width: 6),
-                        _Badge(
-                          label: _activo ? 'Activo' : 'Inactivo',
-                          color: _activo ? Colors.green.shade700 : Colors.red.shade700,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              Icon(Icons.chevron_right_rounded, color: Palette.kBorder, size: 22),
-            ],
+      leading: EnjoyAvatar(_nombre, size: 42, radius: 12, accent: isAdmin),
+      title: _nombre,
+      subtitle: _correo,
+      trailing: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Pill(
+            _rolLabel(_rol),
+            variant: isAdmin ? PillVariant.blue : PillVariant.glass,
+            dense: true,
           ),
-        ),
+          const SizedBox(height: 5),
+          Pill(
+            _activo ? 'Activo' : 'Inactivo',
+            variant: _activo ? PillVariant.green : PillVariant.glass,
+            dense: true,
+          ),
+        ],
       ),
     );
   }
@@ -310,39 +232,9 @@ class _EmpleadoCard extends StatelessWidget {
       default: return rol.isEmpty ? 'Sin rol' : rol;
     }
   }
-
-  Color _rolColor(String rol) {
-    switch (rol.toLowerCase()) {
-      case 'admin': return Colors.purple.shade700;
-      case 'admin-local': return Colors.blue.shade700;
-      default: return Palette.kMuted;
-    }
-  }
 }
 
 // ── Widgets helpers ─────────────────────────────────────────────────────────
-
-class _Badge extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _Badge({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.25)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700),
-      ),
-    );
-  }
-}
 
 class _EmptyState extends StatelessWidget {
   final IconData icon;
@@ -352,31 +244,22 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: Palette.kField,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(icon, size: 36, color: Palette.kMuted),
-            ),
+            IconBox(icon, size: 72, radius: 20, iconSize: 36),
             const SizedBox(height: 16),
             Text(titulo,
-                style: const TextStyle(
-                    color: Palette.kTitle,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16)),
+                style: EnjoyTheme.heading(
+                    size: 16, weight: FontWeight.w700, color: ec.text)),
             const SizedBox(height: 6),
             Text(subtitulo,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Palette.kMuted, fontSize: 13)),
+                style: EnjoyTheme.body(size: 13, color: ec.textMute)),
           ],
         ),
       ),
@@ -391,42 +274,29 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(Icons.wifi_off_rounded, size: 36, color: Colors.red),
-            ),
+            IconBox(Icons.wifi_off_rounded,
+                size: 72, radius: 20, iconSize: 36, color: ec.red),
             const SizedBox(height: 16),
-            const Text('Error de conexión',
-                style: TextStyle(
-                    color: Palette.kTitle,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16)),
+            Text('Error de conexión',
+                style: EnjoyTheme.heading(
+                    size: 16, weight: FontWeight.w700, color: ec.text)),
             const SizedBox(height: 6),
             Text(message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Palette.kMuted, fontSize: 13)),
+                style: EnjoyTheme.body(size: 13, color: ec.textMute)),
             const SizedBox(height: 20),
-            ElevatedButton.icon(
+            EnjoyButton(
+              label: 'Reintentar',
+              icon: Icons.refresh_rounded,
+              expand: false,
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded, size: 16),
-              label: const Text('Reintentar'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Palette.kAccent,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
             ),
           ],
         ),

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/clientes_admin_service.dart';
 import 'package:enjoy/services/nueva_cuponera_admin_service.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 
 class NuevaCuponeraAdminScreen extends StatefulWidget {
@@ -177,6 +177,7 @@ class _NuevaCuponeraAdminScreenState extends State<NuevaCuponeraAdminScreen> {
   }
 
   void _mostrarExito() {
+    final ec = context.ec;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: const Row(
         children: [
@@ -185,7 +186,7 @@ class _NuevaCuponeraAdminScreenState extends State<NuevaCuponeraAdminScreen> {
           Expanded(child: Text('Cuponera asignada exitosamente')),
         ],
       ),
-      backgroundColor: const Color(0xFF16A34A),
+      backgroundColor: ec.green,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       duration: const Duration(seconds: 3),
@@ -216,32 +217,35 @@ class _NuevaCuponeraAdminScreenState extends State<NuevaCuponeraAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Indicador de pasos ─────────────────────────────────
-          _StepIndicator(paso: _paso),
-          const SizedBox(height: 24),
+          Steps(count: 3, current: _paso + 1),
+          const SizedBox(height: 12),
+          _StepLabels(paso: _paso),
+          const SizedBox(height: 22),
 
           // ── Error global ───────────────────────────────────────
           if (_errorGlobal != null) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.red.withOpacity(0.3)),
+                color: ec.red.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: ec.red.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline_rounded, color: Colors.red, size: 18),
+                  Icon(Icons.error_outline_rounded, color: ec.red, size: 18),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(_errorGlobal!, style: const TextStyle(color: Colors.red, fontSize: 13))),
+                  Expanded(child: Text(_errorGlobal!, style: EnjoyTheme.body(size: 13, color: ec.red))),
                   GestureDetector(
                     onTap: () => setState(() => _errorGlobal = null),
-                    child: const Icon(Icons.close_rounded, size: 16, color: Colors.red),
+                    child: Icon(Icons.close_rounded, size: 16, color: ec.red),
                   ),
                 ],
               ),
@@ -321,79 +325,36 @@ class _NuevaCuponeraAdminScreenState extends State<NuevaCuponeraAdminScreen> {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// INDICADOR DE PASOS
+// ETIQUETAS DE PASOS (bajo la barra Steps)
 // ══════════════════════════════════════════════════════════════════════════════
 
-class _StepIndicator extends StatelessWidget {
+class _StepLabels extends StatelessWidget {
   final int paso;
-  const _StepIndicator({required this.paso});
+  const _StepLabels({required this.paso});
 
   @override
   Widget build(BuildContext context) {
+    const labels = ['Cliente', 'Cuponera', 'Confirmar'];
     return Row(
-      children: [
-        _StepDot(numero: 1, activo: paso >= 0, completo: paso > 0, label: 'Cliente'),
-        _StepLine(activo: paso > 0),
-        _StepDot(numero: 2, activo: paso >= 1, completo: paso > 1, label: 'Cuponera'),
-        _StepLine(activo: paso > 1),
-        _StepDot(numero: 3, activo: paso >= 2, completo: false, label: 'Confirmar'),
-      ],
-    );
-  }
-}
-
-class _StepDot extends StatelessWidget {
-  final int numero;
-  final bool activo;
-  final bool completo;
-  final String label;
-  const _StepDot({required this.numero, required this.activo, required this.completo, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = completo ? const Color(0xFF16A34A) : activo ? Palette.kAccent : Palette.kBorder;
-    return Column(
-      children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          width: 32, height: 32,
-          decoration: BoxDecoration(
-            color: (activo || completo) ? color : Palette.kField,
-            shape: BoxShape.circle,
-            border: Border.all(color: color, width: 2),
+      children: List.generate(labels.length, (i) {
+        final activo = i <= paso;
+        final ec = context.ec;
+        return Expanded(
+          child: Text(
+            labels[i],
+            textAlign: i == 0
+                ? TextAlign.start
+                : i == labels.length - 1
+                    ? TextAlign.end
+                    : TextAlign.center,
+            style: EnjoyTheme.body(
+              size: 11,
+              weight: FontWeight.w600,
+              color: activo ? ec.orangeSoft : ec.textMute,
+            ),
           ),
-          child: Center(
-            child: completo
-                ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
-                : Text('$numero', style: TextStyle(
-                    color: activo ? Colors.white : Palette.kMuted,
-                    fontSize: 13, fontWeight: FontWeight.w700)),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: TextStyle(
-            color: (activo || completo) ? color : Palette.kMuted,
-            fontSize: 10, fontWeight: FontWeight.w600)),
-      ],
-    );
-  }
-}
-
-class _StepLine extends StatelessWidget {
-  final bool activo;
-  const _StepLine({required this.activo});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 18),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          height: 2,
-          color: activo ? Palette.kAccent : Palette.kBorder,
-        ),
-      ),
+        );
+      }),
     );
   }
 }
@@ -419,46 +380,39 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 250),
       opacity: bloqueado ? 0.5 : 1.0,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: completado ? const Color(0xFF16A34A).withOpacity(0.4) : Palette.kBorder,
-            width: completado ? 1.5 : 1,
-          ),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2))],
-        ),
+      child: GlassCard(
+        padding: EdgeInsets.zero,
+        borderColor: completado ? ec.green.withValues(alpha: 0.4) : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Cabecera
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
               child: Row(
                 children: [
                   Container(
                     width: 26, height: 26,
                     decoration: BoxDecoration(
-                      color: completado ? const Color(0xFF16A34A) : Palette.kAccent,
+                      gradient: completado ? ec.greenGradient : ec.accentGradient,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
                       child: completado
-                          ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
-                          : Text(numero, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+                          ? Icon(Icons.check_rounded, size: 14, color: ec.isDark ? const Color(0xFF06210F) : Colors.white)
+                          : Text(numero, style: EnjoyTheme.heading(size: 12, weight: FontWeight.w800, color: ec.onAccent)),
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text(titulo, style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 15)),
+                  Text(titulo, style: EnjoyTheme.heading(size: 15, color: ec.text)),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            const Divider(height: 1, color: Palette.kBorder),
+            const EnjoyDivider(height: 1),
             Padding(
               padding: const EdgeInsets.all(16),
               child: child,
@@ -493,37 +447,33 @@ class _BusquedaCliente extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
           controller: ctrl,
           onChanged: onChanged,
-          style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+          cursorColor: ec.orange,
+          style: EnjoyTheme.body(size: 14, color: ec.text),
           decoration: InputDecoration(
             hintText: 'Nombre, correo o cédula...',
-            hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
-            prefixIcon: const Icon(Icons.search_rounded, color: Palette.kMuted, size: 20),
+            prefixIcon: const Icon(Icons.search_rounded, size: 20),
             suffixIcon: buscando
-                ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Palette.kAccent)),
+                ? Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: ec.orange)),
                   )
                 : null,
-            filled: true, fillColor: Palette.kField,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kAccent, width: 1.5)),
           ),
         ),
         if (clientes.isNotEmpty) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Container(
             decoration: BoxDecoration(
-              color: Palette.kField,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Palette.kBorder),
+              color: ec.glass,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: ec.stroke),
             ),
             child: Column(
               children: clientes.asMap().entries.map((entry) {
@@ -534,57 +484,32 @@ class _BusquedaCliente extends StatelessWidget {
                 final cedula = (c['identificacion'] ?? '').toString();
                 return InkWell(
                   onTap: () => onSeleccionar(c),
-                  borderRadius: BorderRadius.circular(i == 0
-                      ? 12
-                      : i == clientes.length - 1
-                          ? 12
-                          : 0),
+                  borderRadius: BorderRadius.circular(15),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                     decoration: BoxDecoration(
                       border: i < clientes.length - 1
-                          ? const Border(bottom: BorderSide(color: Palette.kBorder))
+                          ? Border(bottom: BorderSide(color: ec.stroke))
                           : null,
                     ),
                     child: Row(
                       children: [
-                        Container(
-                          width: 36, height: 36,
-                          decoration: BoxDecoration(
-                            color: Palette.kAccent.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
-                              style: const TextStyle(color: Palette.kAccent, fontWeight: FontWeight.w800, fontSize: 15),
-                            ),
-                          ),
-                        ),
+                        EnjoyAvatar(nombre.isNotEmpty ? nombre : '?', size: 36),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(nombre.isNotEmpty ? nombre : '—',
-                                  style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w600, fontSize: 13),
+                                  style: EnjoyTheme.heading(size: 13, weight: FontWeight.w600, color: ec.text),
                                   maxLines: 1, overflow: TextOverflow.ellipsis),
                               Text(correo,
-                                  style: const TextStyle(color: Palette.kMuted, fontSize: 11),
+                                  style: EnjoyTheme.body(size: 11, color: ec.textMute),
                                   maxLines: 1, overflow: TextOverflow.ellipsis),
                             ],
                           ),
                         ),
-                        if (cedula.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Palette.kField,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: Palette.kBorder),
-                            ),
-                            child: Text(cedula, style: const TextStyle(color: Palette.kMuted, fontSize: 10, fontWeight: FontWeight.w600)),
-                          ),
+                        if (cedula.isNotEmpty) Pill(cedula, dense: true),
                       ],
                     ),
                   ),
@@ -597,10 +522,12 @@ class _BusquedaCliente extends StatelessWidget {
             padding: const EdgeInsets.only(top: 10),
             child: Row(
               children: [
-                const Icon(Icons.info_outline_rounded, size: 14, color: Palette.kMuted),
+                Icon(Icons.info_outline_rounded, size: 14, color: ec.textMute),
                 const SizedBox(width: 6),
-                Text('No se encontraron clientes con "${ctrl.text}"',
-                    style: const TextStyle(color: Palette.kMuted, fontSize: 12)),
+                Expanded(
+                  child: Text('No se encontraron clientes con "${ctrl.text}"',
+                      style: EnjoyTheme.body(size: 12, color: ec.textMute)),
+                ),
               ],
             ),
           ),
@@ -624,21 +551,24 @@ class _ClienteSeleccionadoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final correo = (cliente['email'] ?? cliente['correo'] ?? '—').toString();
     final cedula = (cliente['identificacion'] ?? '—').toString();
-    final initial = nombreCliente.isNotEmpty ? nombreCliente[0].toUpperCase() : '?';
 
     return Row(
       children: [
         Container(
           width: 44, height: 44,
           decoration: BoxDecoration(
-            color: const Color(0xFF16A34A).withOpacity(0.1),
+            color: ec.green.withValues(alpha: 0.12),
             shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFF16A34A).withOpacity(0.3)),
+            border: Border.all(color: ec.green.withValues(alpha: 0.3)),
           ),
           child: Center(
-            child: Text(initial, style: const TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w800, fontSize: 18)),
+            child: Text(
+              nombreCliente.isNotEmpty ? nombreCliente[0].toUpperCase() : '?',
+              style: EnjoyTheme.heading(size: 18, weight: FontWeight.w800, color: ec.green),
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -646,9 +576,9 @@ class _ClienteSeleccionadoCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(nombreCliente, style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 14)),
-              Text(correo, style: const TextStyle(color: Palette.kMuted, fontSize: 11)),
-              Text('CI: $cedula', style: const TextStyle(color: Palette.kMuted, fontSize: 11)),
+              Text(nombreCliente, style: EnjoyTheme.heading(size: 14, color: ec.text)),
+              Text(correo, style: EnjoyTheme.body(size: 11, color: ec.textMute)),
+              Text('CI: $cedula', style: EnjoyTheme.body(size: 11, color: ec.textMute)),
             ],
           ),
         ),
@@ -656,7 +586,7 @@ class _ClienteSeleccionadoCard extends StatelessWidget {
           onPressed: onCambiar,
           icon: const Icon(Icons.edit_rounded, size: 14),
           label: const Text('Cambiar'),
-          style: TextButton.styleFrom(foregroundColor: Palette.kAccent, padding: const EdgeInsets.symmetric(horizontal: 10)),
+          style: TextButton.styleFrom(foregroundColor: ec.orangeSoft, padding: const EdgeInsets.symmetric(horizontal: 10)),
         ),
       ],
     );
@@ -684,34 +614,30 @@ class _BusquedaVersion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
           controller: ctrl,
           onChanged: onChanged,
-          style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+          cursorColor: ec.orange,
+          style: EnjoyTheme.body(size: 14, color: ec.text),
           decoration: InputDecoration(
             hintText: 'Buscar por nombre...',
-            hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
-            prefixIcon: const Icon(Icons.confirmation_num_rounded, color: Palette.kMuted, size: 18),
+            prefixIcon: const Icon(Icons.confirmation_num_rounded, size: 20),
             suffixIcon: buscando
-                ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Palette.kAccent)),
+                ? Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: ec.orange)),
                   )
                 : null,
-            filled: true, fillColor: Palette.kField,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Palette.kBorder)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Palette.kAccent, width: 1.5)),
           ),
         ),
         if (buscando && versiones.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 16),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Palette.kAccent)),
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: ec.orange)),
           )
         else if (versiones.isNotEmpty) ...[
           const SizedBox(height: 10),
@@ -721,10 +647,12 @@ class _BusquedaVersion extends StatelessWidget {
             padding: const EdgeInsets.only(top: 10),
             child: Row(
               children: [
-                const Icon(Icons.info_outline_rounded, size: 14, color: Palette.kMuted),
+                Icon(Icons.info_outline_rounded, size: 14, color: ec.textMute),
                 const SizedBox(width: 6),
-                Text('No se encontraron versiones con "${ctrl.text}"',
-                    style: const TextStyle(color: Palette.kMuted, fontSize: 12)),
+                Expanded(
+                  child: Text('No se encontraron versiones con "${ctrl.text}"',
+                      style: EnjoyTheme.body(size: 12, color: ec.textMute)),
+                ),
               ],
             ),
           ),
@@ -741,6 +669,7 @@ class _VersionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final nombre = (version['nombre'] ?? '—').toString();
     final precio = version['precio']?.toString();
     final ciudades = version['ciudadesDisponibles'];
@@ -749,61 +678,39 @@ class _VersionCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
+      child: GlassCard(
         onTap: onSeleccionar,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Palette.kField,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Palette.kBorder),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 42, height: 42,
-                decoration: BoxDecoration(
-                  color: Palette.kAccent.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Center(child: Icon(Icons.confirmation_num_rounded, color: Palette.kAccent, size: 20)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(nombre,
-                        style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 13),
+        padding: const EdgeInsets.all(14),
+        blur: false,
+        child: Row(
+          children: [
+            IconBox(Icons.confirmation_num_rounded, size: 42, radius: 11),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(nombre,
+                      style: EnjoyTheme.heading(size: 13, weight: FontWeight.w700, color: ec.text),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  if (ciudadesStr.isNotEmpty)
+                    Text(ciudadesStr,
+                        style: EnjoyTheme.body(size: 11, color: ec.textMute),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if (ciudadesStr.isNotEmpty)
-                      Text(ciudadesStr,
-                          style: const TextStyle(color: Palette.kMuted, fontSize: 11),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if (descripcion != null && descripcion.isNotEmpty)
-                      Text(descripcion,
-                          style: const TextStyle(color: Palette.kMuted, fontSize: 11),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ],
-                ),
+                  if (descripcion != null && descripcion.isNotEmpty)
+                    Text(descripcion,
+                        style: EnjoyTheme.body(size: 11, color: ec.textMute),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
               ),
-              if (precio != null) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Palette.kAccent.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text('\$$precio',
-                      style: const TextStyle(color: Palette.kAccent, fontSize: 12, fontWeight: FontWeight.w700)),
-                ),
-              ],
+            ),
+            if (precio != null) ...[
               const SizedBox(width: 8),
-              const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Palette.kMuted),
+              Pill('\$$precio', variant: PillVariant.orange, dense: true),
             ],
-          ),
+            const SizedBox(width: 8),
+            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: ec.textMute),
+          ],
         ),
       ),
     );
@@ -820,6 +727,7 @@ class _VersionSeleccionadaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final nombre = (version['nombre'] ?? '—').toString();
     final precio = version['precio']?.toString();
     final ciudades = version['ciudadesDisponibles'];
@@ -830,22 +738,22 @@ class _VersionSeleccionadaCard extends StatelessWidget {
         Container(
           width: 44, height: 44,
           decoration: BoxDecoration(
-            color: const Color(0xFF16A34A).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFF16A34A).withOpacity(0.3)),
+            color: ec.green.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: ec.green.withValues(alpha: 0.3)),
           ),
-          child: const Center(child: Icon(Icons.confirmation_num_rounded, color: Color(0xFF16A34A), size: 20)),
+          child: Center(child: Icon(Icons.confirmation_num_rounded, color: ec.green, size: 20)),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(nombre, style: const TextStyle(color: Palette.kTitle, fontWeight: FontWeight.w700, fontSize: 14)),
+              Text(nombre, style: EnjoyTheme.heading(size: 14, color: ec.text)),
               if (ciudadesStr.isNotEmpty)
-                Text(ciudadesStr, style: const TextStyle(color: Palette.kMuted, fontSize: 11)),
+                Text(ciudadesStr, style: EnjoyTheme.body(size: 11, color: ec.textMute)),
               if (precio != null)
-                Text('\$$precio', style: const TextStyle(color: Palette.kAccent, fontSize: 12, fontWeight: FontWeight.w600)),
+                Text('\$$precio', style: EnjoyTheme.body(size: 12, weight: FontWeight.w600, color: ec.orangeSoft)),
             ],
           ),
         ),
@@ -853,7 +761,7 @@ class _VersionSeleccionadaCard extends StatelessWidget {
           onPressed: onCambiar,
           icon: const Icon(Icons.edit_rounded, size: 14),
           label: const Text('Cambiar'),
-          style: TextButton.styleFrom(foregroundColor: Palette.kAccent, padding: const EdgeInsets.symmetric(horizontal: 10)),
+          style: TextButton.styleFrom(foregroundColor: ec.orangeSoft, padding: const EdgeInsets.symmetric(horizontal: 10)),
         ),
       ],
     );
@@ -885,6 +793,7 @@ class _ConfirmacionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final correo = (cliente['email'] ?? cliente['correo'] ?? '—').toString();
     final cedula = (cliente['identificacion'] ?? '—').toString();
     final vNombre = (version['nombre'] ?? '—').toString();
@@ -896,39 +805,26 @@ class _ConfirmacionPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Preview card estilo ticket
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Palette.kAccent.withOpacity(0.08), Palette.kAccent.withOpacity(0.02)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Palette.kAccent.withOpacity(0.25)),
-          ),
+        GlassCard(
+          accent: true,
+          blur: false,
+          padding: EdgeInsets.zero,
           child: Column(
             children: [
               // Header
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: Palette.kAccent.withOpacity(0.1),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+                  color: ec.orange.withValues(alpha: 0.1),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(19)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.confirmation_num_rounded, color: Palette.kAccent, size: 18),
+                    Icon(Icons.confirmation_num_rounded, color: ec.orangeSoft, size: 18),
                     const SizedBox(width: 8),
-                    const Text('Nueva cuponera', style: TextStyle(color: Palette.kAccent, fontWeight: FontWeight.w800, fontSize: 14)),
+                    Text('Nueva cuponera', style: EnjoyTheme.heading(size: 14, weight: FontWeight.w800, color: ec.orangeSoft)),
                     const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF16A34A).withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text('ACTIVO', style: TextStyle(color: Color(0xFF16A34A), fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
-                    ),
+                    Pill('ACTIVO', variant: PillVariant.green, dense: true),
                   ],
                 ),
               ),
@@ -961,35 +857,21 @@ class _ConfirmacionPanel extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: OutlinedButton.icon(
+              child: EnjoyButton(
+                label: 'Reiniciar',
+                icon: Icons.refresh_rounded,
+                variant: EnjoyButtonVariant.ghost,
                 onPressed: creando ? null : onReiniciar,
-                icon: const Icon(Icons.refresh_rounded, size: 16),
-                label: const Text('Reiniciar'),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Palette.kBorder),
-                  foregroundColor: Palette.kMuted,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 2,
-              child: ElevatedButton.icon(
+              child: EnjoyButton(
+                label: creando ? 'Asignando...' : 'Confirmar asignación',
+                icon: creando ? null : Icons.check_circle_rounded,
+                loading: creando,
                 onPressed: creando ? null : onConfirmar,
-                icon: creando
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.check_circle_rounded, size: 18),
-                label: Text(creando ? 'Asignando...' : 'Confirmar asignación',
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Palette.kAccent,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
               ),
             ),
           ],
@@ -1007,20 +889,21 @@ class _PreviewRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: Palette.kMuted),
+          Icon(icon, size: 14, color: ec.textMute),
           const SizedBox(width: 8),
           SizedBox(
             width: 90,
-            child: Text(label, style: const TextStyle(color: Palette.kMuted, fontSize: 12)),
+            child: Text(label, style: EnjoyTheme.body(size: 12, color: ec.textMute)),
           ),
           Expanded(
             child: Text(value,
-                style: const TextStyle(color: Palette.kTitle, fontSize: 12, fontWeight: FontWeight.w600),
+                style: EnjoyTheme.body(size: 12, weight: FontWeight.w600, color: ec.text),
                 maxLines: 2),
           ),
         ],
@@ -1034,6 +917,7 @@ class _PreviewDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -1043,7 +927,7 @@ class _PreviewDivider extends StatelessWidget {
             child: Container(
               height: 1,
               margin: const EdgeInsets.symmetric(horizontal: 2),
-              color: Palette.kBorder,
+              color: ec.stroke,
             ),
           ),
         ),
@@ -1062,11 +946,12 @@ class _BloqueoHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Row(
       children: [
-        const Icon(Icons.lock_outline_rounded, size: 14, color: Palette.kMuted),
+        Icon(Icons.lock_outline_rounded, size: 14, color: ec.textMute),
         const SizedBox(width: 8),
-        Text(texto, style: const TextStyle(color: Palette.kMuted, fontSize: 13)),
+        Text(texto, style: EnjoyTheme.body(size: 13, color: ec.textMute)),
       ],
     );
   }

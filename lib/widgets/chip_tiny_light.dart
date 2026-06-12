@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../ui/enjoy_dark.dart';
 import '../ui/palette.dart';
 
 class ChipTinyLight extends StatelessWidget {
@@ -10,13 +11,13 @@ class ChipTinyLight extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Palette.kField,
+        color: ED.field,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Palette.kBorder),
+        border: Border.all(color: ED.border),
       ),
       child: Text(
         label,
-        style: const TextStyle(color: Palette.kMuted),
+        style: const TextStyle(color: ED.mute),
       ),
     );
   }

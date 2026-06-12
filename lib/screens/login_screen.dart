@@ -1,12 +1,13 @@
 import 'dart:io';
 
 import 'package:enjoy/services/auth_service.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../ui/palette.dart';
-
 enum LoginMode { cliente, empresa }
+
+enum _LoginStep { email, password }
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,9 +22,11 @@ class _LoginScreenState extends State<LoginScreen>
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
 
+  _LoginStep _step = _LoginStep.email;
   LoginMode _mode = LoginMode.cliente;
   bool _obscure = true;
   bool _loading = false;
+  bool _checkingEmail = false;
   bool _googleLoading = false;
   bool _appleLoading = false;
 
@@ -49,33 +52,119 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  String get _headline =>
-      _mode == LoginMode.cliente ? 'Bienvenido de vuelta' : 'Acceso empresas';
+  bool _validEmail(String v) =>
+      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(v.trim());
 
-  String get _userHint =>
-      _mode == LoginMode.cliente ? 'Correo electrónico' : 'Correo corporativo';
+  // ── Paso 1: continuar con el correo ──
+  Future<void> _continueEmail() async {
+    final email = _userCtrl.text.trim();
+    if (!_validEmail(email)) {
+      _snack('Ingresa un correo válido.');
+      return;
+    }
+    setState(() => _checkingEmail = true);
+    try {
+      final types = await _auth.checkAccountTypes(email);
+      if (!mounted) return;
+      if (!types.cliente && !types.usuario) {
+        _snack('No encontramos una cuenta con ese correo. Regístrate o usa otro.');
+        return;
+      }
+      LoginMode? mode;
+      if (types.cliente && types.usuario) {
+        mode = await _chooseTypeSheet();
+        if (mode == null) return; // canceló
+      } else {
+        mode = types.cliente ? LoginMode.cliente : LoginMode.empresa;
+      }
+      setState(() {
+        _mode = mode!;
+        _step = _LoginStep.password;
+      });
+    } catch (e) {
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _checkingEmail = false);
+    }
+  }
 
+  void _backToEmail() {
+    setState(() {
+      _step = _LoginStep.email;
+      _passCtrl.clear();
+      _obscure = true;
+    });
+  }
+
+  // ── Modal: ¿cómo quieres ingresar? ──
+  Future<LoginMode?> _chooseTypeSheet() {
+    final ec = context.ec;
+    return showModalBottomSheet<LoginMode>(
+      context: context,
+      backgroundColor: ec.surfaceMid,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: ec.strokeStrong,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('¿Cómo quieres ingresar?',
+                  style: EnjoyTheme.heading(
+                      size: 18, weight: FontWeight.w800, color: ec.text)),
+              const SizedBox(height: 4),
+              Text('Este correo tiene cuenta de cliente y de empresa.',
+                  style: EnjoyTheme.body(size: 13, color: ec.textSoft)),
+              const SizedBox(height: 16),
+              ListRowTile(
+                leading: const IconBox(Icons.person_rounded, accent: true),
+                title: 'Como cliente',
+                subtitle: 'Tus membresías y promociones',
+                trailing: Icon(Icons.chevron_right_rounded, color: ec.textMute),
+                onTap: () => Navigator.pop(ctx, LoginMode.cliente),
+              ),
+              const SizedBox(height: 10),
+              ListRowTile(
+                leading: const IconBox(Icons.storefront_rounded),
+                title: 'Como empresa',
+                subtitle: 'Panel de gestión del negocio',
+                trailing: Icon(Icons.chevron_right_rounded, color: ec.textMute),
+                onTap: () => Navigator.pop(ctx, LoginMode.empresa),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Login con clave (paso 2) ──
   Future<void> _doLogin() async {
-    if (_userCtrl.text.isEmpty || _passCtrl.text.isEmpty) {
-      _snack('Ingresa tus credenciales.');
+    if (_passCtrl.text.isEmpty) {
+      _snack('Ingresa tu contraseña.');
       return;
     }
     setState(() => _loading = true);
     try {
       _mode == LoginMode.cliente
-          ? await _auth.loginCliente(
-              _userCtrl.text.trim(),
-              _passCtrl.text,
-              context,
-            )
-          : await _auth.loginEmpresa(
-              _userCtrl.text.trim(),
-              _passCtrl.text,
-              context,
-            );
+          ? await _auth.loginCliente(_userCtrl.text.trim(), _passCtrl.text, context)
+          : await _auth.loginEmpresa(_userCtrl.text.trim(), _passCtrl.text, context);
     } catch (e) {
-      // Muestra el mensaje real del backend (p.ej. cuenta de redes sociales
-      // sin clave: "realiza la recuperación de credenciales").
       final msg = e.toString().replaceFirst('Exception: ', '');
       _snack(msg.isEmpty ? 'Credenciales inválidas. Inténtalo nuevamente.' : msg);
     } finally {
@@ -86,6 +175,107 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _continueAsGuest() async {
     await _auth.continueAsGuest();
     if (mounted) context.go('/home_guest');
+  }
+
+  // ── Social Google: autentica → valida tipos por correo → entra ──
+  Future<void> _socialGoogle() async {
+    setState(() => _googleLoading = true);
+    try {
+      final g = await _auth.googleSignIn();
+      if (g.idToken == null) return; // cancelado
+      LoginMode mode = LoginMode.cliente;
+      final email = g.email;
+      if (email != null && email.isNotEmpty) {
+        final types = await _auth.checkAccountTypes(email);
+        if (types.cliente && types.usuario) {
+          final m = await _chooseSocialTypeSheet();
+          if (m == null) return; // canceló el modal
+          mode = m;
+        } else if (types.usuario) {
+          mode = LoginMode.empresa;
+        } else {
+          mode = LoginMode.cliente; // existente o nuevo → registro
+        }
+      }
+      if (!mounted) return;
+      setState(() => _mode = mode);
+      if (mode == LoginMode.cliente) {
+        final result =
+            await _auth.loginClienteWithGoogle(context, idToken: g.idToken);
+        if (result['registered'] == false && mounted) {
+          context.push('/registro-cliente', extra: result);
+        }
+      } else {
+        await _auth.loginUsuarioWithGoogle(context, idToken: g.idToken);
+      }
+    } catch (e) {
+      if (mounted) _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _googleLoading = false);
+    }
+  }
+
+  Future<void> _socialApple() async {
+    final mode = await _chooseSocialTypeSheet();
+    if (mode == null || !mounted) return;
+    setState(() => _mode = mode);
+    await _doAppleLogin();
+  }
+
+  Future<LoginMode?> _chooseSocialTypeSheet() {
+    final ec = context.ec;
+    return showModalBottomSheet<LoginMode>(
+      context: context,
+      backgroundColor: ec.surfaceMid,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: ec.strokeStrong,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('¿Cómo quieres ingresar?',
+                  style: EnjoyTheme.heading(
+                      size: 18, weight: FontWeight.w800, color: ec.text)),
+              const SizedBox(height: 4),
+              Text('Elige el tipo de cuenta para continuar.',
+                  style: EnjoyTheme.body(size: 13, color: ec.textSoft)),
+              const SizedBox(height: 16),
+              ListRowTile(
+                leading: const IconBox(Icons.person_rounded, accent: true),
+                title: 'Como cliente',
+                subtitle: 'Tus membresías y promociones',
+                trailing: Icon(Icons.chevron_right_rounded, color: ec.textMute),
+                onTap: () => Navigator.pop(ctx, LoginMode.cliente),
+              ),
+              const SizedBox(height: 10),
+              ListRowTile(
+                leading: const IconBox(Icons.storefront_rounded),
+                title: 'Como empresa',
+                subtitle: 'Panel de gestión del negocio',
+                trailing: Icon(Icons.chevron_right_rounded, color: ec.textMute),
+                onTap: () => Navigator.pop(ctx, LoginMode.empresa),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _doAppleLogin() async {
@@ -106,387 +296,241 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  Future<void> _doGoogleLogin() async {
-    setState(() => _googleLoading = true);
-    try {
-      if (_mode == LoginMode.cliente) {
-        final result = await _auth.loginClienteWithGoogle(context);
-        if (result['registered'] == false && mounted) {
-          context.push('/registro-cliente', extra: result);
-        }
-      } else {
-        await _auth.loginUsuarioWithGoogle(context);
-      }
-    } catch (e) {
-      if (mounted) _snack(e.toString().replaceFirst('Exception: ', ''));
-    } finally {
-      if (mounted) setState(() => _googleLoading = false);
-    }
-  }
-
   void _snack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        backgroundColor: Palette.kPrimary,
-      ),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          // ── Fondo gradiente ──
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Palette.kPrimary, Color(0xFF1E3A5F)],
+    final ec = context.ec;
+    // Si llegamos a /login desde /cuentas (push), mostramos un BackChip
+    // para que el usuario pueda volver a sus cuentas guardadas.
+    final puedeVolver = Navigator.of(context).canPop();
+    return EnjoyScaffold(
+      padding: EdgeInsets.zero,
+      appBar: puedeVolver ? const EnjoyAppBar() : null,
+      body: FadeTransition(
+        opacity: _fadeAnim,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: _step == _LoginStep.email
+                    ? _buildEmailStep(ec)
+                    : _buildPasswordStep(ec),
               ),
             ),
           ),
-
-          // ── Contenido ──
-          SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: FadeTransition(
-                  opacity: _fadeAnim,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 28,
-                    ),
-                    child: Column(
-                      children: [
-                        // ── Logo ──
-                        _buildLogo(),
-                        const SizedBox(height: 32),
-
-                        // ── Card ──
-                        _buildCard(),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildLogo() {
+  // ───────────────────────── PASO 1: CORREO ─────────────────────────
+  Widget _buildEmailStep(EnjoyColors ec) {
     return Column(
+      key: const ValueKey('email'),
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 84,
-          height: 84,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Palette.kAccent.withOpacity(0.35),
-                blurRadius: 28,
-                offset: const Offset(0, 8),
+        Center(child: _buildLogo(ec)),
+        const SizedBox(height: 26),
+        Text('Bienvenido',
+            style: EnjoyTheme.heading(
+                size: 28, weight: FontWeight.w800, color: ec.text, height: 1.1)),
+        const SizedBox(height: 6),
+        Text('Ingresa tu correo para continuar',
+            style: EnjoyTheme.body(size: 14, color: ec.textSoft)),
+        const SizedBox(height: 26),
+        const FieldLabel('Correo electrónico'),
+        _Field(
+          controller: _userCtrl,
+          hint: 'tucorreo@ejemplo.com',
+          icon: Icons.mail_outline_rounded,
+          keyboardType: TextInputType.emailAddress,
+          onSubmitted: (_) => _continueEmail(),
+        ),
+        const SizedBox(height: 22),
+        EnjoyButton(
+          label: 'Continuar',
+          trailingIcon: Icons.arrow_forward_rounded,
+          loading: _checkingEmail,
+          onPressed: _continueEmail,
+        ),
+        const SizedBox(height: 16),
+        _divider(ec),
+        const SizedBox(height: 16),
+        _buildGoogleBtn(ec),
+        if (Platform.isIOS) ...[
+          const SizedBox(height: 10),
+          _buildAppleBtn(ec),
+        ],
+        const SizedBox(height: 12),
+        _buildGuestBtn(ec),
+        const SizedBox(height: 22),
+        _buildFooter(ec),
+      ],
+    );
+  }
+
+  // ───────────────────────── PASO 2: CLAVE ─────────────────────────
+  Widget _buildPasswordStep(EnjoyColors ec) {
+    final isCliente = _mode == LoginMode.cliente;
+    return Column(
+      key: const ValueKey('password'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(child: _buildLogo(ec)),
+        const SizedBox(height: 24),
+        // Correo + tipo elegido (editable volviendo atrás)
+        GlassCard(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              IconBox(isCliente ? Icons.person_rounded : Icons.storefront_rounded,
+                  accent: isCliente, size: 40),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_userCtrl.text.trim(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: EnjoyTheme.heading(size: 14, color: ec.text)),
+                    const SizedBox(height: 3),
+                    Pill(isCliente ? 'Cliente' : 'Empresa',
+                        variant:
+                            isCliente ? PillVariant.orange : PillVariant.blue,
+                        dense: true),
+                  ],
+                ),
               ),
-              BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+              TextButton(
+                onPressed: _backToEmail,
+                child: Text('Cambiar',
+                    style: EnjoyTheme.body(
+                        size: 13, weight: FontWeight.w600, color: ec.orangeSoft)),
               ),
             ],
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Image.asset('assets/img/splash.png', fit: BoxFit.contain),
+        ),
+        const SizedBox(height: 20),
+        Text('Hola de nuevo',
+            style: EnjoyTheme.heading(
+                size: 24, weight: FontWeight.w800, color: ec.text, height: 1.1)),
+        const SizedBox(height: 6),
+        Text('Ingresa tu contraseña para continuar',
+            style: EnjoyTheme.body(size: 14, color: ec.textSoft)),
+        const SizedBox(height: 22),
+        const FieldLabel('Contraseña'),
+        _Field(
+          controller: _passCtrl,
+          hint: '••••••••',
+          icon: Icons.lock_outline_rounded,
+          obscure: _obscure,
+          autofocus: true,
+          onSubmitted: (_) => _doLogin(),
+          suffix: GestureDetector(
+            onTap: () => setState(() => _obscure = !_obscure),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Icon(
+                _obscure
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                color: ec.textMute,
+                size: 20,
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 14),
-        const Text(
-          'Enjoy',
-          style: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-            letterSpacing: 1.5,
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerRight,
+          child: GestureDetector(
+            onTap: () => context.push('/recuperar',
+                extra: _mode == LoginMode.empresa),
+            child: Text('¿Olvidaste tu contraseña?',
+                style: EnjoyTheme.body(
+                    size: 13, weight: FontWeight.w600, color: ec.orangeSoft)),
           ),
+        ),
+        const SizedBox(height: 22),
+        EnjoyButton(
+          label: 'Iniciar sesión',
+          icon: Icons.login_rounded,
+          loading: _loading,
+          onPressed: _doLogin,
         ),
       ],
     );
   }
 
-  Widget _buildCard() {
+  Widget _divider(EnjoyColors ec) => Row(
+        children: [
+          Expanded(child: Divider(color: ec.stroke, thickness: 1)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text('o continúa con',
+                style: EnjoyTheme.body(size: 12, color: ec.textMute)),
+          ),
+          Expanded(child: Divider(color: ec.stroke, thickness: 1)),
+        ],
+      );
+
+  Widget _buildLogo(EnjoyColors ec) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+      width: 86,
+      height: 86,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        gradient: ec.accentGradient,
+        borderRadius: BorderRadius.circular(26),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.12),
+            color: ec.orange.withValues(alpha: 0.5),
             blurRadius: 32,
-            offset: const Offset(0, 12),
+            offset: const Offset(0, 14),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Título
-          Text(
-            _headline,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: Palette.kTitle,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Ingresa tus credenciales para continuar',
-            style: TextStyle(color: Palette.kMuted, fontSize: 13),
-          ),
-
-          const SizedBox(height: 22),
-
-          // ── Email ──
-          _Field(
-            controller: _userCtrl,
-            hint: _userHint,
-            icon: Icons.mail_outline_rounded,
-            keyboardType: TextInputType.emailAddress,
-          ),
-          const SizedBox(height: 12),
-
-          // ── Password ──
-          _Field(
-            controller: _passCtrl,
-            hint: 'Contraseña',
-            icon: Icons.lock_outline_rounded,
-            obscure: _obscure,
-            suffix: GestureDetector(
-              onTap: () => setState(() => _obscure = !_obscure),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Icon(
-                  _obscure
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: Palette.kMuted,
-                  size: 20,
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // ── Forgot ──
-          Align(
-            alignment: Alignment.centerRight,
-            child: GestureDetector(
-              // Propaga el modo (empresa/cliente) a la pantalla de recuperación.
-              onTap: () => context.push('/recuperar',
-                  extra: _mode == LoginMode.empresa),
-              child: const Text(
-                '¿Olvidaste tu contraseña?',
-                style: TextStyle(
-                  color: Palette.kAccent,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 22),
-
-          // ── CTA Gradient ──
-          _buildCta(),
-
-          const SizedBox(height: 16),
-
-          // ── Divider ──
-          Row(
-            children: [
-              Expanded(child: Divider(color: Palette.kBorder, thickness: 1)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  'o continúa con',
-                  style: TextStyle(color: Palette.kMuted, fontSize: 12),
-                ),
-              ),
-              Expanded(child: Divider(color: Palette.kBorder, thickness: 1)),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // ── Google ──
-          _buildGoogleBtn(),
-
-          // ── Apple (solo iOS) ──
-          if (Platform.isIOS) ...[const SizedBox(height: 10), _buildAppleBtn()],
-
-          // ── Invitado ──
-          if (_mode == LoginMode.cliente) ...[
-            const SizedBox(height: 12),
-            _buildGuestBtn(),
-          ],
-
-          const SizedBox(height: 22),
-
-          // ── Footer registro ──
-          _buildFooter(),
-
-          const SizedBox(height: 16),
-
-          // ── Acceso empresas (discreto) ──
-          _buildEmpresaSwitch(),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Image.asset('assets/img/splash.png', fit: BoxFit.contain),
       ),
     );
   }
 
-  Widget _buildEmpresaSwitch() {
-    final isEmpresa = _mode == LoginMode.empresa;
+  Widget _buildGoogleBtn(EnjoyColors ec) {
     return GestureDetector(
-      onTap: () => setState(
-        () => _mode = isEmpresa ? LoginMode.cliente : LoginMode.empresa,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.business_outlined,
-            size: 13,
-            color: Palette.kMuted.withOpacity(0.6),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            isEmpresa ? 'Volver a acceso cliente' : 'Acceso empresas',
-            style: TextStyle(
-              color: Palette.kMuted.withOpacity(0.6),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCta() {
-    return GestureDetector(
-      onTap: _loading ? null : _doLogin,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 52,
-        decoration: BoxDecoration(
-          gradient: _loading
-              ? null
-              : const LinearGradient(
-                  colors: [Palette.kAccent, Palette.kAccentLight],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-          color: _loading ? Palette.kAccent.withOpacity(0.5) : null,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: _loading
-              ? []
-              : [
-                  BoxShadow(
-                    color: Palette.kAccent.withOpacity(0.4),
-                    blurRadius: 14,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-        ),
-        child: Center(
-          child: _loading
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Colors.white,
-                  ),
-                )
-              : const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.login_rounded, color: Colors.white, size: 19),
-                    SizedBox(width: 8),
-                    Text(
-                      'Iniciar sesión',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGoogleBtn() {
-    return GestureDetector(
-      onTap: (_loading || _googleLoading) ? null : _doGoogleLogin,
+      onTap: (_loading || _googleLoading) ? null : _socialGoogle,
       child: Container(
         height: 50,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Palette.kBorder, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          color: ec.glassStrong,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: ec.strokeStrong),
         ),
         child: Center(
           child: _googleLoading
-              ? const SizedBox(
+              ? SizedBox(
                   width: 22,
                   height: 22,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Palette.kAccent,
-                  ),
+                      strokeWidth: 2.5, color: ec.orange),
                 )
               : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Image.asset(
-                      'assets/img/google_logo.webp',
-                      width: 22,
-                      height: 22,
-                    ),
+                    Image.asset('assets/img/google_logo.webp',
+                        width: 22, height: 22),
                     const SizedBox(width: 10),
-                    const Text(
-                      'Continuar con Google',
-                      style: TextStyle(
-                        color: Palette.kTitle,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    Text('Continuar con Google',
+                        style: EnjoyTheme.body(
+                            size: 14, weight: FontWeight.w600, color: ec.text)),
                   ],
                 ),
         ),
@@ -494,21 +538,15 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildAppleBtn() {
+  Widget _buildAppleBtn(EnjoyColors ec) {
     return GestureDetector(
-      onTap: (_loading || _appleLoading) ? null : _doAppleLogin,
+      onTap: (_loading || _appleLoading) ? null : _socialApple,
       child: Container(
         height: 50,
         decoration: BoxDecoration(
-          color: Colors.black,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          color: ec.isDark ? Colors.black : const Color(0xFF111111),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: ec.stroke),
         ),
         child: Center(
           child: _appleLoading
@@ -516,23 +554,18 @@ class _LoginScreenState extends State<LoginScreen>
                   width: 22,
                   height: 22,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Colors.white,
-                  ),
+                      strokeWidth: 2.5, color: Colors.white),
                 )
-              : const Row(
+              : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.apple, color: Colors.white, size: 22),
-                    SizedBox(width: 10),
-                    Text(
-                      'Continuar con Apple',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    const Icon(Icons.apple, color: Colors.white, size: 22),
+                    const SizedBox(width: 10),
+                    Text('Continuar con Apple',
+                        style: EnjoyTheme.body(
+                            size: 14,
+                            weight: FontWeight.w600,
+                            color: Colors.white)),
                   ],
                 ),
         ),
@@ -540,15 +573,15 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildGuestBtn() {
+  Widget _buildGuestBtn(EnjoyColors ec) {
     return GestureDetector(
       onTap: _loading ? null : _continueAsGuest,
       child: Container(
         height: 50,
         decoration: BoxDecoration(
-          color: Palette.kBg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Palette.kBorder),
+          color: ec.glass,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: ec.stroke),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -557,52 +590,55 @@ class _LoginScreenState extends State<LoginScreen>
               width: 28,
               height: 28,
               decoration: BoxDecoration(
-                color: Palette.kPrimary.withOpacity(0.08),
+                color: ec.orange.withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(
-                Icons.explore_outlined,
-                size: 16,
-                color: Palette.kPrimary,
-              ),
+              child: Icon(Icons.explore_outlined, size: 16, color: ec.orangeSoft),
             ),
             const SizedBox(width: 10),
-            const Text(
-              'Continuar como invitado',
-              style: TextStyle(
-                color: Palette.kPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text('Continuar como invitado',
+                style: EnjoyTheme.body(
+                    size: 14, weight: FontWeight.w600, color: ec.text)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFooter() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildFooter(EnjoyColors ec) {
+    return Column(
       children: [
-        Text(
-          _mode == LoginMode.cliente
-              ? '¿No tienes cuenta? '
-              : '¿Tu empresa no tiene acceso? ',
-          style: const TextStyle(color: Palette.kMuted, fontSize: 13),
-        ),
-        GestureDetector(
-          onTap: () => context.push(
-            _mode == LoginMode.cliente
-                ? '/registro-cliente'
-                : '/solicitud-empresa',
+        Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('¿No tienes cuenta? ',
+                  style: EnjoyTheme.body(size: 13, color: ec.textMute)),
+              GestureDetector(
+                onTap: () => context.push('/registro-cliente'),
+                child: Text('Regístrate',
+                    style: EnjoyTheme.body(
+                        size: 13, weight: FontWeight.w700, color: ec.orangeSoft)),
+              ),
+            ],
           ),
-          child: Text(
-            _mode == LoginMode.cliente ? 'Regístrate' : 'Solicitar acceso',
-            style: const TextStyle(
-              color: Palette.kAccent,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
+        ),
+        const SizedBox(height: 10),
+        Center(
+          child: GestureDetector(
+            onTap: () => context.push('/solicitud-empresa'),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.business_outlined,
+                    size: 13, color: ec.textMute.withValues(alpha: 0.8)),
+                const SizedBox(width: 5),
+                Text('¿Empresa nueva? Solicitar acceso',
+                    style: EnjoyTheme.body(
+                        size: 12,
+                        weight: FontWeight.w500,
+                        color: ec.textMute.withValues(alpha: 0.9))),
+              ],
             ),
           ),
         ),
@@ -611,126 +647,49 @@ class _LoginScreenState extends State<LoginScreen>
   }
 }
 
-// ───────────── Segment pill
-class _SegPill extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final bool active;
-  final VoidCallback onTap;
-
-  const _SegPill({
-    required this.icon,
-    required this.text,
-    required this.active,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            gradient: active
-                ? const LinearGradient(
-                    colors: [Palette.kAccent, Palette.kAccentLight],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  )
-                : null,
-            color: active ? null : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: active
-                ? [
-                    BoxShadow(
-                      color: Palette.kAccent.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                : [],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: active ? Colors.white : Palette.kMuted,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                text,
-                style: TextStyle(
-                  color: active ? Colors.white : Palette.kMuted,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ───────────── Input field
+// ───────────── Input field con ícono prefijo (interno de login)
 class _Field extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
   final IconData icon;
   final bool obscure;
+  final bool autofocus;
   final Widget? suffix;
   final TextInputType? keyboardType;
+  final ValueChanged<String>? onSubmitted;
 
   const _Field({
     required this.controller,
     required this.hint,
     required this.icon,
     this.obscure = false,
+    this.autofocus = false,
     this.suffix,
     this.keyboardType,
+    this.onSubmitted,
   });
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return TextField(
       controller: controller,
       obscureText: obscure,
+      autofocus: autofocus,
       keyboardType: keyboardType,
-      cursorColor: Palette.kAccent,
-      style: const TextStyle(color: Palette.kTitle, fontSize: 14),
+      cursorColor: ec.orange,
+      onSubmitted: onSubmitted,
+      textInputAction:
+          onSubmitted != null ? TextInputAction.go : TextInputAction.next,
+      style: EnjoyTheme.body(size: 14, color: ec.text),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 14),
         prefixIcon: Padding(
           padding: const EdgeInsets.only(left: 14, right: 10),
-          child: Icon(icon, color: Palette.kMuted, size: 20),
+          child: Icon(icon, color: ec.orangeSoft, size: 20),
         ),
         prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         suffixIcon: suffix,
-        filled: true,
-        fillColor: Palette.kBg,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 15,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Palette.kBorder),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Palette.kBorder),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Palette.kAccent, width: 1.8),
-        ),
       ),
     );
   }

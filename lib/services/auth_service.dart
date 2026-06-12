@@ -12,10 +12,67 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:http/http.dart' as http;
 
+/// Cuenta guardada para cambio rápido / sesiones recordadas (estilo Facebook).
+class SavedAccount {
+  final String id;
+  final String kind; // 'CLIENTE' | 'USUARIO'
+  final String rol;
+  final String email;
+  final String displayName;
+  final String accessToken;
+  final Map<String, dynamic> user;
+  final String lastLogin;
+
+  SavedAccount({
+    required this.id,
+    required this.kind,
+    required this.rol,
+    required this.email,
+    required this.displayName,
+    required this.accessToken,
+    required this.user,
+    required this.lastLogin,
+  });
+
+  bool get isCliente => kind.toUpperCase() == 'CLIENTE';
+
+  /// Etiqueta de tipo para mostrar al usuario.
+  String get tipoLabel {
+    if (isCliente) return 'Cliente';
+    switch (rol.toLowerCase()) {
+      case 'admin':
+        return 'Administrador';
+      case 'admin-local':
+        return 'Admin local';
+      case 'staff':
+        return 'Staff';
+      default:
+        return 'Empresa';
+    }
+  }
+
+  factory SavedAccount.fromJson(Map<String, dynamic> j) => SavedAccount(
+        id: (j['id'] ?? '').toString(),
+        kind: (j['kind'] ?? 'USUARIO').toString(),
+        rol: (j['rol'] ?? '').toString(),
+        email: (j['email'] ?? '').toString(),
+        displayName: (j['displayName'] ?? '').toString(),
+        accessToken: (j['accessToken'] ?? '').toString(),
+        user: (j['user'] is Map)
+            ? Map<String, dynamic>.from(j['user'] as Map)
+            : <String, dynamic>{},
+        lastLogin: (j['lastLogin'] ?? '').toString(),
+      );
+}
+
 class AuthService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final String baseUrl = dotenv.env['API_URL'] ?? '';
   MyFirebaseMessagingService? myFirebaseService;
+
+  // Claves del almacén multi-cuenta.
+  static const _kAccounts = 'accounts_v1';
+  static const _kCurrentAccount = 'current_account_id';
 
   AuthService() {
     if (isPushEnabled) {
@@ -113,6 +170,9 @@ class AuthService {
           _guardarFcmToken(userId);
         }
 
+        // Topics de segmentación (broadcast por provincia/ciudad/categoría).
+        _suscribirTopicsCliente(user);
+
         final ruta = await getTargetHomeRoute();
         context.go(ruta);
       } else {
@@ -121,6 +181,28 @@ class AuthService {
     } catch (e) {
       debugPrint('Error login cliente: $e');
       rethrow;
+    }
+  }
+
+  /// Suscribe al cliente a topics FCM jerárquicos para que pueda recibir
+  /// broadcasts segmentados:
+  ///   - `all_clientes` → mensajes globales
+  ///   - `prov_<slug>` → mensajes por provincia (ej. `prov_tungurahua`)
+  ///   - `ciudad_<id>` → mensajes por ciudad
+  /// Llamado en login y al actualizar el perfil. Es idempotente.
+  void _suscribirTopicsCliente(Map<String, dynamic> user) {
+    try {
+      myFirebaseService?.subscribeToTopic('all_clientes');
+      final slug = user['provinciaSlug']?.toString();
+      if (slug != null && slug.isNotEmpty) {
+        myFirebaseService?.subscribeToTopic('prov_$slug');
+      }
+      final ciudadId = user['ciudad']?.toString();
+      if (ciudadId != null && ciudadId.isNotEmpty) {
+        myFirebaseService?.subscribeToTopic('ciudad_$ciudadId');
+      }
+    } catch (e) {
+      debugPrint('Error suscribiendo a topics cliente: $e');
     }
   }
 
@@ -155,6 +237,7 @@ class AuthService {
           myFirebaseService?.subscribeToTopic(userId);
           _guardarFcmToken(userId);
         }
+        _suscribirTopicsCliente(user);
 
         if (context.mounted) {
           final ruta = await getTargetHomeRoute();
@@ -279,7 +362,9 @@ class AuthService {
   /// Inicia sesión con Google, autentica en Firebase y devuelve el Firebase ID Token.
   /// El backend usa `identitytoolkit.googleapis.com/v1/accounts:lookup` para validarlo,
   /// por lo que necesita el token de Firebase, no el de Google directamente.
-  Future<String?> _getGoogleIdToken() async {
+  /// Inicia sesión con Google + Firebase y devuelve el Firebase ID Token y el
+  /// correo (para validar el tipo de cuenta antes de entrar).
+  Future<({String? idToken, String? email})> googleSignIn() async {
     final googleSignIn = GoogleSignIn(
       scopes: ['email', 'profile'],
       clientId: Platform.isIOS
@@ -289,41 +374,38 @@ class AuthService {
     );
     await googleSignIn.signOut();
     final account = await googleSignIn.signIn();
-    if (account == null) return null;
+    if (account == null) return (idToken: null, email: null);
     final googleAuth = await account.authentication;
 
-    // Crear credencial de Firebase con el token de Google
     final credential = GoogleAuthProvider.credential(
       idToken: googleAuth.idToken,
       accessToken: googleAuth.accessToken,
     );
 
-    // Firmar en Firebase para obtener el Firebase ID Token
-    final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+    final userCredential =
+        await FirebaseAuth.instance.signInWithCredential(credential);
     final firebaseIdToken = await userCredential.user?.getIdToken(true);
-    return firebaseIdToken;
+    final email = userCredential.user?.email ?? account.email;
+    return (idToken: firebaseIdToken, email: email);
   }
 
   /// Para clientes: si ya existe → navega a home_user y retorna `{'registered': true}`.
   /// Si no existe → retorna los datos de Google para pre-llenar el registro.
-  Future<Map<String, dynamic>> loginClienteWithGoogle(BuildContext context) async {
-    debugPrint('🔵 [Google] Obteniendo idToken...');
-    final idToken = await _getGoogleIdToken();
-    debugPrint('🔵 [Google] idToken: ${idToken != null ? 'OK (${idToken.length} chars)' : 'NULL'}');
-    if (idToken == null) throw Exception('Inicio de sesión cancelado');
+  /// [idToken] permite reusar un token ya obtenido (evita re-loguear en Google).
+  Future<Map<String, dynamic>> loginClienteWithGoogle(BuildContext context,
+      {String? idToken}) async {
+    final token = idToken ?? (await googleSignIn()).idToken;
+    if (token == null) throw Exception('Inicio de sesión cancelado');
 
-    debugPrint('🔵 [Google] Llamando backend: $baseUrl/auth/google/cliente');
     final resp = await http.post(
       Uri.parse('$baseUrl/auth/google/cliente'),
       headers: _jsonHeaders,
-      body: jsonEncode({'idToken': idToken}),
+      body: jsonEncode({'idToken': token}),
     );
 
-    debugPrint('🔵 [Google] Respuesta: ${resp.statusCode} — ${resp.body}');
     if (resp.statusCode != 200) throw Exception(_serverErrorMessage(resp));
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
-    debugPrint('🔵 [Google] registered: ${data['registered']}');
 
     if (data['registered'] == true) {
       final accessToken = data['accessToken'] as String;
@@ -343,14 +425,15 @@ class AuthService {
   }
 
   /// Para usuarios/empresa: solo permite si ya existe la cuenta en el sistema.
-  Future<void> loginUsuarioWithGoogle(BuildContext context) async {
-    final idToken = await _getGoogleIdToken();
-    if (idToken == null) throw Exception('Inicio de sesión cancelado');
+  Future<void> loginUsuarioWithGoogle(BuildContext context,
+      {String? idToken}) async {
+    final token = idToken ?? (await googleSignIn()).idToken;
+    if (token == null) throw Exception('Inicio de sesión cancelado');
 
     final resp = await http.post(
       Uri.parse('$baseUrl/auth/google/usuario'),
       headers: _jsonHeaders,
-      body: jsonEncode({'idToken': idToken}),
+      body: jsonEncode({'idToken': token}),
     );
 
     if (resp.statusCode != 200) throw Exception(_serverErrorMessage(resp));
@@ -381,6 +464,52 @@ class AuthService {
     BuildContext context,
   ) => login(email, password, context);
 
+  /// Consulta qué tipos de cuenta existen para un correo (login unificado).
+  Future<({bool cliente, bool usuario})> checkAccountTypes(
+      String correo) async {
+    final resp = await http.post(
+      Uri.parse('$baseUrl/auth/account-types'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'correo': correo.trim()}),
+    );
+    if (resp.statusCode == 200) {
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      return (
+        cliente: data['cliente'] == true,
+        usuario: data['usuario'] == true,
+      );
+    }
+    throw Exception(_serverErrorMessage(resp));
+  }
+
+  /// Cambia a la cuenta "hermana" (mismo correo, otro tipo) con la sesión
+  /// actual. El backend valida el token vigente y emite el token de la otra
+  /// cuenta. Guarda la nueva sesión (y deja ambas registradas).
+  Future<void> switchSibling() async {
+    final token = await getToken();
+    if (token == null) throw Exception('Sin sesión activa');
+    final resp = await http.post(
+      Uri.parse('$baseUrl/auth/switch'),
+      headers: {..._jsonHeaders, 'Authorization': 'Bearer $token'},
+    );
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw Exception(_serverErrorMessage(resp));
+    }
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    final newToken = data['accessToken'] as String?;
+    final kind = (data['kind'] ?? 'USUARIO').toString();
+    final raw = kind == 'CLIENTE' ? data['cliente'] : data['user'];
+    if (newToken == null || raw is! Map) {
+      throw Exception('Respuesta inválida del servidor');
+    }
+    final user = {...Map<String, dynamic>.from(raw), 'kind': kind};
+    await saveUserData(newToken, user); // guarda + upsert (ambas quedan)
+    final userId = user['_id']?.toString();
+    if (userId != null && userId.isNotEmpty) {
+      myFirebaseService?.subscribeToTopic(userId);
+    }
+  }
+
   Future<void> saveUserData(
     String accessToken,
     Map<String, dynamic> user,
@@ -390,7 +519,118 @@ class AuthService {
     if (user['kind'] != null) {
       await _storage.write(key: 'kind', value: user['kind'].toString());
     }
+    // Registra/actualiza la cuenta en el almacén multi-cuenta.
+    await _upsertAccount(accessToken, user);
   }
+
+  // ─────────────────────────── Multi-cuenta ───────────────────────────
+
+  String _accountIdFor(Map<String, dynamic> user) {
+    final kind = (user['kind'] ?? 'USUARIO').toString();
+    final id =
+        (user['_id'] ?? user['correo'] ?? user['email'] ?? '').toString();
+    return '${kind}_$id';
+  }
+
+  String _displayNameFor(Map<String, dynamic> u) {
+    final n = (u['nombres'] ?? u['nombre'] ?? '').toString().trim();
+    final a = (u['apellidos'] ?? '').toString().trim();
+    final full = '$n $a'.trim();
+    if (full.isNotEmpty) return full;
+    return (u['correo'] ?? u['email'] ?? 'Cuenta').toString();
+  }
+
+  Future<List<Map<String, dynamic>>> _readAccountsRaw() async {
+    final raw = await _storage.read(key: _kAccounts);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw);
+      if (list is List) {
+        return list
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<void> _writeAccountsRaw(List<Map<String, dynamic>> accounts) async {
+    await _storage.write(key: _kAccounts, value: jsonEncode(accounts));
+  }
+
+  Future<void> _upsertAccount(
+    String accessToken,
+    Map<String, dynamic> user,
+  ) async {
+    final id = _accountIdFor(user);
+    final accounts = await _readAccountsRaw();
+    final entry = <String, dynamic>{
+      'id': id,
+      'kind': (user['kind'] ?? 'USUARIO').toString(),
+      'rol': (user['rol'] ?? '').toString(),
+      'email': (user['correo'] ?? user['email'] ?? '').toString(),
+      'displayName': _displayNameFor(user),
+      'accessToken': accessToken,
+      'user': user,
+      'lastLogin': DateTime.now().toIso8601String(),
+    };
+    final idx = accounts.indexWhere((a) => a['id'] == id);
+    if (idx >= 0) {
+      accounts[idx] = entry;
+    } else {
+      accounts.add(entry);
+    }
+    await _writeAccountsRaw(accounts);
+    await _storage.write(key: _kCurrentAccount, value: id);
+  }
+
+  /// Lista de cuentas guardadas (más reciente primero).
+  Future<List<SavedAccount>> listAccounts() async {
+    final raw = await _readAccountsRaw();
+    final list = raw.map(SavedAccount.fromJson).toList();
+    list.sort((a, b) => b.lastLogin.compareTo(a.lastLogin));
+    return list;
+  }
+
+  Future<String?> currentAccountId() => _storage.read(key: _kCurrentAccount);
+
+  /// Activa (sin red) la sesión de una cuenta guardada como la sesión actual.
+  /// El llamador debería luego `renewToken()` para validar/refrescar.
+  Future<bool> activateAccount(String id) async {
+    final accounts = await _readAccountsRaw();
+    final acc = accounts.firstWhere(
+      (a) => a['id'] == id,
+      orElse: () => <String, dynamic>{},
+    );
+    if (acc.isEmpty) return false;
+    final token = acc['accessToken']?.toString();
+    final user = acc['user'];
+    if (token == null || token.isEmpty || user is! Map) return false;
+
+    final userMap = Map<String, dynamic>.from(user);
+    await _storage.write(key: 'accessToken', value: token);
+    await _storage.write(key: 'user', value: jsonEncode(userMap));
+    await _storage.write(
+        key: 'kind', value: (acc['kind'] ?? 'USUARIO').toString());
+    await _storage.write(key: _kCurrentAccount, value: id);
+
+    final userId = userMap['_id']?.toString();
+    if (userId != null && userId.isNotEmpty) {
+      myFirebaseService?.subscribeToTopic(userId);
+    }
+    return true;
+  }
+
+  /// Elimina una cuenta de la lista de guardadas.
+  Future<void> removeAccount(String id) async {
+    final accounts = await _readAccountsRaw();
+    accounts.removeWhere((a) => a['id'] == id);
+    await _writeAccountsRaw(accounts);
+  }
+
+  Future<bool> hasSavedAccounts() async =>
+      (await _readAccountsRaw()).isNotEmpty;
 
   Future<String?> getToken() => _storage.read(key: 'accessToken');
 
@@ -431,7 +671,11 @@ class AuthService {
     }
   }
 
-  Future<void> logout() async {
+  /// Cierra la sesión activa.
+  /// [keepSaved] = true mantiene la cuenta en la lista de cuentas guardadas
+  /// (para reingreso rápido con biometría). false la elimina de la lista.
+  /// La lista de OTRAS cuentas guardadas siempre se conserva.
+  Future<void> logout({bool keepSaved = false}) async {
     try {
       final user = await getUser();
       final userId = user?['_id']?.toString();
@@ -445,7 +689,17 @@ class AuthService {
         myFirebaseService?.unsubscribeFromTopic(usuarioCreacion);
       }
 
-      await _storage.deleteAll(); // borra también guest_mode
+      if (!keepSaved) {
+        final currentId = await currentAccountId();
+        if (currentId != null) await removeAccount(currentId);
+      }
+
+      // Limpia solo la sesión ACTIVA; conserva la lista de cuentas guardadas.
+      await _storage.delete(key: 'accessToken');
+      await _storage.delete(key: 'user');
+      await _storage.delete(key: 'kind');
+      await _storage.delete(key: _kCurrentAccount);
+      await _storage.delete(key: 'guest_mode');
     } catch (e) {
       debugPrint('Error logout: $e');
     }
@@ -591,6 +845,39 @@ class AuthService {
     updated['telefono'] = telefono;
 
     await saveUserData(token, updated);
+  }
+
+  /// Cambia la foto de perfil del cliente (sube data URL base64 → S3 en backend).
+  /// Devuelve la URL nueva y actualiza el storage local.
+  Future<String?> updateAvatar(String fotoBase64) async {
+    final token = await getToken();
+    if (token == null) throw Exception('Sin sesión activa');
+    final user = await getUser();
+    final id = user?['_id'];
+    if (id == null) throw Exception('Usuario no identificado');
+
+    final resp = await http.put(
+      Uri.parse('$baseUrl/clientes/me/$id'),
+      headers: {..._jsonHeaders, 'Authorization': 'Bearer $token'},
+      body: jsonEncode({'fotoBase64': fotoBase64}),
+    );
+
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      throw Exception(_serverErrorMessage(resp));
+    }
+
+    String? url;
+    try {
+      final data = jsonDecode(resp.body);
+      if (data is Map) {
+        url = (data['fotoUrl'] ?? data['avatarUrl'])?.toString();
+      }
+    } catch (_) {}
+
+    if (user != null && url != null && url.isNotEmpty) {
+      await saveUserData(token, {...user, 'fotoUrl': url, 'avatarUrl': url});
+    }
+    return url;
   }
 
   /// Guarda el FCM token del cliente en el backend

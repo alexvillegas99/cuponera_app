@@ -1,7 +1,7 @@
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../../../ui/palette.dart';
 
 class PrivacyScreen extends StatefulWidget {
   const PrivacyScreen({super.key});
@@ -68,55 +68,55 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Palette.kBg,
-      appBar: AppBar(
-        title: const Text('Privacidad'),
-        backgroundColor: Palette.kSurface,
-        foregroundColor: Palette.kTitle,
-        elevation: 0.5,
-      ),
+    final ec = context.ec;
+    return EnjoyScaffold(
+      padding: EdgeInsets.zero,
+      appBar: const EnjoyAppBar(title: 'Privacidad'),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
         children: [
           // Banner informativo
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              'Por ahora no recopilamos datos personales ni usamos tu ubicación. '
-              'Cuando activemos estas funciones, podrás decidir aquí.',
-              style: TextStyle(color: Palette.kMuted),
+          GlassCard(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const IconBox(Icons.shield_outlined),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Text(
+                    'Por ahora no recopilamos datos personales ni usamos tu ubicación. '
+                    'Cuando activemos estas funciones, podrás decidir aquí.',
+                    style: EnjoyTheme.body(
+                        size: 13, color: ec.textSoft, height: 1.45),
+                  ),
+                ),
+              ],
             ),
           ),
 
+          const SizedBox(height: 16),
+
           // ===== Datos anónimos =====
-          SwitchListTile(
-            title: const Text('Compartir datos anónimos (opcional)'),
-            subtitle: Text(
-              _featAnonEnabled
-                  ? 'Ayuda a mejorar la app compartiendo métricas anónimas'
-                  : 'No disponible aún',
-              style: TextStyle(
-                color: _featAnonEnabled ? Palette.kAccent : Palette.kMuted,
-              ),
-            ),
+          _PrivacyTile(
+            icon: Icons.insights_rounded,
+            title: 'Compartir datos anónimos (opcional)',
+            subtitle: _featAnonEnabled
+                ? 'Ayuda a mejorar la app compartiendo métricas anónimas'
+                : 'No disponible aún',
             value: _featAnonEnabled ? _anonData : false,
             onChanged: _featAnonEnabled
                 ? (v) => setState(() => _anonData = v)
                 : null, // deshabilitado si no está activo
           ),
-          const Divider(height: 1, color: Palette.kBorder),
+          const SizedBox(height: 10),
 
           // ===== Ubicación =====
-          SwitchListTile(
-            title: const Text('Usar ubicación para ofertas cercanas'),
-            subtitle: Text(
-              _featLocationEnabled
-                  ? 'Personaliza resultados según tu ubicación'
-                  : 'No disponible aún',
-              style: TextStyle(
-                color: _featLocationEnabled ? Palette.kField : Palette.kMuted,
-              ),
-            ),
+          _PrivacyTile(
+            icon: Icons.location_on_outlined,
+            title: 'Usar ubicación para ofertas cercanas',
+            subtitle: _featLocationEnabled
+                ? 'Personaliza resultados según tu ubicación'
+                : 'No disponible aún',
             value: _featLocationEnabled ? _location : false,
             onChanged: _featLocationEnabled
                 ? (v) => setState(() => _location = v)
@@ -124,19 +124,55 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
           ),
 
           const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: FilledButton(
-              onPressed: _save,
-              child: const Text('Guardar'),
-            ),
+
+          EnjoyButton(
+            label: 'Guardar',
+            icon: Icons.check_rounded,
+            onPressed: _save,
           ),
-          TextButton(
-            onPressed: _openPolicy,
-            child: const Text('Ver política de privacidad'),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton(
+              onPressed: _openPolicy,
+              child: Text(
+                'Ver política de privacidad',
+                style: EnjoyTheme.body(
+                    size: 13, weight: FontWeight.w600, color: ec.orangeSoft),
+              ),
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Privacy tile ───────────────────────────────────────────────────────
+class _PrivacyTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  const _PrivacyTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ec = context.ec;
+    final disabled = onChanged == null;
+    return ListRowTile(
+      leading: IconBox(icon, color: disabled ? ec.textMute : ec.orangeSoft),
+      title: title,
+      titleColor: disabled ? ec.textSoft : ec.text,
+      subtitle: subtitle,
+      trailing: EnjoyToggle(value: value, onChanged: onChanged),
     );
   }
 }

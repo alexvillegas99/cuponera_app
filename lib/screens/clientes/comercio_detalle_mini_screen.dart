@@ -1,15 +1,15 @@
-import 'dart:ui' show ImageFilter;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/comentarios_service.dart';
 import 'package:enjoy/services/compartidos_service.dart';
 import 'package:enjoy/services/cupones_service.dart';
+import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
-import 'package:enjoy/ui/palette.dart';
 import 'package:enjoy/services/comercios_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:enjoy/mappers/comercio_mini.dart';
+import 'package:enjoy/screens/clientes/promocion_flash_detalle_screen.dart';
 import 'package:enjoy/models/producto.dart';
 import 'package:enjoy/utils/distancia.dart';
 import 'package:enjoy/widgets/galeria_media_view.dart';
@@ -172,6 +172,7 @@ class _ComercioDetalleMiniScreenState
       final usuario = await authService.getUser();
       final clienteId = usuario?['_id']?.toString();
       if (clienteId == null) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Debes iniciar sesión para comentar.')),
         );
@@ -207,6 +208,7 @@ class _ComercioDetalleMiniScreenState
       final usuario = await authService.getUser();
       final clienteId = usuario?['_id']?.toString();
       if (clienteId == null) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Debes iniciar sesión.')),
         );
@@ -239,6 +241,7 @@ class _ComercioDetalleMiniScreenState
 
   // ─────────────────────────── Sección cupón disponible
   Widget _buildCuponDisponibleSection() {
+    final ec = context.ec;
     final total = _cuponesDisponibles.length;
 
     if (total == 1) {
@@ -247,88 +250,37 @@ class _ComercioDetalleMiniScreenState
       final nombreVersion = (version['nombre'] ?? 'Cupón').toString();
       final secuencial = cupon['secuencial']?.toString() ?? '';
 
-      return Container(
+      return GlassCard(
+        accent: true,
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Palette.kAccent.withValues(alpha: 0.10),
-              Palette.kAccent.withValues(alpha: 0.03),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Palette.kAccent.withValues(alpha: 0.35)),
-        ),
+        radius: 18,
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Palette.kAccent, Palette.kAccentLight],
-                ),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.confirmation_number_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
+            IconBox(Icons.confirmation_number_rounded, accent: true, size: 42),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Cupón disponible',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: Palette.kTitle,
-                    ),
+                    style: EnjoyTheme.heading(size: 14, color: ec.text),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     '$nombreVersion · Nº $secuencial',
-                    style: const TextStyle(color: Palette.kMuted, fontSize: 12),
+                    style: EnjoyTheme.body(size: 12, color: ec.textMute),
                   ),
                 ],
               ),
             ),
-            GestureDetector(
-              onTap: () => _mostrarQrCupon(cupon),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Palette.kAccent, Palette.kAccentLight],
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Palette.kAccent.withOpacity(0.30),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.qr_code_rounded, color: Colors.white, size: 16),
-                    SizedBox(width: 6),
-                    Text(
-                      'Canjear',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            const SizedBox(width: 8),
+            EnjoyButton(
+              label: 'Canjear',
+              icon: Icons.qr_code_rounded,
+              dense: true,
+              expand: false,
+              onPressed: () => _mostrarQrCupon(cupon),
             ),
           ],
         ),
@@ -336,59 +288,35 @@ class _ComercioDetalleMiniScreenState
     }
 
     // Más de 1 cupón → colapsable
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Palette.kAccent.withValues(alpha: 0.10),
-            Palette.kAccent.withValues(alpha: 0.03),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Palette.kAccent.withValues(alpha: 0.35)),
-      ),
+    return GlassCard(
+      accent: true,
+      padding: EdgeInsets.zero,
+      radius: 18,
       child: Column(
         children: [
           InkWell(
             onTap: () => setState(() => _cuponesExpandido = !_cuponesExpandido),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(18),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(9),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Palette.kAccent, Palette.kAccentLight],
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.confirmation_number_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
+                  IconBox(Icons.confirmation_number_rounded,
+                      accent: true, size: 42),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Cupones disponibles para canjear',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                            color: Palette.kTitle,
-                          ),
+                          style: EnjoyTheme.heading(size: 14, color: ec.text),
                         ),
+                        const SizedBox(height: 2),
                         Text(
                           '$total cupones disponibles',
-                          style: const TextStyle(
-                            color: Palette.kMuted,
-                            fontSize: 12,
-                          ),
+                          style:
+                              EnjoyTheme.body(size: 12, color: ec.textMute),
                         ),
                       ],
                     ),
@@ -397,14 +325,14 @@ class _ComercioDetalleMiniScreenState
                     _cuponesExpandido
                         ? Icons.keyboard_arrow_up_rounded
                         : Icons.keyboard_arrow_down_rounded,
-                    color: Palette.kAccent,
+                    color: ec.orange,
                   ),
                 ],
               ),
             ),
           ),
           if (_cuponesExpandido) ...[
-            Container(height: 1, color: Palette.kAccent.withOpacity(0.15)),
+            Container(height: 1, color: ec.orange.withValues(alpha: 0.18)),
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
               child: Column(
@@ -422,53 +350,26 @@ class _ComercioDetalleMiniScreenState
                             children: [
                               Text(
                                 nombreVersion,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                  color: Palette.kTitle,
-                                ),
+                                style: EnjoyTheme.heading(
+                                    size: 13,
+                                    weight: FontWeight.w600,
+                                    color: ec.text),
                               ),
                               Text(
                                 'Nº $secuencial',
-                                style: const TextStyle(
-                                  color: Palette.kMuted,
-                                  fontSize: 11,
-                                ),
+                                style: EnjoyTheme.body(
+                                    size: 11, color: ec.textMute),
                               ),
                             ],
                           ),
                         ),
-                        GestureDetector(
-                          onTap: () => _mostrarQrCupon(cupon),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 7,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Palette.kAccent.withOpacity(0.10),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Palette.kAccent.withOpacity(0.3),
-                              ),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.qr_code_rounded,
-                                    color: Palette.kAccent, size: 15),
-                                SizedBox(width: 5),
-                                Text(
-                                  'Canjear',
-                                  style: TextStyle(
-                                    color: Palette.kAccent,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        EnjoyButton(
+                          label: 'Canjear',
+                          icon: Icons.qr_code_rounded,
+                          variant: EnjoyButtonVariant.ghost,
+                          dense: true,
+                          expand: false,
+                          onPressed: () => _mostrarQrCupon(cupon),
                         ),
                       ],
                     ),
@@ -483,6 +384,7 @@ class _ComercioDetalleMiniScreenState
   }
 
   void _mostrarQrCupon(Map<String, dynamic> cupon) {
+    final ec = context.ec;
     final version = cupon['version'] as Map<String, dynamic>? ?? {};
     final nombreVersion = (version['nombre'] ?? 'Cupón').toString();
     final secuencial = cupon['secuencial']?.toString() ?? '';
@@ -490,7 +392,7 @@ class _ComercioDetalleMiniScreenState
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Palette.kSurface,
+      backgroundColor: ec.surfaceMid,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -503,39 +405,22 @@ class _ComercioDetalleMiniScreenState
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Palette.kBorder,
+                color: ec.strokeStrong,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             const SizedBox(height: 20),
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Palette.kAccent, Palette.kAccentLight],
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.confirmation_number_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
+            IconBox(Icons.confirmation_number_rounded, accent: true, size: 44),
             const SizedBox(height: 12),
             Text(
               nombreVersion,
-              style: const TextStyle(
-                color: Palette.kTitle,
-                fontWeight: FontWeight.w800,
-                fontSize: 18,
-              ),
+              style: EnjoyTheme.heading(
+                  size: 18, weight: FontWeight.w800, color: ec.text),
             ),
             const SizedBox(height: 4),
             Text(
               'Nº $secuencial',
-              style: const TextStyle(color: Palette.kMuted, fontSize: 14),
+              style: EnjoyTheme.body(size: 14, color: ec.textMute),
             ),
             const SizedBox(height: 20),
             Container(
@@ -545,9 +430,9 @@ class _ComercioDetalleMiniScreenState
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 24,
+                    offset: const Offset(0, 6),
                   ),
                 ],
               ),
@@ -556,7 +441,7 @@ class _ComercioDetalleMiniScreenState
             const SizedBox(height: 16),
             Text(
               'Muestra este QR al comercio para canjear',
-              style: const TextStyle(color: Palette.kMuted, fontSize: 13),
+              style: EnjoyTheme.body(size: 13, color: ec.textMute),
               textAlign: TextAlign.center,
             ),
           ],
@@ -593,30 +478,30 @@ class _ComercioDetalleMiniScreenState
     return clean;
   }
 
-  String _waMessage(PromoPrincipal p) {
-    final nombre = (p.placeName ?? '').trim();
-    final titulo = (p.title ?? '').trim();
-    final horario = (p.scheduleLabel ?? '').trim();
-    final dir = (p.address ?? '').trim();
+  String _waMessage(PromoPrincipal? p) {
+    final nombre = (p?.placeName ?? p?.title ?? _placeName(p)).trim();
+    final titulo = (p?.title ?? '').trim();
+    final horario = (p?.scheduleLabel ?? '').trim();
+    final dir = (p?.address ?? '').trim();
     final parts = <String>[
       'Hola 👋, vi este local en ENJOY:',
       if (nombre.isNotEmpty) '• Nombre: $nombre',
-      if (titulo.isNotEmpty) '• Promo: $titulo',
+      if (titulo.isNotEmpty && titulo != nombre) '• Promo: $titulo',
       if (horario.isNotEmpty) '• Horario: $horario',
       if (dir.isNotEmpty) '• Dirección: $dir',
     ];
     return parts.join('\n');
   }
 
-  String buildWhatsAppPromoMsg(PromoPrincipal p) {
-    final nombre = (p.placeName ?? '').trim();
-    final titulo = (p.title ?? '').trim();
-    final dir = (p.address ?? '').trim();
+  String buildWhatsAppPromoMsg(PromoPrincipal? p) {
+    final nombre = (p?.placeName ?? p?.title ?? _placeName(p)).trim();
+    final titulo = (p?.title ?? '').trim();
+    final dir = (p?.address ?? '').trim();
     final parts = <String>[
       'Hola 👋, vi este local en ENJOY y me gustaría saber más sobre las promociones que tienen.',
       if (nombre.isNotEmpty) '📍 Local: $nombre',
-      if (titulo.isNotEmpty) '⭐ Promo destacada: ${p.title!.trim()}',
-      if (dir.isNotEmpty) '📌 Dirección: ${p.address!.trim()}',
+      if (titulo.isNotEmpty && titulo != nombre) '⭐ Promo destacada: $titulo',
+      if (dir.isNotEmpty) '📌 Dirección: $dir',
       '',
       '¿Podrían brindarme más información? ¡Gracias!',
     ];
@@ -635,7 +520,7 @@ class _ComercioDetalleMiniScreenState
     }
   }
 
-  Future<void> _openWhatsApp(String phone, PromoPrincipal p) async {
+  Future<void> _openWhatsApp(String phone, PromoPrincipal? p) async {
     final usuario = await authService.getUser();
     final clienteId = usuario?['_id'];
     final String usuarioId = widget.usuarioId;
@@ -661,7 +546,7 @@ class _ComercioDetalleMiniScreenState
     }
   }
 
-  Future<void> _sharePromo(PromoPrincipal p) async {
+  Future<void> _sharePromo(PromoPrincipal? p) async {
     final text = _waMessage(p);
     final usuario = await authService.getUser();
     final clienteId = usuario?['_id'];
@@ -676,7 +561,7 @@ class _ComercioDetalleMiniScreenState
         origenId: usuarioId,
       );
     } catch (_) {}
-    await Share.share(text);
+    await SharePlus.instance.share(ShareParams(text: text));
   }
 
   // ─────────────────────────── Helpers de nombre
@@ -688,51 +573,34 @@ class _ComercioDetalleMiniScreenState
   // ─────────────────────────── BUILD
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
+
     if (_loading) {
-      return Scaffold(
-        backgroundColor: Palette.kBg,
-        body: const Center(
-          child: CircularProgressIndicator(color: Palette.kAccent),
-        ),
+      return EnjoyScaffold(
+        body: Center(child: CircularProgressIndicator(color: ec.orange)),
       );
     }
 
     if (_error != null) {
-      return Scaffold(
-        backgroundColor: Palette.kBg,
-        appBar: _plainAppBar('Detalle'),
+      return EnjoyScaffold(
+        appBar: const EnjoyAppBar(title: 'Detalle'),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.error_outline_rounded,
-                    color: Colors.redAccent,
-                    size: 28,
-                  ),
-                ),
+                IconBox(Icons.error_outline_rounded,
+                    size: 56, iconSize: 28, color: ec.red),
                 const SizedBox(height: 14),
-                const Text(
+                Text(
                   'No se pudo cargar',
-                  style: TextStyle(
-                    color: Palette.kTitle,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
+                  style: EnjoyTheme.heading(size: 16, color: ec.text),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   _error!,
-                  style: const TextStyle(color: Palette.kMuted, fontSize: 13),
+                  style: EnjoyTheme.body(size: 13, color: ec.textMute),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -743,20 +611,27 @@ class _ComercioDetalleMiniScreenState
     }
 
     if (_data == null) {
-      return Scaffold(
-        backgroundColor: Palette.kBg,
-        appBar: _plainAppBar('Detalle'),
-        body: const Center(child: Text('Sin datos')),
+      return EnjoyScaffold(
+        appBar: const EnjoyAppBar(title: 'Detalle'),
+        body: Center(
+            child: Text('Sin datos',
+                style: EnjoyTheme.body(color: ec.textMute))),
       );
     }
 
     final p = _data!.promoPrincipal;
     final telefono = _data?.telefono ?? p?.telefono;
 
-    return Scaffold(
-      backgroundColor: Palette.kBg,
+    return EnjoyScaffold(
+      padding: EdgeInsets.zero,
+      safeTop: false,
+      showGlow: false,
+      // bottomBar temporalmente desactivado (se estiraba/sobreponía). Las
+      // acciones "Cómo llegar / Canjear" van ahora al final del cuerpo.
+      // bottomBar: _buildBottomBar(ec, p, telefono),
       body: RefreshIndicator(
-        color: Palette.kAccent,
+        color: ec.orange,
+        backgroundColor: ec.surfaceMid,
         onRefresh: () async {
           await _load();
           await _loadElegibilidad();
@@ -773,14 +648,59 @@ class _ComercioDetalleMiniScreenState
     );
   }
 
-  AppBar _plainAppBar(String title) => AppBar(
-        title: Text(title),
-        backgroundColor: Palette.kSurface,
-        foregroundColor: Palette.kTitle,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        shape: const Border(bottom: BorderSide(color: Palette.kBorder)),
-      );
+  // ─────────────────────────── BOTTOM BAR (Cómo llegar / Canjear)
+  // ignore: unused_element
+  Widget? _buildBottomBar(
+      EnjoyColors ec, PromoPrincipal? p, String? telefono) {
+    final hasMaps = _data?.lat != null && _data?.lng != null;
+    final hasCupon = _cuponesDisponibles.isNotEmpty;
+    if (!hasMaps && !hasCupon) return null;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [ec.bgBottom.withValues(alpha: 0), ec.bgBottom],
+          stops: const [0.0, 0.4],
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+          child: Row(
+            children: [
+              if (hasMaps) ...[
+                Expanded(
+                  child: EnjoyButton(
+                    label: 'Cómo llegar',
+                    icon: Icons.directions_rounded,
+                    variant: EnjoyButtonVariant.ghost,
+                    dense: true,
+                    onPressed: () =>
+                        _abrirGoogleMaps(_data!.lat!, _data!.lng!),
+                  ),
+                ),
+                if (hasCupon) const SizedBox(width: 10),
+              ],
+              if (hasCupon)
+                Expanded(
+                  flex: hasMaps ? 1 : 1,
+                  child: EnjoyButton(
+                    label: 'Canjear cupón',
+                    icon: Icons.qr_code_rounded,
+                    dense: true,
+                    onPressed: () =>
+                        _mostrarQrCupon(_cuponesDisponibles.first),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   // ─────────────────────────── HERO
   SliverAppBar _buildSliverHero(
@@ -788,63 +708,60 @@ class _ComercioDetalleMiniScreenState
     PromoPrincipal? p,
     String? telefono,
   ) {
+    final ec = ctx.ec;
     final hasImage = (p?.imageUrl ?? '').isNotEmpty;
     final hasLogo = (p?.logoUrl ?? '').isNotEmpty;
 
     return SliverAppBar(
       pinned: true,
       expandedHeight: 300,
-      backgroundColor: Palette.kAccent,
-      foregroundColor: Colors.white,
+      backgroundColor: ec.bgBottom,
+      foregroundColor: ec.text,
       automaticallyImplyLeading: false,
-      // Mostrar nombre + back cuando está colapsado
-      title: Text(
-        _placeName(p),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-          fontSize: 17,
-        ),
+      // El nombre solo aparece en la barra cuando el hero está colapsado
+      // (cuando está expandido se muestra sobre la imagen, abajo).
+      titleSpacing: 0,
+      title: _CollapsedHeroTitle(
+        text: _placeName(p),
+        style: EnjoyTheme.heading(size: 17, color: ec.text),
       ),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_rounded, size: 22),
-        color: Colors.white,
-        onPressed: () => Navigator.of(ctx).maybePop(),
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 8),
+        child: BackChip(onTap: () => Navigator.of(ctx).maybePop()),
       ),
       actions: [
-        if (p != null)
-          IconButton(
-            icon: const Icon(Icons.ios_share_rounded, size: 22),
-            color: Colors.white,
-            onPressed: () => _sharePromo(p),
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: GlassIconButton(
+            icon: Icons.ios_share_rounded,
+            onTap: () => _sharePromo(p),
           ),
+        ),
       ],
-      systemOverlayStyle: const SystemUiOverlayStyle(
+      systemOverlayStyle: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
+        statusBarIconBrightness:
+            ec.isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: ec.isDark ? Brightness.dark : Brightness.light,
       ),
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           fit: StackFit.expand,
           children: [
-            // ── Background: carrusel de la galería (imágenes primero; el video
-            // se reproduce muted con botón de audio). Fallback a imageUrl/inicial. ──
+            // ── Background: carrusel de la galería. Fallback a imageUrl/inicial. ──
             if ((p?.galeria ?? const []).isNotEmpty)
               GaleriaHeroView(
                 items: p!.galeria,
                 fallbackImageUrl: hasImage ? p.imageUrl : null,
               )
             else if (hasImage)
-              Image.network(
+              EnjoyImage(
                 p!.imageUrl!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _heroFallback(),
+                errorWidget: _heroFallback(ec),
               )
             else
-              _heroFallback(),
+              _heroFallback(ec),
 
             // ── Bottom gradient ──
             Positioned.fill(
@@ -856,8 +773,8 @@ class _ComercioDetalleMiniScreenState
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withOpacity(0.10),
-                        Colors.black.withOpacity(0.70),
+                        ec.bgBottom.withValues(alpha: 0.10),
+                        ec.bgBottom,
                       ],
                       stops: const [0.30, 0.55, 1.0],
                     ),
@@ -879,7 +796,7 @@ class _ComercioDetalleMiniScreenState
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withOpacity(0.50),
+                        Colors.black.withValues(alpha: 0.45),
                         Colors.transparent,
                       ],
                     ),
@@ -903,33 +820,32 @@ class _ComercioDetalleMiniScreenState
                     children: [
                       if (hasLogo) ...[
                         Container(
-                          width: 52,
-                          height: 52,
+                          width: 54,
+                          height: 54,
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(17),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.85),
+                              color: ec.text.withValues(alpha: 0.85),
                               width: 2.5,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.30),
-                                blurRadius: 10,
+                                color: Colors.black.withValues(alpha: 0.30),
+                                blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),
                             ],
                           ),
-                          child: ClipOval(
-                            child: Image.network(
-                              p!.logoUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const ColoredBox(
-                                color: Colors.white54,
-                                child: Icon(
-                                  Icons.store_mall_directory_outlined,
-                                  color: Colors.white,
-                                  size: 26,
-                                ),
+                          clipBehavior: Clip.antiAlias,
+                          child: EnjoyImage(
+                            p!.logoUrl!,
+                            fit: BoxFit.cover,
+                            errorWidget: ColoredBox(
+                              color: ec.iconGlassBottom,
+                              child: Icon(
+                                Icons.store_mall_directory_outlined,
+                                color: ec.orangeSoft,
+                                size: 26,
                               ),
                             ),
                           ),
@@ -945,15 +861,14 @@ class _ComercioDetalleMiniScreenState
                               _placeName(p),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: EnjoyTheme.heading(
+                                size: 21,
+                                weight: FontWeight.w800,
                                 color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 21,
-                                shadows: [
+                              ).copyWith(
+                                shadows: const [
                                   Shadow(
-                                    blurRadius: 10,
-                                    color: Colors.black54,
-                                  ),
+                                      blurRadius: 10, color: Colors.black54),
                                 ],
                               ),
                             ),
@@ -964,10 +879,10 @@ class _ComercioDetalleMiniScreenState
                                 p.title!,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.80),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
+                                style: EnjoyTheme.body(
+                                  size: 13,
+                                  weight: FontWeight.w500,
+                                  color: Colors.white.withValues(alpha: 0.80),
                                 ),
                               ),
                           ],
@@ -981,22 +896,26 @@ class _ComercioDetalleMiniScreenState
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        if ((telefono ?? '').isNotEmpty && p != null) ...[
+                        if ((telefono ?? '').isNotEmpty) ...[
                           Expanded(
-                            child: _heroPill(
-                              icon: Icons.chat_rounded,
+                            child: EnjoyButton(
                               label: 'WhatsApp',
-                              onTap: () => _openWhatsApp(telefono!, p),
+                              icon: Icons.chat_rounded,
+                              variant: EnjoyButtonVariant.green,
+                              dense: true,
+                              onPressed: () => _openWhatsApp(telefono!, p),
                             ),
                           ),
                           const SizedBox(width: 8),
                         ],
                         if (_data?.lat != null && _data?.lng != null)
                           Expanded(
-                            child: _heroPill(
-                              icon: Icons.directions_rounded,
+                            child: EnjoyButton(
                               label: 'Cómo llegar',
-                              onTap: () =>
+                              icon: Icons.directions_rounded,
+                              variant: EnjoyButtonVariant.ghost,
+                              dense: true,
+                              onPressed: () =>
                                   _abrirGoogleMaps(_data!.lat!, _data!.lng!),
                             ),
                           ),
@@ -1013,88 +932,19 @@ class _ComercioDetalleMiniScreenState
   }
 
   bool _hasActionPills(PromoPrincipal? p, String? telefono) {
-    return ((telefono ?? '').isNotEmpty && p != null) ||
+    return (telefono ?? '').isNotEmpty ||
         (_data?.lat != null && _data?.lng != null);
   }
 
-  Widget _heroFallback() => Container(
-        decoration: const BoxDecoration(
+  Widget _heroFallback(EnjoyColors ec) => DecoratedBox(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Palette.kPrimary, Color(0xFF1E4080)],
+            colors: [ec.iconGlassTop, ec.iconGlassBottom],
           ),
         ),
       );
-
-  Widget _blurCircleBtn({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(999),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Material(
-          color: Colors.black.withOpacity(0.28),
-          shape: const StadiumBorder(),
-          child: InkWell(
-            onTap: onTap,
-            customBorder: const StadiumBorder(),
-            child: SizedBox(
-              width: 40,
-              height: 40,
-              child: Icon(icon, color: Colors.white, size: 20),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _heroPill({
-    required IconData icon,
-    required String label,
-    VoidCallback? onTap,
-  }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(999),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Material(
-          color: Colors.white.withOpacity(0.18),
-          borderRadius: BorderRadius.circular(999),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(999),
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white.withOpacity(0.30)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, color: Colors.white, size: 16),
-                  const SizedBox(width: 6),
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   // ─────────────────────────── BODY
   Widget _buildBody(
@@ -1103,7 +953,7 @@ class _ComercioDetalleMiniScreenState
     String? telefono,
   ) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 40),
+      padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1126,15 +976,12 @@ class _ComercioDetalleMiniScreenState
             const SizedBox(height: 12),
             _buildSectionCard(
               icon: Icons.info_outline_rounded,
-              iconColor: Palette.kPrimary,
+              iconColor: ctx.ec.blue,
               title: 'Acerca del local',
               child: Text(
                 p!.description!,
-                style: const TextStyle(
-                  color: Palette.kMuted,
-                  fontSize: 14,
-                  height: 1.55,
-                ),
+                style: EnjoyTheme.body(
+                    size: 14, color: ctx.ec.textSoft, height: 1.55),
               ),
             ),
           ],
@@ -1143,6 +990,12 @@ class _ComercioDetalleMiniScreenState
           if (_hasPromoDetails(p)) ...[
             const SizedBox(height: 12),
             _buildPromoDetailsCard(p!),
+          ],
+
+          // ── Promociones flash del local ──
+          if ((_data?.promocionesFlash ?? const []).isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildFlashSection(_data!.promocionesFlash),
           ],
 
           // ── Catálogo (productos/servicios del local) ──
@@ -1157,9 +1010,50 @@ class _ComercioDetalleMiniScreenState
             _buildLocationCard(p),
           ],
 
+          // ── Contacto ──
+          if ((telefono ?? '').isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildContactoCard(telefono!, p),
+          ],
+
           // ── Reseñas ──
           const SizedBox(height: 12),
           _buildReviewsBlock(),
+
+          // ── Acciones (Cómo llegar / Canjear cupón) ──
+          if ((_data?.lat != null && _data?.lng != null) ||
+              _cuponesDisponibles.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  if (_data?.lat != null && _data?.lng != null)
+                    Expanded(
+                      child: EnjoyButton(
+                        label: 'Cómo llegar',
+                        icon: Icons.directions_rounded,
+                        variant: EnjoyButtonVariant.ghost,
+                        onPressed: () =>
+                            _abrirGoogleMaps(_data!.lat!, _data!.lng!),
+                      ),
+                    ),
+                  if ((_data?.lat != null && _data?.lng != null) &&
+                      _cuponesDisponibles.isNotEmpty)
+                    const SizedBox(width: 10),
+                  if (_cuponesDisponibles.isNotEmpty)
+                    Expanded(
+                      child: EnjoyButton(
+                        label: 'Canjear cupón',
+                        icon: Icons.qr_code_rounded,
+                        onPressed: () =>
+                            _mostrarQrCupon(_cuponesDisponibles.first),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1181,20 +1075,11 @@ class _ComercioDetalleMiniScreenState
     required String title,
     required Widget child,
   }) {
+    final ec = context.ec;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: GlassCard(
+        padding: EdgeInsets.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1206,24 +1091,20 @@ class _ComercioDetalleMiniScreenState
                     width: 30,
                     height: 30,
                     decoration: BoxDecoration(
-                      color: iconColor.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(8),
+                      color: iconColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(9),
                     ),
                     child: Icon(icon, size: 16, color: iconColor),
                   ),
                   const SizedBox(width: 10),
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: Palette.kTitle,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                    ),
+                    style: EnjoyTheme.heading(size: 15, color: ec.text),
                   ),
                 ],
               ),
             ),
-            Container(height: 1, color: Palette.kBorder),
+            Container(height: 1, color: ec.stroke),
             Padding(
               padding: const EdgeInsets.all(16),
               child: child,
@@ -1235,27 +1116,21 @@ class _ComercioDetalleMiniScreenState
   }
 
   // ─────────────────────────── INFO CARD
+  // Cabecera del local. Usa SIEMPRE los datos a nivel COMERCIO
+  // (nombre, rating, ciudades, categorías, distancia). Los badges/título de
+  // la promo solo se muestran si existe `promoPrincipal`, pero la tarjeta
+  // nunca se oculta por su ausencia.
   Widget _buildInfoCard(PromoPrincipal? p) {
-    if (p == null) return const SizedBox.shrink();
+    final ec = context.ec;
     final safeRating = (_data!.promedioCalificacion.isNaN ||
             _data!.promedioCalificacion.isInfinite)
         ? 0.0
         : _data!.promedioCalificacion.clamp(0.0, 5.0);
+    final scheduleLabel = (p?.scheduleLabel ?? '').trim();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: GlassCard(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1267,80 +1142,35 @@ class _ComercioDetalleMiniScreenState
                 Expanded(
                   child: Text(
                     _placeName(p),
-                    style: const TextStyle(
-                      color: Palette.kTitle,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 20,
-                    ),
+                    style: EnjoyTheme.heading(
+                        size: 20, weight: FontWeight.w800, color: ec.text),
                   ),
                 ),
-                if (p.isFlash == true) ...[
+                if (p?.isFlash == true) ...[
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFF6B35), Color(0xFFFF9F1C)],
-                      ),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.bolt_rounded, color: Colors.white, size: 11),
-                        SizedBox(width: 2),
-                        Text(
-                          'FLASH',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  Pill('FLASH',
+                      variant: PillVariant.orange,
+                      icon: Icons.bolt_rounded,
+                      dense: true),
                 ],
-                if (p.isTwoForOne == true) ...[
+                if (p?.isTwoForOne == true) ...[
                   const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Palette.kAccent, Palette.kAccentLight],
-                      ),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      '2×1',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
+                  Pill('2×1', variant: PillVariant.orange, dense: true),
                 ],
               ],
             ),
 
-            if ((p.title ?? '').isNotEmpty && p.title != p.placeName) ...[
+            if (p != null &&
+                (p.title ?? '').isNotEmpty &&
+                p.title != p.placeName) ...[
               const SizedBox(height: 4),
               Text(
                 p.title!,
-                style: const TextStyle(color: Palette.kMuted, fontSize: 14),
+                style: EnjoyTheme.body(size: 14, color: ec.textSoft),
               ),
             ],
 
-            const SizedBox(height: 12),
-            Container(height: 1, color: Palette.kBorder),
-            const SizedBox(height: 12),
+            const EnjoyDivider(height: 24),
 
             // Rating
             Row(
@@ -1360,19 +1190,15 @@ class _ComercioDetalleMiniScreenState
                 const SizedBox(width: 6),
                 Text(
                   safeRating.toStringAsFixed(1),
-                  style: const TextStyle(
-                    color: Palette.kTitle,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
+                  style: EnjoyTheme.heading(size: 14, color: ec.text),
                 ),
                 const SizedBox(width: 4),
                 Text(
                   '(${_data!.totalComentarios})',
-                  style: const TextStyle(color: Palette.kMuted, fontSize: 13),
+                  style: EnjoyTheme.body(size: 13, color: ec.textMute),
                 ),
                 if ((distanciaLabel(_userLat, _userLng, _data?.lat, _data?.lng) ??
-                        p.distanceLabel ??
+                        p?.distanceLabel ??
                         '')
                     .isNotEmpty) ...[
                   const SizedBox(width: 10),
@@ -1380,41 +1206,32 @@ class _ComercioDetalleMiniScreenState
                     width: 3,
                     height: 3,
                     decoration: BoxDecoration(
-                      color: Palette.kMuted.withOpacity(0.5),
+                      color: ec.textMute.withValues(alpha: 0.5),
                       shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Text(
                     distanciaLabel(_userLat, _userLng, _data?.lat, _data?.lng) ??
-                        p.distanceLabel!,
-                    style: const TextStyle(
-                      color: Palette.kMuted,
-                      fontSize: 13,
-                    ),
+                        p!.distanceLabel!,
+                    style: EnjoyTheme.body(size: 13, color: ec.textSoft),
                   ),
                 ],
               ],
             ),
 
             // Schedule
-            if ((p.scheduleLabel ?? '').isNotEmpty) ...[
+            if (scheduleLabel.isNotEmpty) ...[
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(
-                    Icons.access_time_rounded,
-                    size: 15,
-                    color: Palette.kMuted,
-                  ),
+                  Icon(Icons.access_time_rounded,
+                      size: 15, color: ec.textSoft),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      p.scheduleLabel!,
-                      style: const TextStyle(
-                        color: Palette.kMuted,
-                        fontSize: 13,
-                      ),
+                      scheduleLabel,
+                      style: EnjoyTheme.body(size: 13, color: ec.textSoft),
                     ),
                   ),
                 ],
@@ -1426,19 +1243,13 @@ class _ComercioDetalleMiniScreenState
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(
-                    Icons.location_city_rounded,
-                    size: 15,
-                    color: Palette.kMuted,
-                  ),
+                  Icon(Icons.location_city_rounded,
+                      size: 15, color: ec.textSoft),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       _data!.ciudades.join(' · '),
-                      style: const TextStyle(
-                        color: Palette.kMuted,
-                        fontSize: 13,
-                      ),
+                      style: EnjoyTheme.body(size: 13, color: ec.textSoft),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1454,26 +1265,8 @@ class _ComercioDetalleMiniScreenState
                 spacing: 6,
                 runSpacing: 4,
                 children: _data!.categorias
-                    .map(
-                      (c) => Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Palette.kPrimary.withOpacity(0.07),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          c,
-                          style: const TextStyle(
-                            color: Palette.kPrimary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    )
+                    .map((c) =>
+                        Pill(c, variant: PillVariant.blue, dense: true))
                     .toList(),
               ),
             ],
@@ -1485,9 +1278,10 @@ class _ComercioDetalleMiniScreenState
 
   // ─────────────────────────── PROMO DETAILS CARD
   Widget _buildPromoDetailsCard(PromoPrincipal p) {
+    final ec = context.ec;
     return _buildSectionCard(
       icon: Icons.local_activity_rounded,
-      iconColor: Palette.kAccent,
+      iconColor: ec.orange,
       title: 'Detalles de la promoción',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1495,16 +1289,15 @@ class _ComercioDetalleMiniScreenState
           if (p.startDate != null && p.endDate != null) ...[
             _detailRow(
               icon: Icons.date_range_rounded,
-              iconColor: Palette.kAccent,
-              text:
-                  '${_fmt(p.startDate!)}  →  ${_fmt(p.endDate!)}',
+              iconColor: ec.orange,
+              text: '${_fmt(p.startDate!)}  →  ${_fmt(p.endDate!)}',
             ),
           ],
           if (p.isTwoForOne == true) ...[
             if (p.startDate != null) const SizedBox(height: 10),
             _detailRow(
               icon: Icons.people_outline_rounded,
-              iconColor: Palette.kAccent,
+              iconColor: ec.orange,
               text: 'Paga uno, disfruta dos (2×1)',
             ),
           ],
@@ -1512,7 +1305,7 @@ class _ComercioDetalleMiniScreenState
             const SizedBox(height: 10),
             _detailRow(
               icon: Icons.bolt_rounded,
-              iconColor: const Color(0xFFFF6B35),
+              iconColor: ec.orange,
               text: 'Oferta Flash — por tiempo limitado',
             ),
           ],
@@ -1520,7 +1313,7 @@ class _ComercioDetalleMiniScreenState
             const SizedBox(height: 10),
             _detailRow(
               icon: Icons.calendar_today_rounded,
-              iconColor: Colors.green,
+              iconColor: ec.green,
               text: 'Válida todos los días',
             ),
           ],
@@ -1530,27 +1323,7 @@ class _ComercioDetalleMiniScreenState
               spacing: 6,
               runSpacing: 4,
               children: p.tags
-                  .map(
-                    (t) => Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Palette.kField,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Palette.kBorder),
-                      ),
-                      child: Text(
-                        t,
-                        style: const TextStyle(
-                          color: Palette.kTitle,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  )
+                  .map((t) => Pill(t, variant: PillVariant.glass, dense: true))
                   .toList(),
             ),
           ],
@@ -1564,6 +1337,7 @@ class _ComercioDetalleMiniScreenState
     required Color iconColor,
     required String text,
   }) {
+    final ec = context.ec;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1571,8 +1345,8 @@ class _ComercioDetalleMiniScreenState
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.10),
-            borderRadius: BorderRadius.circular(8),
+            color: iconColor.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(9),
           ),
           child: Icon(icon, size: 14, color: iconColor),
         ),
@@ -1582,11 +1356,8 @@ class _ComercioDetalleMiniScreenState
             padding: const EdgeInsets.only(top: 5),
             child: Text(
               text,
-              style: const TextStyle(
-                color: Palette.kTitle,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
+              style: EnjoyTheme.body(
+                  size: 13, weight: FontWeight.w500, color: ec.text),
             ),
           ),
         ),
@@ -1597,11 +1368,95 @@ class _ComercioDetalleMiniScreenState
   String _fmt(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
+  // ─────────────────────────── PROMOCIONES FLASH
+  String _flashRestante(DateTime? vence) {
+    if (vence == null) return '';
+    final diff = vence.toLocal().difference(DateTime.now());
+    if (diff.isNegative) return 'Finalizada';
+    if (diff.inDays >= 1) return 'Termina en ${diff.inDays}d ${diff.inHours % 24}h';
+    if (diff.inHours >= 1) return 'Termina en ${diff.inHours}h';
+    return 'Termina en ${diff.inMinutes}m';
+  }
+
+  Widget _buildFlashSection(List<PromoFlashMini> flashes) {
+    final ec = context.ec;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const IconBox(Icons.bolt_rounded,
+                    accent: true, size: 32, radius: 9, iconSize: 16),
+                const SizedBox(width: 10),
+                Text('Promociones flash',
+                    style: EnjoyTheme.heading(size: 15, color: ec.text)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...flashes.map((f) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: InkWell(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            PromocionFlashDetalleScreen(promocionId: f.id),
+                      ),
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            width: 56,
+                            height: 56,
+                            child: f.imagenUrl.isNotEmpty
+                                ? EnjoyImage(f.imagenUrl, fit: BoxFit.cover)
+                                : Container(color: ec.glass),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(f.titulo,
+                                  style: EnjoyTheme.heading(
+                                      size: 14, color: ec.text),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
+                              const SizedBox(height: 2),
+                              Text(_flashRestante(f.vence),
+                                  style: EnjoyTheme.body(
+                                      size: 12, color: ec.orangeSoft)),
+                            ],
+                          ),
+                        ),
+                        if (f.canjeable)
+                          Pill('Canjeable',
+                              variant: PillVariant.orange, dense: true),
+                        const SizedBox(width: 6),
+                        Icon(Icons.chevron_right_rounded,
+                            color: ec.textMute, size: 20),
+                      ],
+                    ),
+                  ),
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ─────────────────────────── CATÁLOGO CARD
   Widget _buildCatalogoCard(List<Producto> productos) {
     return _buildSectionCard(
       icon: Icons.shopping_bag_rounded,
-      iconColor: Palette.kAccent,
+      iconColor: context.ec.orange,
       title: 'Catálogo',
       child: _CatalogoCarousel(productos: productos),
     );
@@ -1609,9 +1464,10 @@ class _ComercioDetalleMiniScreenState
 
   // ─────────────────────────── LOCATION CARD
   Widget _buildLocationCard(PromoPrincipal? p) {
+    final ec = context.ec;
     return _buildSectionCard(
       icon: Icons.location_on_rounded,
-      iconColor: Colors.redAccent,
+      iconColor: ec.red,
       title: 'Ubicación',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1624,14 +1480,10 @@ class _ComercioDetalleMiniScreenState
                   width: 28,
                   height: 28,
                   decoration: BoxDecoration(
-                    color: Colors.redAccent.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
+                    color: ec.red.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(9),
                   ),
-                  child: const Icon(
-                    Icons.place_rounded,
-                    size: 14,
-                    color: Colors.redAccent,
-                  ),
+                  child: Icon(Icons.place_rounded, size: 14, color: ec.red),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1639,11 +1491,8 @@ class _ComercioDetalleMiniScreenState
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       p!.address!,
-                      style: const TextStyle(
-                        color: Palette.kTitle,
-                        fontSize: 13,
-                        height: 1.5,
-                      ),
+                      style:
+                          EnjoyTheme.body(size: 13, color: ec.text, height: 1.5),
                     ),
                   ),
                 ),
@@ -1655,7 +1504,7 @@ class _ComercioDetalleMiniScreenState
             GestureDetector(
               onTap: () => _abrirGoogleMaps(_data!.lat!, _data!.lng!),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 child: Stack(
                   children: [
                     SizedBox(
@@ -1680,9 +1529,9 @@ class _ComercioDetalleMiniScreenState
                                 point: LatLng(_data!.lat!, _data!.lng!),
                                 width: 40,
                                 height: 40,
-                                child: const Icon(
+                                child: Icon(
                                   Icons.location_pin,
-                                  color: Palette.kAccent,
+                                  color: ec.orange,
                                   size: 40,
                                 ),
                               ),
@@ -1694,40 +1543,11 @@ class _ComercioDetalleMiniScreenState
                     Positioned(
                       bottom: 8,
                       right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black26,
-                              blurRadius: 6,
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.directions_rounded,
-                              size: 14,
-                              color: Palette.kAccent,
-                            ),
-                            SizedBox(width: 5),
-                            Text(
-                              'Cómo llegar',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Palette.kAccent,
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: Pill(
+                        'Cómo llegar',
+                        variant: PillVariant.orange,
+                        icon: Icons.directions_rounded,
+                        dense: true,
                       ),
                     ),
                   ],
@@ -1739,8 +1559,53 @@ class _ComercioDetalleMiniScreenState
     );
   }
 
+  // ─────────────────────────── CONTACTO CARD
+  Widget _buildContactoCard(String telefono, PromoPrincipal? p) {
+    final ec = context.ec;
+    return _buildSectionCard(
+      icon: Icons.call_rounded,
+      iconColor: ec.green,
+      title: 'Contacto',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: ec.green.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(Icons.phone_rounded, size: 14, color: ec.green),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  telefono,
+                  style: EnjoyTheme.body(
+                      size: 14, weight: FontWeight.w600, color: ec.text),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          EnjoyButton(
+            label: 'Escribir por WhatsApp',
+            icon: Icons.chat_rounded,
+            variant: EnjoyButtonVariant.green,
+            dense: true,
+            onPressed: () => _openWhatsApp(telefono, p),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ─────────────────────────── REVIEWS BLOCK
   Widget _buildReviewsBlock() {
+    final ec = context.ec;
     final safeRating = (_data!.promedioCalificacion.isNaN ||
             _data!.promedioCalificacion.isInfinite)
         ? 0.0
@@ -1751,18 +1616,7 @@ class _ComercioDetalleMiniScreenState
       child: Column(
         children: [
           // ── Rating hero card ──
-          Container(
-            decoration: BoxDecoration(
-              color: Palette.kSurface,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 20,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
+          GlassCard(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
@@ -1770,32 +1624,22 @@ class _ComercioDetalleMiniScreenState
                   width: 30,
                   height: 30,
                   decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.amber.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(9),
                   ),
-                  child: const Icon(
-                    Icons.star_rounded,
-                    size: 16,
-                    color: Colors.amber,
-                  ),
+                  child: const Icon(Icons.star_rounded,
+                      size: 16, color: Colors.amber),
                 ),
                 const SizedBox(width: 10),
-                const Text(
+                Text(
                   'Opiniones',
-                  style: TextStyle(
-                    color: Palette.kTitle,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
+                  style: EnjoyTheme.heading(size: 15, color: ec.text),
                 ),
                 const Spacer(),
                 Text(
                   safeRating.toStringAsFixed(1),
-                  style: const TextStyle(
-                    color: Palette.kTitle,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 28,
-                  ),
+                  style: EnjoyTheme.heading(
+                      size: 28, weight: FontWeight.w800, color: ec.text),
                 ),
                 const SizedBox(width: 8),
                 Column(
@@ -1815,10 +1659,7 @@ class _ComercioDetalleMiniScreenState
                     ),
                     Text(
                       '${_data!.totalComentarios} reseñas',
-                      style: const TextStyle(
-                        color: Palette.kMuted,
-                        fontSize: 11,
-                      ),
+                      style: EnjoyTheme.body(size: 11, color: ec.textMute),
                     ),
                   ],
                 ),
@@ -1849,54 +1690,62 @@ class _ComercioDetalleMiniScreenState
             ..._data!.comentarios.map((c) => _ComentarioTilePro(c: c)),
           ] else ...[
             const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
+            GlassCard(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Palette.kSurface,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
               child: Column(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Palette.kField,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.chat_bubble_outline_rounded,
-                      color: Palette.kMuted,
-                      size: 20,
-                    ),
-                  ),
+                  IconBox(Icons.chat_bubble_outline_rounded,
+                      size: 40, iconSize: 20, color: ec.textMute),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Sin reseñas aún',
-                    style: TextStyle(
-                      color: Palette.kTitle,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
+                    style: EnjoyTheme.heading(
+                        size: 14, weight: FontWeight.w600, color: ec.text),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     '¡Sé el primero en opinar!',
-                    style: TextStyle(color: Palette.kMuted, fontSize: 12),
+                    style: EnjoyTheme.body(size: 12, color: ec.textMute),
                   ),
                 ],
               ),
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Título del hero que aparece solo cuando el SliverAppBar se colapsa
+// ══════════════════════════════════════════════════════════════════
+class _CollapsedHeroTitle extends StatelessWidget {
+  final String text;
+  final TextStyle style;
+  const _CollapsedHeroTitle({required this.text, required this.style});
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context
+        .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+    double opacity = 1;
+    if (settings != null) {
+      final delta = settings.maxExtent - settings.minExtent;
+      // Aparece en el último tramo del colapso.
+      if (delta > 0) {
+        final t = (settings.currentExtent - settings.minExtent) / delta;
+        opacity = (1 - (t * 2)).clamp(0.0, 1.0);
+      }
+    }
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 150),
+      opacity: opacity,
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: style,
       ),
     );
   }
@@ -1934,41 +1783,27 @@ class _MiResenaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     if (!elegible) {
-      return Container(
-        width: double.infinity,
+      return GlassCard(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
         child: Row(
           children: [
             Container(
               width: 30,
               height: 30,
               decoration: BoxDecoration(
-                color: Palette.kField,
-                borderRadius: BorderRadius.circular(8),
+                color: ec.glassStrong,
+                borderRadius: BorderRadius.circular(9),
               ),
-              child: const Icon(
-                Icons.lock_outline_rounded,
-                size: 15,
-                color: Palette.kMuted,
-              ),
+              child: Icon(Icons.lock_outline_rounded,
+                  size: 15, color: ec.textMute),
             ),
             const SizedBox(width: 10),
-            const Expanded(
+            Expanded(
               child: Text(
                 'Usa al menos una promoción en este local para dejar una reseña.',
-                style: TextStyle(color: Palette.kMuted, fontSize: 13),
+                style: EnjoyTheme.body(size: 13, color: ec.textMute),
               ),
             ),
           ],
@@ -1983,20 +1818,8 @@ class _MiResenaCard extends StatelessWidget {
       final calif = (miComentario!['calificacion'] as num?)?.toInt() ?? 0;
       final texto = (miComentario!['texto'] ?? '') as String;
 
-      return Container(
-        width: double.infinity,
+      return GlassCard(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Palette.kSurface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2006,99 +1829,59 @@ class _MiResenaCard extends StatelessWidget {
                   width: 30,
                   height: 30,
                   decoration: BoxDecoration(
-                    color: Palette.kPrimary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
+                    color: ec.orange.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(9),
                   ),
-                  child: const Icon(
-                    Icons.rate_review_rounded,
-                    size: 15,
-                    color: Palette.kPrimary,
-                  ),
+                  child: Icon(Icons.rate_review_rounded,
+                      size: 15, color: ec.orangeSoft),
                 ),
                 const SizedBox(width: 10),
-                const Text(
+                Text(
                   'Tu reseña',
-                  style: TextStyle(
-                    color: Palette.kTitle,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
+                  style: EnjoyTheme.heading(size: 15, color: ec.text),
                 ),
                 const Spacer(),
                 // Edit
-                GestureDetector(
-                  onTap: onEditar,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Palette.kPrimary.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.edit_rounded,
-                            size: 14, color: Palette.kPrimary),
-                        SizedBox(width: 4),
-                        Text(
-                          'Editar',
-                          style: TextStyle(
-                            color: Palette.kPrimary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                Pill('Editar',
+                    variant: PillVariant.orange,
+                    icon: Icons.edit_rounded,
+                    dense: true,
+                    onTap: onEditar),
                 const SizedBox(width: 6),
                 // Delete
                 if (onEliminar != null)
-                  GestureDetector(
+                  _Tappable(
                     onTap: onEliminar,
+                    borderRadius: 9,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 7,
-                      ),
+                          horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
-                        color: Colors.redAccent.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(8),
+                        color: ec.red.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(9),
                       ),
-                      child: const Icon(
-                        Icons.delete_outline_rounded,
-                        size: 16,
-                        color: Colors.redAccent,
-                      ),
+                      child: Icon(Icons.delete_outline_rounded,
+                          size: 16, color: ec.red),
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 10),
-            Container(height: 1, color: Palette.kBorder),
-            const SizedBox(height: 10),
-            _StarDisplay(value: calif, color: Palette.kPrimary),
+            const EnjoyDivider(height: 22),
+            _StarDisplay(value: calif, color: ec.orangeSoft),
             if (texto.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Palette.kField,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Palette.kBorder),
+                  color: ec.glassStrong,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: ec.stroke),
                 ),
                 child: Text(
                   texto,
-                  style: const TextStyle(
-                    color: Palette.kMuted,
-                    fontSize: 13,
-                    height: 1.5,
-                  ),
+                  style: EnjoyTheme.body(
+                      size: 13, color: ec.textSoft, height: 1.5),
                 ),
               ),
             ],
@@ -2108,20 +1891,8 @@ class _MiResenaCard extends StatelessWidget {
     }
 
     // ── VISTA EDICIÓN / CREACIÓN ──
-    return Container(
-      width: double.infinity,
+    return GlassCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2131,33 +1902,24 @@ class _MiResenaCard extends StatelessWidget {
                 width: 30,
                 height: 30,
                 decoration: BoxDecoration(
-                  color: Palette.kPrimary.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(8),
+                  color: ec.orange.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(9),
                 ),
-                child: const Icon(
-                  Icons.rate_review_rounded,
-                  size: 15,
-                  color: Palette.kPrimary,
-                ),
+                child: Icon(Icons.rate_review_rounded,
+                    size: 15, color: ec.orangeSoft),
               ),
               const SizedBox(width: 10),
               Text(
                 existe ? 'Editar tu reseña' : 'Escribe tu reseña',
-                style: const TextStyle(
-                  color: Palette.kTitle,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                ),
+                style: EnjoyTheme.heading(size: 15, color: ec.text),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(height: 1, color: Palette.kBorder),
-          const SizedBox(height: 12),
+          const EnjoyDivider(height: 22),
           _StarPicker(
             value: rating,
             onChanged: onRatingChanged,
-            activeColor: Palette.kAccent,
+            activeColor: ec.orange,
           ),
           const SizedBox(height: 10),
           TextField(
@@ -2165,26 +1927,10 @@ class _MiResenaCard extends StatelessWidget {
             maxLines: 3,
             maxLength: 100,
             maxLengthEnforcement: MaxLengthEnforcement.enforced,
-            style: const TextStyle(fontSize: 14),
-            decoration: InputDecoration(
+            style: EnjoyTheme.body(size: 14, color: ec.text),
+            cursorColor: ec.orange,
+            decoration: const InputDecoration(
               hintText: 'Cuéntanos en pocas palabras… (máx. 100)',
-              hintStyle: const TextStyle(color: Palette.kMuted, fontSize: 13),
-              filled: true,
-              fillColor: Palette.kField,
-              border: OutlineInputBorder(
-                borderSide: const BorderSide(color: Palette.kBorder),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: Palette.kBorder),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide:
-                    const BorderSide(color: Palette.kAccent, width: 1.4),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              contentPadding: const EdgeInsets.all(12),
               counterText: '',
             ),
           ),
@@ -2192,89 +1938,22 @@ class _MiResenaCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: GestureDetector(
-                  onTap: saving ? null : onGuardar,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    height: 44,
-                    decoration: BoxDecoration(
-                      gradient: saving
-                          ? LinearGradient(
-                              colors: [
-                                Palette.kAccent.withOpacity(0.4),
-                                Palette.kAccentLight.withOpacity(0.3),
-                              ],
-                            )
-                          : const LinearGradient(
-                              colors: [Palette.kAccent, Palette.kAccentLight],
-                            ),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: saving
-                          ? []
-                          : [
-                              BoxShadow(
-                                color: Palette.kAccent.withOpacity(0.30),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                    ),
-                    child: Center(
-                      child: saving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.save_rounded,
-                                  color: Colors.white,
-                                  size: 17,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  existe ? 'Guardar cambios' : 'Publicar',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
+                child: EnjoyButton(
+                  label: existe ? 'Guardar cambios' : 'Publicar',
+                  icon: Icons.save_rounded,
+                  loading: saving,
+                  dense: true,
+                  onPressed: saving ? null : onGuardar,
                 ),
               ),
               if (onCancelar != null) ...[
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: saving ? null : onCancelar,
-                  child: Container(
-                    height: 44,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Palette.kField,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Palette.kBorder),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'Cancelar',
-                        style: TextStyle(
-                          color: Palette.kMuted,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ),
+                EnjoyButton(
+                  label: 'Cancelar',
+                  variant: EnjoyButtonVariant.ghost,
+                  dense: true,
+                  expand: false,
+                  onPressed: saving ? null : onCancelar,
                 ),
               ],
             ],
@@ -2292,59 +1971,19 @@ class _ComentarioTilePro extends StatelessWidget {
   final ComentarioMini c;
   const _ComentarioTilePro({required this.c});
 
-  String _initials(String? name) {
-    final n = (name ?? '').trim();
-    if (n.isEmpty) return 'A';
-    final parts = n.split(RegExp(r'\s+'));
-    final first = parts.isNotEmpty ? parts.first.characters.first : 'A';
-    final last = parts.length > 1 ? parts.last.characters.first : '';
-    return (first + last).toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final ec = context.ec;
+    return GlassCard(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Palette.kSurface,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      radius: 16,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              // Gradient avatar
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Palette.kPrimary, Color(0xFF1E4080)],
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(
-                    _initials(c.autorNombre),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ),
+              EnjoyAvatar(c.autorNombre ?? 'Anónimo', size: 36),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -2352,19 +1991,13 @@ class _ComentarioTilePro extends StatelessWidget {
                   children: [
                     Text(
                       c.autorNombre ?? 'Anónimo',
-                      style: const TextStyle(
-                        color: Palette.kTitle,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
+                      style: EnjoyTheme.heading(
+                          size: 13, weight: FontWeight.w600, color: ec.text),
                     ),
                     if (c.fecha != null)
                       Text(
                         '${c.fecha!.day.toString().padLeft(2, '0')}/${c.fecha!.month.toString().padLeft(2, '0')}/${c.fecha!.year}',
-                        style: const TextStyle(
-                          color: Palette.kMuted,
-                          fontSize: 11,
-                        ),
+                        style: EnjoyTheme.body(size: 11, color: ec.textMute),
                       ),
                   ],
                 ),
@@ -2374,8 +2007,8 @@ class _ComentarioTilePro extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.10),
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.amber.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(9),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -2385,11 +2018,7 @@ class _ComentarioTilePro extends StatelessWidget {
                       const SizedBox(width: 3),
                       Text(
                         c.rating!.toStringAsFixed(1),
-                        style: const TextStyle(
-                          color: Palette.kTitle,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: EnjoyTheme.heading(size: 12, color: ec.text),
                       ),
                     ],
                   ),
@@ -2400,11 +2029,8 @@ class _ComentarioTilePro extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               c.texto!,
-              style: const TextStyle(
-                color: Palette.kMuted,
-                fontSize: 13,
-                height: 1.5,
-              ),
+              style:
+                  EnjoyTheme.body(size: 13, color: ec.textSoft, height: 1.5),
             ),
           ],
         ],
@@ -2429,6 +2055,7 @@ class _StarPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Row(
       children: List.generate(5, (i) {
         final idx = i + 1;
@@ -2439,7 +2066,7 @@ class _StarPicker extends StatelessWidget {
             filled ? Icons.star_rounded : Icons.star_border_rounded,
             size: 28,
           ),
-          color: filled ? activeColor : Colors.grey.shade400,
+          color: filled ? activeColor : ec.textMute,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           splashRadius: 22,
@@ -2460,12 +2087,13 @@ class _StarDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     return Row(
       children: List.generate(
         5,
         (i) => Icon(
           i < value ? Icons.star_rounded : Icons.star_border_rounded,
-          color: i < value ? color : Colors.grey.shade400,
+          color: i < value ? color : ec.textMute,
           size: 22,
         ),
       ),
@@ -2473,15 +2101,15 @@ class _StarDisplay extends StatelessWidget {
   }
 }
 
-/// Carrusel del catálogo del cliente: 1 foto por producto con nombre y descripción.
 /// Vista grande de un producto del catálogo: imagen ampliable (zoom) +
 /// nombre + descripción completa scrolleable.
 void _abrirProductoGrande(BuildContext context, Producto p) {
+  final ec = context.ec;
   showDialog(
     context: context,
     barrierColor: Colors.black87,
     builder: (ctx) => Dialog(
-      backgroundColor: Palette.kSurface,
+      backgroundColor: ec.surfaceMid,
       insetPadding: const EdgeInsets.all(16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Column(
@@ -2494,16 +2122,16 @@ void _abrirProductoGrande(BuildContext context, Producto p) {
               children: [
                 InteractiveViewer(
                   maxScale: 4,
-                  child: Image.network(
+                  child: EnjoyImage(
                     p.url,
                     width: double.infinity,
                     height: 240,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                    errorWidget: Container(
                       height: 240,
-                      color: const Color(0xFFEDEFF5),
-                      child: const Icon(Icons.broken_image_rounded,
-                          color: Colors.grey, size: 48),
+                      color: ec.iconGlassBottom,
+                      child: Icon(Icons.broken_image_rounded,
+                          color: ec.textMute, size: 48),
                     ),
                   ),
                 ),
@@ -2532,17 +2160,15 @@ void _abrirProductoGrande(BuildContext context, Producto p) {
                 children: [
                   Text(
                     p.nombre,
-                    style: const TextStyle(
-                        color: Palette.kTitle,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800),
+                    style: EnjoyTheme.heading(
+                        size: 18, weight: FontWeight.w800, color: ec.text),
                   ),
                   if ((p.descripcion ?? '').isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
                       p.descripcion!,
-                      style: const TextStyle(
-                          color: Palette.kMuted, fontSize: 14, height: 1.4),
+                      style: EnjoyTheme.body(
+                          size: 14, color: ec.textSoft, height: 1.4),
                     ),
                   ],
                 ],
@@ -2575,19 +2201,21 @@ class _CatalogoCarouselState extends State<_CatalogoCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final items = widget.productos;
     if (items.isEmpty) return const SizedBox.shrink();
 
     return Column(
       children: [
         SizedBox(
-          height: 250,
+          height: 256,
           child: PageView.builder(
             controller: _controller,
             itemCount: items.length,
             onPageChanged: (i) => setState(() => _index = i),
             itemBuilder: (_, i) {
               final p = items[i];
+              final tieneDescripcion = (p.descripcion ?? '').isNotEmpty;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -2601,13 +2229,13 @@ class _CatalogoCarouselState extends State<_CatalogoCarousel> {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            Image.network(
+                            EnjoyImage(
                               p.url,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                color: const Color(0xFFEDEFF5),
-                                child: const Icon(Icons.broken_image_rounded,
-                                    color: Colors.grey, size: 40),
+                              errorWidget: Container(
+                                color: ec.iconGlassBottom,
+                                child: Icon(Icons.broken_image_rounded,
+                                    color: ec.textMute, size: 40),
                               ),
                             ),
                             Positioned(
@@ -2617,7 +2245,7 @@ class _CatalogoCarouselState extends State<_CatalogoCarousel> {
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
                                   color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(9),
                                 ),
                                 child: const Icon(Icons.zoom_out_map_rounded,
                                     size: 16, color: Colors.white),
@@ -2629,36 +2257,46 @@ class _CatalogoCarouselState extends State<_CatalogoCarousel> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text(
-                    p.nombre,
-                    style: const TextStyle(
-                      color: Palette.kTitle,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                  // El bloque de texto flexa dentro del alto restante para que
+                  // descripciones largas o el escalado de fuente del sistema no
+                  // provoquen overflow del PageView.
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          p.nombre,
+                          style: EnjoyTheme.heading(size: 15, color: ec.text),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (tieneDescripcion) ...[
+                          const SizedBox(height: 4),
+                          Flexible(
+                            child: Text(
+                              p.descripcion!,
+                              style: EnjoyTheme.body(
+                                  size: 13, color: ec.textMute, height: 1.3),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => _abrirProductoGrande(context, p),
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text('Ver más',
+                                  style: EnjoyTheme.body(
+                                      size: 12,
+                                      weight: FontWeight.w700,
+                                      color: ec.orangeSoft)),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  if ((p.descripcion ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      p.descripcion!,
-                      style: const TextStyle(color: Palette.kMuted, fontSize: 13, height: 1.3),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    GestureDetector(
-                      onTap: () => _abrirProductoGrande(context, p),
-                      child: const Padding(
-                        padding: EdgeInsets.only(top: 2),
-                        child: Text('Ver más',
-                            style: TextStyle(
-                                color: Palette.kAccent,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700)),
-                      ),
-                    ),
-                  ],
                 ],
               );
             },
@@ -2676,7 +2314,8 @@ class _CatalogoCarouselState extends State<_CatalogoCarousel> {
                 width: active ? 18 : 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  color: active ? Palette.kAccent : Colors.grey.shade300,
+                  gradient: active ? ec.accentGradient : null,
+                  color: active ? null : ec.strokeStrong,
                   borderRadius: BorderRadius.circular(3),
                 ),
               );
@@ -2684,6 +2323,29 @@ class _CatalogoCarouselState extends State<_CatalogoCarousel> {
           ),
         ],
       ],
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Helper interno de toque con feedback
+// ══════════════════════════════════════════════════════════════════
+class _Tappable extends StatelessWidget {
+  const _Tappable({this.onTap, required this.child, this.borderRadius = 12});
+  final VoidCallback? onTap;
+  final Widget child;
+  final double borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    if (onTap == null) return child;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: child,
+      ),
     );
   }
 }

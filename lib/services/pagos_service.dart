@@ -60,6 +60,10 @@ class PagosService {
     String? telefonoCliente,
     required String cuponeraNombre,
     required String cuponeraPrecio,
+    bool esRegalo = false,
+    String? destinatarioId,
+    String? destinatarioNombre,
+    String? mensajeRegalo,
   }) async {
     final resp = await ApiClient.instance.post('/pagos/payphone/iniciar', data: {
       'clienteId': clienteId,
@@ -68,6 +72,10 @@ class PagosService {
       'telefonoCliente': telefonoCliente ?? '',
       'cuponeraNombre': cuponeraNombre,
       'cuponeraPrecio': cuponeraPrecio,
+      'esRegalo': esRegalo,
+      if (esRegalo) 'destinatarioId': destinatarioId,
+      if (esRegalo) 'destinatarioNombre': destinatarioNombre,
+      if (esRegalo) 'mensajeRegalo': mensajeRegalo ?? '',
     });
     return Map<String, dynamic>.from(resp.data);
   }
@@ -81,6 +89,10 @@ class PagosService {
     required String cuponeraPrecio,
     required String returnUrl,
     required String cancelUrl,
+    bool esRegalo = false,
+    String? destinatarioId,
+    String? destinatarioNombre,
+    String? mensajeRegalo,
   }) async {
     final resp = await ApiClient.instance.post('/pagos/paypal/crear', data: {
       'clienteId': clienteId,
@@ -90,6 +102,10 @@ class PagosService {
       'cuponeraPrecio': cuponeraPrecio,
       'returnUrl': returnUrl,
       'cancelUrl': cancelUrl,
+      'esRegalo': esRegalo,
+      if (esRegalo) 'destinatarioId': destinatarioId,
+      if (esRegalo) 'destinatarioNombre': destinatarioNombre,
+      if (esRegalo) 'mensajeRegalo': mensajeRegalo ?? '',
     });
     return Map<String, dynamic>.from(resp.data);
   }
