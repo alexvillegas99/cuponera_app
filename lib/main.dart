@@ -132,74 +132,10 @@ class RootApp extends StatelessWidget {
       builder: (context, child) {
         return Consumer<ConnectivityStore>(
           builder: (_, net, __) {
-            return Stack(
-              children: [
-                child ?? const SizedBox.shrink(),
-                if (!net.isOnline)
-                  const Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: _OfflineBanner(),
-                  ),
-              ],
-            );
+            return child ?? const SizedBox.shrink();
           },
         );
       },
-    );
-  }
-}
-
-/// Píldora compacta que se asoma desde la barra de estado cuando no hay red.
-/// Se muestra sobre cualquier pantalla — el contenido sigue navegable porque
-/// los servicios devuelven cache cuando el back no responde.
-class _OfflineBanner extends StatelessWidget {
-  const _OfflineBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      bottom: false,
-      child: IgnorePointer(
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1F2937).withValues(alpha: 0.94),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: const Color(0xFFFFB020).withValues(alpha: 0.55),
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x55000000),
-                blurRadius: 16,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.cloud_off_rounded,
-                  size: 14, color: Color(0xFFFFB020)),
-              SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  'Modo offline — mostrando lo último cacheado',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
