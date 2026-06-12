@@ -712,6 +712,31 @@ class AuthService {
     return status == TokenStatus.valid;
   }
 
+  /// Avisa al back que el cliente cambió de cuenta. El back envía un push
+  /// a TODOS los devices del cliente con el mensaje "Cambiaste a la cuenta
+  /// <nombreCuenta>". Best-effort: si falla, no rompe el switch.
+  Future<void> notificarSwitch({
+    required String nombreCuenta,
+    String? dispositivo,
+  }) async {
+    try {
+      final token = await getToken();
+      if (token == null) return;
+      await http
+          .post(
+            Uri.parse('$baseUrl/clientes/notify-switch'),
+            headers: {..._jsonHeaders, 'Authorization': 'Bearer $token'},
+            body: jsonEncode({
+              'nombreCuenta': nombreCuenta,
+              if (dispositivo != null) 'dispositivo': dispositivo,
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint('⚠️ notify-switch falló: $e');
+    }
+  }
+
   /// Cierra la sesión activa.
   /// [keepSaved] = true mantiene la cuenta en la lista de cuentas guardadas
   /// (para reingreso rápido con biometría). false la elimina de la lista.

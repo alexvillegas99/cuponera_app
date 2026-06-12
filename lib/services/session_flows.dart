@@ -40,6 +40,11 @@ class SessionFlows {
       context.go('/login');
       return;
     }
+
+    // Push silencioso a todos los devices del cliente avisando del cambio
+    // de cuenta. Fire-and-forget — no bloquea la navegación.
+    _auth.notificarSwitch(nombreCuenta: acc.displayName);
+
     // Pasa por /switching para forzar la recarga del home (aunque sea la
     // misma ruta, p.ej. admin-local → admin).
     if (context.mounted) context.go('/switching');
