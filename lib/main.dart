@@ -13,6 +13,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'package:enjoy/config/router/app_router.dart';
+import 'package:enjoy/services/cache_service.dart';
 import 'package:enjoy/services/core/api_client.dart';
 import 'package:enjoy/services/favorites_service.dart';
 import 'package:enjoy/services/my_firebase_messaging_service.dart';
@@ -64,6 +65,9 @@ Future<void> main() async {
 
   await dotenv.load();
 
+  // Warm-up del cache en disco (SharedPreferences). No bloquea si falla.
+  unawaited(CacheService.I.init());
+
   /// 🔴 SOLO inicializa Firebase si NO es iOS
   if (isPushEnabled) {
     await Firebase.initializeApp();
@@ -78,7 +82,16 @@ Future<void> main() async {
 
   await initializeDateFormatting('es', null);
 
-  final String initialRoute = await getInitialRoute();
+  // Safety net: si por cualquier razón getInitialRoute se cuelga (Secure
+  // Storage roto, DNS atorado, etc.) NUNCA dejamos a la app pegada en el
+  // splash. A los 10s asumimos que no hay sesión y vamos a /login.
+  final String initialRoute = await getInitialRoute().timeout(
+    const Duration(seconds: 10),
+    onTimeout: () {
+      debugPrint('⚠️  getInitialRoute timeout — fallback a /login');
+      return '/login';
+    },
+  );
   final GoRouter router = buildRouter(initialRoute);
   final ThemeController themeController = await ThemeController.load();
 
@@ -119,10 +132,74 @@ class RootApp extends StatelessWidget {
       builder: (context, child) {
         return Consumer<ConnectivityStore>(
           builder: (_, net, __) {
-            return child ?? const SizedBox.shrink();
+            return Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                if (!net.isOnline)
+                  const Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: _OfflineBanner(),
+                  ),
+              ],
+            );
           },
         );
       },
+    );
+  }
+}
+
+/// Píldora compacta que se asoma desde la barra de estado cuando no hay red.
+/// Se muestra sobre cualquier pantalla — el contenido sigue navegable porque
+/// los servicios devuelven cache cuando el back no responde.
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: IgnorePointer(
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F2937).withValues(alpha: 0.94),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: const Color(0xFFFFB020).withValues(alpha: 0.55),
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x55000000),
+                blurRadius: 16,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.cloud_off_rounded,
+                  size: 14, color: Color(0xFFFFB020)),
+              SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'Modo offline — mostrando lo último cacheado',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

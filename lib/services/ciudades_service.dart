@@ -1,83 +1,110 @@
 // lib/services/ciudades_service.dart
 import 'package:flutter/material.dart';
+import 'package:enjoy/services/cache_service.dart';
 import 'package:enjoy/services/core/api_client.dart';
 import '../models/ciudad.dart';
 import '../models/provincia.dart';
 
+/// Endpoints de catálogos territoriales. Cada método aplica
+/// stale-while-revalidate: si el back falla, devuelve lo último cacheado.
 class CiudadesService {
-  /// Provincias activas (catálogo del Ecuador).
+  static const _kProvinciasActivas = 'catalog:provincias:activas';
+  static String _kRegistro(String? provinciaId) =>
+      'catalog:ciudades:registro:${provinciaId ?? "all"}';
+  static String _kPromosPorProvincia(String provinciaId) =>
+      'catalog:ciudades:promos:$provinciaId';
+  static const _kPromosTodas = 'catalog:ciudades:promos:all';
+
   Future<List<Provincia>> getProvincias() async {
-    final resp = await ApiClient.instance.get('/provincias/activas');
-    if (resp.statusCode != 200) {
+    try {
+      final resp = await ApiClient.instance.get('/provincias/activas');
+      if (resp.statusCode == 200) {
+        await CacheService.I.write(_kProvinciasActivas, resp.data);
+        return Provincia.listFrom(resp.data);
+      }
       throw Exception('Error ${resp.statusCode}: ${resp.data}');
+    } catch (e) {
+      final cached = await CacheService.I.read<List<dynamic>>(_kProvinciasActivas);
+      if (cached != null) return Provincia.listFrom(cached);
+      rethrow;
     }
-    return Provincia.listFrom(resp.data);
   }
 
-  /// Ciudades disponibles para el flujo de registro (todas las activas de
-  /// una provincia, no solo las que tienen promos).
   Future<List<Ciudad>> getParaRegistro({String? provinciaId}) async {
     final params = <String, dynamic>{};
     if (provinciaId != null && provinciaId.isNotEmpty) {
       params['provincia'] = provinciaId;
     }
-    final resp = await ApiClient.instance.get(
-      '/ciudades/registro',
-      queryParameters: params.isEmpty ? null : params,
-    );
-    if (resp.statusCode != 200) {
+    try {
+      final resp = await ApiClient.instance.get(
+        '/ciudades/registro',
+        queryParameters: params.isEmpty ? null : params,
+      );
+      if (resp.statusCode == 200) {
+        await CacheService.I.write(_kRegistro(provinciaId), resp.data);
+        return (resp.data as List)
+            .map((e) => Ciudad.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
       throw Exception('Error ${resp.statusCode}: ${resp.data}');
+    } catch (e) {
+      final cached =
+          await CacheService.I.read<List<dynamic>>(_kRegistro(provinciaId));
+      if (cached != null) {
+        return cached
+            .map((e) => Ciudad.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      rethrow;
     }
-    return (resp.data as List)
-        .map((e) => Ciudad.fromJson(e as Map<String, dynamic>))
-        .toList();
   }
 
-  /// Ciudades activas para promociones, opcionalmente filtradas por provincia.
   Future<List<Ciudad>> getParaPromosPorProvincia(String provinciaId) async {
-    final resp = await ApiClient.instance.get(
-      '/ciudades/promociones',
-      queryParameters: {'provincia': provinciaId},
-    );
-    if (resp.statusCode != 200) {
+    try {
+      final resp = await ApiClient.instance.get(
+        '/ciudades/promociones',
+        queryParameters: {'provincia': provinciaId},
+      );
+      if (resp.statusCode == 200) {
+        await CacheService.I
+            .write(_kPromosPorProvincia(provinciaId), resp.data);
+        return (resp.data as List)
+            .map((e) => Ciudad.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
       throw Exception('Error ${resp.statusCode}: ${resp.data}');
+    } catch (e) {
+      final cached = await CacheService.I
+          .read<List<dynamic>>(_kPromosPorProvincia(provinciaId));
+      if (cached != null) {
+        return cached
+            .map((e) => Ciudad.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      rethrow;
     }
-    return (resp.data as List)
-        .map((e) => Ciudad.fromJson(e as Map<String, dynamic>))
-        .toList();
   }
 
- Future<List<Ciudad>> getParaPromos() async {
-  final path = '/ciudades/promociones';
-
-  debugPrint('🌐 [GET] $path');
-
-  try {
-    final resp = await ApiClient.instance.get(path);
-
-    debugPrint('📡 [STATUS] ${resp.statusCode}');
-    debugPrint('📦 [BODY] ${resp.data}');
-
-    if (resp.statusCode != 200) {
-      debugPrint('❌ Error en respuesta');
+  Future<List<Ciudad>> getParaPromos() async {
+    try {
+      final resp = await ApiClient.instance.get('/ciudades/promociones');
+      if (resp.statusCode == 200) {
+        await CacheService.I.write(_kPromosTodas, resp.data);
+        return (resp.data as List)
+            .map((e) => Ciudad.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
       throw Exception('Error ${resp.statusCode}: ${resp.data}');
+    } catch (e, st) {
+      debugPrint('CiudadesService offline fallback: $e');
+      debugPrint('$st');
+      final cached = await CacheService.I.read<List<dynamic>>(_kPromosTodas);
+      if (cached != null) {
+        return cached
+            .map((e) => Ciudad.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      rethrow;
     }
-
-    final List data = resp.data as List;
-
-    debugPrint('✅ [PARSE] ciudades recibidas: ${data.length}');
-
-    final ciudades = data
-        .map((e) => Ciudad.fromJson(e as Map<String, dynamic>))
-        .toList();
-
-    debugPrint('🏙️ [MAP] ciudades mapeadas: ${ciudades.length}');
-
-    return ciudades;
-  } catch (e, st) {
-    debugPrint('🔥 [ERROR] getParaPromos -> $e');
-    debugPrint('$st');
-    rethrow;
   }
-}
 }

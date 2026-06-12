@@ -66,6 +66,16 @@ class SavedAccount {
       );
 }
 
+/// Resultado de validar el token contra el back en el boot.
+///
+/// - [valid]: el back aceptó el token (y refrescamos los datos cacheados).
+/// - [rejected]: el back rechazó el token (expirado, revocado, 4xx). El
+///   llamador debe hacer logout — la sesión ya no es buena.
+/// - [unreachable]: no pudimos contactar al back (timeout, sin red, 5xx).
+///   La sesión sigue siendo válida desde la perspectiva del cliente y la
+///   app puede arrancar en modo offline con datos cacheados.
+enum TokenStatus { valid, rejected, unreachable }
+
 class AuthService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final String baseUrl = dotenv.env['API_URL'] ?? '';

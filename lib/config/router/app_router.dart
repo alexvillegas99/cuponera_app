@@ -29,10 +29,20 @@ Future<String> getInitialRoute() async {
   // 2) ¿Hay sesión activa con token?
   final hasToken = await auth.hasToken();
   if (hasToken) {
-    // Refrescar token para validar que la sesión esté vigente.
-    final tokenValido = await auth.renewToken();
-    if (tokenValido) return auth.getTargetHomeRoute();
-    // Sesión activa expirada: la quitamos pero conservamos otras guardadas.
+    // Refrescar token contra el back con timeout corto. Distinguimos
+    // entre "rechazado" (logout) y "sin red" (entrar igual con cache):
+    // así un back lento o offline NO deja a la app pegada en el splash.
+    final status = await auth.renewTokenStatus(
+      timeout: const Duration(seconds: 5),
+    );
+    if (status == TokenStatus.valid) return auth.getTargetHomeRoute();
+    if (status == TokenStatus.unreachable) {
+      // Entrar offline: el usuario ve datos cacheados. El próximo request
+      // real intentará refrescar y, si el token está revocado, ApiClient
+      // dispara onSessionExpired y mandamos a /login.
+      return auth.getTargetHomeRoute();
+    }
+    // rejected: el back negó el token. Limpiamos sesión activa.
     await auth.logout();
   }
 

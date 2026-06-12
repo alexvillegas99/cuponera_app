@@ -296,18 +296,31 @@ Future<List<Promotion>> getAllActivePromos({
     final current = _cache[sig];
     if (current == null || !current.hasMore) return current ?? const PromoFeed(promos: [], page: 1, hasMore: false, total: 0);
 
-    final next = await _fetchPage(
-      provinciaIds: provinciaIds,
-      ciudadIds: ciudadIds,
-      q: q,
-      isToday: isToday,
-      isFlash: isFlash,
-      localIds: localIds,
-      lat: lat,
-      lng: lng,
-      page: current.page + 1,
-      limit: limit,
-    );
+    final PromoFeed next;
+    try {
+      next = await _fetchPage(
+        provinciaIds: provinciaIds,
+        ciudadIds: ciudadIds,
+        q: q,
+        isToday: isToday,
+        isFlash: isFlash,
+        localIds: localIds,
+        lat: lat,
+        lng: lng,
+        page: current.page + 1,
+        limit: limit,
+      );
+    } catch (_) {
+      // Sin red durante un loadMore: devolvemos lo que ya tenemos,
+      // marcando hasMore=false para que el infinite-scroll deje de pedir
+      // hasta que vuelva la conexión y el usuario haga refresh.
+      return PromoFeed(
+        promos: current.promos,
+        page: current.page,
+        hasMore: false,
+        total: current.total,
+      );
+    }
     // Append deduplicado por id.
     final seen = current.promos.map((p) => p.id).toSet();
     final merged = [
