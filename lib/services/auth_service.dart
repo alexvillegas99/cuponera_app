@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -641,34 +642,64 @@ class AuthService {
 
   Future<String?> getKind() => _storage.read(key: 'kind');
 
-  Future<bool> renewToken() async {
+  /// Valida el token actual contra el back.
+  ///
+  /// Devuelve:
+  /// - [TokenStatus.valid] si el back lo aceptó (y refrescó user+token en cache).
+  /// - [TokenStatus.rejected] si el back lo rechazó (4xx / cuerpo vacío) →
+  ///   el llamador debe hacer logout.
+  /// - [TokenStatus.unreachable] si no hubo respuesta a tiempo (timeout, sin
+  ///   red, 5xx). En este caso NO debemos hacer logout: la sesión sigue
+  ///   válida y la app puede arrancar offline con datos cacheados.
+  Future<TokenStatus> renewTokenStatus({
+    Duration timeout = const Duration(seconds: 6),
+  }) async {
     final token = await getToken();
-    if (token == null) return false;
+    if (token == null) return TokenStatus.rejected;
 
     final uri = Uri.parse('$baseUrl/auth/refresh-token');
 
     try {
-      final resp = await http.get(
-        uri,
-        headers: {..._jsonHeaders, 'Authorization': 'Bearer $token'},
-      );
+      final resp = await http
+          .get(
+            uri,
+            headers: {..._jsonHeaders, 'Authorization': 'Bearer $token'},
+          )
+          .timeout(timeout);
 
       if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body);
-        final newToken = data['token'];
-        final user = data['user'];
-
-        if (newToken == null || user == null) return false;
-
-        user['kind'] = user['kind'] ?? (await getKind()) ?? 'USUARIO';
-
-        await saveUserData(newToken, user);
-        return true;
+        try {
+          final data = jsonDecode(resp.body);
+          final newToken = data['token'];
+          final user = data['user'];
+          if (newToken == null || user == null) return TokenStatus.rejected;
+          user['kind'] = user['kind'] ?? (await getKind()) ?? 'USUARIO';
+          await saveUserData(newToken, user);
+          return TokenStatus.valid;
+        } catch (_) {
+          return TokenStatus.rejected;
+        }
       }
-      return false;
+      // 4xx → token inválido → logout. 5xx → el back falla, no es culpa del
+      // cliente: tratamos como unreachable para que el usuario entre igual.
+      if (resp.statusCode >= 500) return TokenStatus.unreachable;
+      return TokenStatus.rejected;
+    } on TimeoutException {
+      return TokenStatus.unreachable;
+    } on SocketException {
+      return TokenStatus.unreachable;
+    } on http.ClientException {
+      return TokenStatus.unreachable;
     } catch (_) {
-      return false;
+      return TokenStatus.unreachable;
     }
+  }
+
+  /// Compatibilidad con código existente: true = válido, false = rechazado o
+  /// sin red. Para distinguir esos dos casos usar [renewTokenStatus].
+  Future<bool> renewToken() async {
+    final status = await renewTokenStatus();
+    return status == TokenStatus.valid;
   }
 
   /// Cierra la sesión activa.

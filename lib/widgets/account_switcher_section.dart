@@ -29,6 +29,7 @@ class _AccountSwitcherSectionState extends State<AccountSwitcherSection> {
 
   List<SavedAccount> _saved = [];
   String? _currentId;
+  String _currentEmail = '';
 
   bool _showSiblingSwitch = false;
   String _siblingLabel = ''; // 'empresa' | 'cliente'
@@ -70,6 +71,7 @@ class _AccountSwitcherSectionState extends State<AccountSwitcherSection> {
     setState(() {
       _saved = saved;
       _currentId = currentId;
+      _currentEmail = email;
       _bioReady = bio;
       _showSiblingSwitch = showSibling;
       _siblingLabel = siblingLabel;
@@ -79,7 +81,20 @@ class _AccountSwitcherSectionState extends State<AccountSwitcherSection> {
 
   Future<void> _addAccount() async {
     if (!mounted) return;
-    context.go('/login');
+    context.push('/login');
+  }
+
+  String _emailFor(SavedAccount account) {
+    if (account.email.trim().isNotEmpty) return account.email.trim();
+    return (account.user['correo'] ?? account.user['email'] ?? '')
+        .toString()
+        .trim();
+  }
+
+  String _accountSubtitle(SavedAccount account) {
+    final email = _emailFor(account);
+    final detail = 'Cuenta ${account.tipoLabel} · huella / Face ID';
+    return email.isEmpty ? detail : '$email\n$detail';
   }
 
   @override
@@ -167,7 +182,9 @@ class _AccountSwitcherSectionState extends State<AccountSwitcherSection> {
                     ),
                     title:
                         'Cambiar a ${_siblingLabel == 'empresa' ? 'Empresa' : 'Cliente'}',
-                    subtitle: 'Misma cuenta · huella / Face ID',
+                    subtitle: _currentEmail.isEmpty
+                        ? 'Misma cuenta · huella / Face ID'
+                        : '$_currentEmail\nMisma cuenta · huella / Face ID',
                     trailing: Icon(Icons.fingerprint_rounded,
                         color: ec.orangeSoft, size: 22),
                     onTap: () {
@@ -183,7 +200,7 @@ class _AccountSwitcherSectionState extends State<AccountSwitcherSection> {
                       leading: EnjoyAvatar(a.displayName,
                           size: 40, accent: a.isCliente),
                       title: a.displayName,
-                      subtitle: 'Cuenta ${a.tipoLabel} · huella / Face ID',
+                      subtitle: _accountSubtitle(a),
                       trailing: Icon(Icons.fingerprint_rounded,
                           color: ec.orangeSoft, size: 22),
                       onTap: () {

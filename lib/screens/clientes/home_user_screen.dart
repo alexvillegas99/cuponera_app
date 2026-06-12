@@ -1262,7 +1262,8 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                   onTap: () => setState(() => _destacadoTab = 'flash'),
                 ),
               const Spacer(),
-              GestureDetector(
+              InkWell(
+                borderRadius: BorderRadius.circular(999),
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -1271,17 +1272,38 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                         : const PromosHoyScreen(),
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Ver todo',
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: tabActivo == 'flash'
+                        ? ec.orange.withValues(alpha: 0.16)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(999),
+                    border: tabActivo == 'flash'
+                        ? Border.all(
+                            color: ec.orange.withValues(alpha: 0.45))
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (tabActivo == 'flash') ...[
+                        Icon(Icons.bolt_rounded,
+                            size: 15, color: ec.orangeSoft),
+                        const SizedBox(width: 3),
+                      ],
+                      Text(
+                        tabActivo == 'flash' ? 'Ver promos flash' : 'Ver todo',
                         style: EnjoyTheme.body(
                             size: 12.5,
                             color: ec.orangeSoft,
-                            weight: FontWeight.w600)),
-                    Icon(Icons.chevron_right_rounded,
-                        size: 16, color: ec.orangeSoft),
-                  ],
+                            weight: FontWeight.w700),
+                      ),
+                      Icon(Icons.chevron_right_rounded,
+                          size: 16, color: ec.orangeSoft),
+                    ],
+                  ),
                 ),
               ),
             ],
