@@ -200,6 +200,25 @@ class MyFirebaseMessagingService {
       return;
     }
 
+    // Pedido de reseña tras un canje → abre el detalle del local para
+    // que el cliente lo califique.
+    if (tipo == 'resena') {
+      final localId = m.data['localId']?.toString();
+      if (localId != null && localId.isNotEmpty) {
+        appRouter?.push('/local/$localId');
+        return;
+      }
+    }
+
+    // Recordatorio "tu cuponera sigue sin estrenar" → abre la cuponera.
+    if (tipo == 'recordatorio-cupon') {
+      final cuponId = m.data['cuponId']?.toString();
+      if (cuponId != null && cuponId.isNotEmpty) {
+        appRouter?.push('/cupon/$cuponId');
+        return;
+      }
+    }
+
     final url = m.data['link']?.toString();
     if (url != null && url.isNotEmpty) _abrirEnlace(url);
   }

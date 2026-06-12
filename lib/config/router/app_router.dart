@@ -13,6 +13,8 @@ import 'package:enjoy/screens/recuperar_cuenta_screen.dart';
 import 'package:enjoy/screens/register_cliente_screen.dart';
 import 'package:enjoy/screens/restablecer_password_screen.dart';
 import 'package:enjoy/screens/solicitud_empresa_screen.dart';
+import 'package:enjoy/screens/clientes/comercio_detalle_mini_screen.dart';
+import 'package:enjoy/screens/clientes/detalle_cupon.dart';
 import 'package:enjoy/screens/clientes/home_user_screen.dart';
 import 'package:enjoy/screens/account_picker_screen.dart';
 import 'package:enjoy/screens/switching_screen.dart';
@@ -163,6 +165,21 @@ GoRouter buildRouter(String initialRoute) {
         path: '/notificaciones/preferencias',
         pageBuilder: (context, state) =>
             _slidePage(state, const NotificacionPrefsScreen()),
+      ),
+      // Deep-links de push notifications (recordatorios y reseñas).
+      GoRoute(
+        path: '/local/:id',
+        pageBuilder: (context, state) => _slidePage(
+          state,
+          ComercioDetalleMiniScreen(usuarioId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/cupon/:id',
+        pageBuilder: (context, state) => _slidePage(
+          state,
+          CuponDetalleScreen(cuponId: state.pathParameters['id']!),
+        ),
       ),
     ],
   );
