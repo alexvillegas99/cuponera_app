@@ -1,8 +1,12 @@
 // lib/services/promociones_flash_service.dart
+import 'package:enjoy/services/cache_service.dart';
 import 'package:enjoy/services/core/api_client.dart';
 
 /// Servicio de Promociones Flash (admin-local, cliente y canje staff).
 class PromocionesFlashService {
+  static String _kFeed(String key) => 'flash:feed:$key';
+  static String _kDetalle(String id) => 'flash:detalle:$id';
+
   // ── Admin-local ────────────────────────────────────────────────────────────
 
   /// Crea una promoción flash. POST /promociones-flash
@@ -38,7 +42,8 @@ class PromocionesFlashService {
 
   // ── Cliente ──────────────────────────────────────────────────────────────────
 
-  /// Feed por ciudad(es) o provincia. GET /promociones-flash
+  /// Feed por ciudad(es) o provincia, con fallback a la última pág. 1
+  /// cacheada para esa combinación.
   Future<Map<String, dynamic>> feed({
     List<String>? ciudades,
     String? provincia,
@@ -46,20 +51,43 @@ class PromocionesFlashService {
     int limit = 20,
   }) async {
     final params = <String, dynamic>{'page': page, 'limit': limit};
+    final cacheKey = (ciudades != null && ciudades.isNotEmpty)
+        ? 'c:${(ciudades.toList()..sort()).join(",")}'
+        : 'p:${provincia ?? "none"}';
     if (ciudades != null && ciudades.isNotEmpty) {
       params['ciudades'] = ciudades.join(',');
     } else if (provincia != null && provincia.isNotEmpty) {
       params['provincia'] = provincia;
     }
-    final resp = await ApiClient.instance
-        .get('/promociones-flash', queryParameters: params);
-    return Map<String, dynamic>.from(resp.data);
+    try {
+      final resp = await ApiClient.instance
+          .get('/promociones-flash', queryParameters: params);
+      final data = Map<String, dynamic>.from(resp.data);
+      if (page == 1) await CacheService.I.write(_kFeed(cacheKey), data);
+      return data;
+    } catch (_) {
+      if (page == 1) {
+        final cached =
+            await CacheService.I.read<Map<String, dynamic>>(_kFeed(cacheKey));
+        if (cached != null) return Map<String, dynamic>.from(cached);
+      }
+      rethrow;
+    }
   }
 
-  /// Detalle (suma una vista). GET /promociones-flash/:id
+  /// Detalle de una flash con fallback a cache.
   Future<Map<String, dynamic>> detalle(String id) async {
-    final resp = await ApiClient.instance.get('/promociones-flash/$id');
-    return Map<String, dynamic>.from(resp.data);
+    try {
+      final resp = await ApiClient.instance.get('/promociones-flash/$id');
+      final data = Map<String, dynamic>.from(resp.data);
+      await CacheService.I.write(_kDetalle(id), data);
+      return data;
+    } catch (_) {
+      final cached =
+          await CacheService.I.read<Map<String, dynamic>>(_kDetalle(id));
+      if (cached != null) return Map<String, dynamic>.from(cached);
+      rethrow;
+    }
   }
 
   /// Cliente: usar la promo → devuelve { qrData, titulo }. POST /:id/usar

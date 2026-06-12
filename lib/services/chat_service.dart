@@ -1,7 +1,11 @@
+import 'package:enjoy/services/cache_service.dart';
 import 'package:enjoy/services/core/api_client.dart';
 
 /// Servicio HTTP para el chat (Modelo Soporte: 1 hilo por local + bandeja).
 class ChatService {
+  static const _kMiHilo = 'chat:mi-hilo';
+  static String _kMensajes(String hiloId) => 'chat:mensajes:$hiloId';
+
   /// Para usuarios soporte: lista paginada de hilos.
   /// Para admin-local / staff: devuelve solo SU hilo.
   Future<Map<String, dynamic>> listarHilos({
@@ -20,10 +24,21 @@ class ChatService {
     return Map<String, dynamic>.from(resp.data);
   }
 
-  /// Devuelve (o crea) el hilo del local actual.
+  /// Devuelve (o crea) el hilo del local actual. Fallback a cache para que
+  /// la pantalla de soporte muestre el hilo aunque la red falle (el envío
+  /// de mensajes nuevos seguirá requiriendo red).
   Future<Map<String, dynamic>> miHilo() async {
-    final resp = await ApiClient.instance.get('/chat/mi-hilo');
-    return Map<String, dynamic>.from(resp.data);
+    try {
+      final resp = await ApiClient.instance.get('/chat/mi-hilo');
+      final data = Map<String, dynamic>.from(resp.data);
+      await CacheService.I.write(_kMiHilo, data);
+      return data;
+    } catch (_) {
+      final cached =
+          await CacheService.I.read<Map<String, dynamic>>(_kMiHilo);
+      if (cached != null) return Map<String, dynamic>.from(cached);
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> obtenerHilo(String id) async {
@@ -38,6 +53,8 @@ class ChatService {
   }
 
   /// Mensajes paginados (cursor = id del último mensaje cargado hacia atrás).
+  /// Sólo cacheamos la primera página (cursor=null) — al volver al chat
+  /// offline el cliente ve los últimos mensajes pero no puede paginar más.
   Future<Map<String, dynamic>> mensajes(
     String hiloId, {
     String? cursor,
@@ -45,9 +62,22 @@ class ChatService {
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (cursor != null) params['cursor'] = cursor;
-    final resp = await ApiClient.instance
-        .get('/chat/hilos/$hiloId/mensajes', queryParameters: params);
-    return Map<String, dynamic>.from(resp.data);
+    try {
+      final resp = await ApiClient.instance
+          .get('/chat/hilos/$hiloId/mensajes', queryParameters: params);
+      final data = Map<String, dynamic>.from(resp.data);
+      if (cursor == null) {
+        await CacheService.I.write(_kMensajes(hiloId), data);
+      }
+      return data;
+    } catch (_) {
+      if (cursor == null) {
+        final cached = await CacheService.I
+            .read<Map<String, dynamic>>(_kMensajes(hiloId));
+        if (cached != null) return Map<String, dynamic>.from(cached);
+      }
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> enviar(

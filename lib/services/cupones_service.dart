@@ -3,66 +3,60 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:enjoy/mappers/cuponera.dart';
+import 'package:enjoy/services/cache_service.dart';
 import 'package:enjoy/services/core/api_client.dart';
 import 'package:enjoy/services/core/api_exception.dart';
 import '../mappers/detalle_cupon.dart';
 
 class CuponesService {
-  /// Lista las cuponeras (cupones asignados) de un cliente
+  static String _kListar(String clienteId, bool soloActivas) =>
+      'cupones:listar:$clienteId:$soloActivas';
+  static String _kDetalle(String cuponId) => 'cupones:detalle:$cuponId';
+  static String _kLocalesDisp(String clienteId) =>
+      'cupones:locales-disp:$clienteId';
+
+  /// Lista las cuponeras de un cliente con fallback a cache.
   /// GET /cupones/clientes/buscar/:clienteId?soloActivas=true
-Future<List<Cuponera>> listarPorCliente(
-  String clienteId, {bool soloActivas = true}
-) async {
-  final path = '/cupones/clientes/buscar/$clienteId';
-  print('[CuponesService] ➡️ GET $path');
-
-  final resp = await ApiClient.instance.get(
-    path,
-    queryParameters: {'soloActivas': soloActivas.toString()},
-  );
-
-  print('[CuponesService] ⬅️ Status: ${resp.statusCode}');
-  print('[CuponesService] ⬅️ Raw body: ${resp.data}');
-
-  final dynamic decoded = resp.data;
-
-  print('[CuponesService] Tipo top-level: ${decoded.runtimeType}');
-
-  if (decoded is! List) {
-    throw Exception('[CuponesService] Se esperaba un List, vino ${decoded.runtimeType}');
-  }
-
-  final list = decoded;
-  print('[CuponesService] Longitud lista: ${list.length}');
-
-  final out = <Cuponera>[];
-  for (var i = 0; i < list.length; i++) {
-    final item = list[i];
-    if (item is! Map<String, dynamic>) {
-      print('[CuponesService] ⚠️ Item $i no es Map<String,dynamic>: ${item.runtimeType}');
-      continue;
-    }
-
+  Future<List<Cuponera>> listarPorCliente(
+    String clienteId, {
+    bool soloActivas = true,
+  }) async {
     try {
-      final c = Cuponera.fromJson(item);
-      out.add(c);
-
-      if (i < 3) {
-        print('[CuponesService] ✅ Map OK [$i]: '
-              'id=${c.id}, nombre=${c.nombre}, codigo=${c.codigo}, '
-              'emitidaEl=${c.emitidaEl}, expiraEl=${c.expiraEl}, '
-              'totalEscaneos=${c.totalEscaneos}, lastScanAt=${c.lastScanAt}');
+      final resp = await ApiClient.instance.get(
+        '/cupones/clientes/buscar/$clienteId',
+        queryParameters: {'soloActivas': soloActivas.toString()},
+      );
+      final decoded = resp.data;
+      if (decoded is! List) {
+        throw Exception('Se esperaba un List, vino ${decoded.runtimeType}');
       }
-    } catch (e, st) {
-      print('[CuponesService] ❌ Error mapeando item $i: $e');
-      print(st);
+      final out = <Cuponera>[];
+      for (final item in decoded) {
+        if (item is Map<String, dynamic>) {
+          try {
+            out.add(Cuponera.fromJson(item));
+          } catch (_) {}
+        }
+      }
+      await CacheService.I.write(_kListar(clienteId, soloActivas), decoded);
+      return out;
+    } catch (e) {
+      final cached = await CacheService.I
+          .read<List<dynamic>>(_kListar(clienteId, soloActivas));
+      if (cached != null) {
+        final out = <Cuponera>[];
+        for (final item in cached) {
+          if (item is Map) {
+            try {
+              out.add(Cuponera.fromJson(Map<String, dynamic>.from(item)));
+            } catch (_) {}
+          }
+        }
+        return out;
+      }
       rethrow;
     }
   }
-
-  print('[CuponesService] ✅ Mapeadas ${out.length} cuponeras');
-  return out;
-}
 
   /// Caché en memoria de las cuponeras del cliente (por clienteId+soloActivas).
   /// Solo se refresca con [force] (pull-to-refresh).
@@ -174,28 +168,23 @@ Future<Map<String, dynamic>> findByIdRaw(String cuponId) async {
     print('[CuponesService] ⬅️ ${resp.statusCode} ${resp.data}');
   }
 
-    /// Detalle de cuponera por cupón (sin IDs en respuesta)
+  /// Detalle de cuponera por cupón con fallback a cache.
   /// GET /cupones/:cuponId/detalle
   Future<DetalleCupon> obtenerDetallePorCupon(String cuponId) async {
-    final path = '/cupones/$cuponId/detalle';
-    print('[CuponesService] ➡️ GET $path');
-
-    final resp = await ApiClient.instance.get(path);
-    print('[CuponesService] ⬅️ Status: ${resp.statusCode}');
-    print('[CuponesService] ⬅️ Raw body: ${resp.data}');
-
-    final dynamic decoded = resp.data;
-
-    if (decoded is! Map<String, dynamic>) {
-      throw Exception('[CuponesService] Se esperaba Map, vino ${decoded.runtimeType}');
+    try {
+      final resp = await ApiClient.instance.get('/cupones/$cuponId/detalle');
+      final decoded = resp.data;
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Se esperaba Map, vino ${decoded.runtimeType}');
+      }
+      await CacheService.I.write(_kDetalle(cuponId), decoded);
+      return DetalleCupon.fromJson(decoded);
+    } catch (e) {
+      final cached =
+          await CacheService.I.read<Map<String, dynamic>>(_kDetalle(cuponId));
+      if (cached != null) return DetalleCupon.fromJson(cached);
+      rethrow;
     }
-
-    final detalle = DetalleCupon.fromJson(decoded);
-    print('[CuponesService] ✅ Detalle OK | '
-          'escaneados=${detalle.lugaresScaneados.length} | '
-          'sinScannear=${detalle.lugaresSinScannear.length} | '
-          'totalEscaneos=${detalle.totalEscaneos}');
-    return detalle;
   }
 
   /// Cupones disponibles de un cliente para canjear en un local específico
@@ -247,13 +236,23 @@ Future<Map<String, dynamic>> findByIdRaw(String cuponId) async {
   }
 
   /// Ids de los locales donde el cliente tiene cupón disponible para canjear.
+  /// Fallback a cache: el filtro "solo con cupón" sigue funcionando offline.
   Future<List<String>> localesDisponibles(String clienteId) async {
-    final resp = await ApiClient.instance.get(
-      '/cupones/clientes/$clienteId/locales-disponibles',
-    );
-    if (resp.data is List) {
-      return (resp.data as List).map((e) => e.toString()).toList();
+    try {
+      final resp = await ApiClient.instance.get(
+        '/cupones/clientes/$clienteId/locales-disponibles',
+      );
+      if (resp.data is List) {
+        final list = (resp.data as List).map((e) => e.toString()).toList();
+        await CacheService.I.write(_kLocalesDisp(clienteId), list);
+        return list;
+      }
+      return [];
+    } catch (_) {
+      final cached = await CacheService.I
+          .read<List<dynamic>>(_kLocalesDisp(clienteId));
+      if (cached != null) return cached.map((e) => e.toString()).toList();
+      return [];
     }
-    return [];
   }
 }

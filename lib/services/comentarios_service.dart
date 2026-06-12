@@ -1,7 +1,11 @@
 // lib/services/comentarios_service.dart
+import 'package:enjoy/services/cache_service.dart';
 import 'package:enjoy/services/core/api_client.dart';
 
 class ComentariosService {
+  static String _kMio(String usuarioId, String clienteId) =>
+      'comentarios:mio:$usuarioId:$clienteId';
+
   /// GET /comentarios/eligibilidad?usuarioId=...&clienteId=...
   Future<Map<String, dynamic>> elegibilidad({
     required String usuarioId,
@@ -18,7 +22,8 @@ class ComentariosService {
   }
 
   /// GET /comentarios/mio/:usuarioId?clienteId=...
-  /// Si 404 -> retorna null
+  /// Si 404 -> retorna null. Si hay otro error y tenemos cache, devolvemos
+  /// el cache para que la pantalla de detalle del local funcione offline.
   Future<Map<String, dynamic>?> obtenerMiComentario({
     required String usuarioId,
     required String clienteId,
@@ -28,10 +33,15 @@ class ComentariosService {
         '/comentarios/mio/$usuarioId',
         queryParameters: {'clienteId': clienteId},
       );
-      return resp.data as Map<String, dynamic>;
+      final data = resp.data as Map<String, dynamic>;
+      await CacheService.I.write(_kMio(usuarioId, clienteId), data);
+      return data;
     } catch (e) {
-      // DioException on 404 -> return null
+      // 404 = no hay comentario → null. Otros errores → intentar cache.
       if (e.toString().contains('404')) return null;
+      final cached = await CacheService.I
+          .read<Map<String, dynamic>>(_kMio(usuarioId, clienteId));
+      if (cached != null) return cached;
       rethrow;
     }
   }

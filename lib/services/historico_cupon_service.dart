@@ -1,6 +1,9 @@
+import 'package:enjoy/services/cache_service.dart';
 import 'package:enjoy/services/core/api_client.dart';
 
 class HistoricoCuponService {
+  static String _kUsuario(String id) => 'historico:usuario:$id';
+
   /// POST /historico
   Future<Map<String, dynamic>> registrarEscaneo(
     Map<String, dynamic> dto,
@@ -49,14 +52,21 @@ class HistoricoCuponService {
     }
   }
 
-  /// GET /historico/get/usuario/:id
+  /// GET /historico/get/usuario/:id con fallback a cache. El cliente lo usa
+  /// para ver su historial de canjes — sigue disponible offline.
   Future<List<dynamic>> obtenerPorUsuario(String id) async {
-    final resp = await ApiClient.instance.get('/historico/get/usuario/$id');
-
-    if (resp.statusCode == 200) {
-      return resp.data as List<dynamic>;
-    } else {
+    try {
+      final resp = await ApiClient.instance.get('/historico/get/usuario/$id');
+      if (resp.statusCode == 200) {
+        final list = resp.data as List<dynamic>;
+        await CacheService.I.write(_kUsuario(id), list);
+        return list;
+      }
       throw Exception('No se encontraron cupones para el usuario $id');
+    } catch (e) {
+      final cached = await CacheService.I.read<List<dynamic>>(_kUsuario(id));
+      if (cached != null) return cached;
+      rethrow;
     }
   }
 
