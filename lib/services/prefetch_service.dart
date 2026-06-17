@@ -30,10 +30,11 @@ class PrefetchService {
   /// Si ya hay un prefetch corriendo para este cliente, no arrancamos otro.
   static String? _ejecutandoPara;
 
-  /// Cuántas páginas extra del feed cargar para uso offline (cada una ~30
-  /// items). 3 páginas ≈ 90 promos cacheadas. Subir esto cuesta MB en disco
-  /// y datos móviles — 3 es un buen balance.
-  static const int _kPaginasExtraFeed = 2;
+  /// Cap de seguridad para descargar el feed completo: el while corta cuando
+  /// `hasMore` es false, pero si el back devuelve siempre `hasMore=true` por
+  /// un bug NO queremos un loop infinito. 50 páginas × 30 = 1500 items, más
+  /// que cualquier ciudad real del Ecuador.
+  static const int _kCapPaginasFeed = 50;
 
   /// Lanza el prefetch del cliente con id [clienteId]. Si ya estaba corriendo
   /// para ese mismo cliente, ignora la llamada (evita doble trabajo si el
@@ -106,16 +107,11 @@ class PrefetchService {
         );
       }
 
-      // 7) Promociones flash actuales para esa ubicación.
+      // 7) Promociones flash actuales para esa ubicación — todas las páginas.
       if (ubicacion.provincias.isNotEmpty) {
         await _ejecutarPaso(
           'feed flash',
-          () => PromocionesFlashService().feed(
-            provincia: ubicacion.provincias.first,
-            ciudades: ubicacion.ciudades.isEmpty ? null : ubicacion.ciudades,
-            page: 1,
-            limit: 30,
-          ),
+          () => _prefetchFlash(ubicacion),
         );
       }
 
@@ -179,24 +175,29 @@ class PrefetchService {
 
   Future<void> _prefetchFeed(_Ubicacion u) async {
     final svc = PromotionsService();
+    // Feed completo del home: 1ª pág + loop hasta hasMore=false (con cap).
     await svc.loadFirst(
       provinciaIds: u.provincias,
       ciudadIds: u.ciudades.isEmpty ? null : u.ciudades,
       isToday: false,
       force: true,
     );
-    for (var i = 0; i < _kPaginasExtraFeed; i++) {
+    var i = 0;
+    while (i < _kCapPaginasFeed) {
       try {
         final feed = await svc.loadMore(
           provinciaIds: u.provincias,
           ciudadIds: u.ciudades.isEmpty ? null : u.ciudades,
         );
         if (!feed.hasMore) break;
+        i++;
       } catch (_) {
         break;
       }
     }
-    // Y también el feed "hoy" para que la pestaña Hoy del home cargue offline.
+    debugPrint('🔥 [Prefetch]   …${i + 1} págs del feed normal');
+
+    // Feed "hoy" completo también, para la pestaña Hoy del home.
     try {
       await svc.loadFirst(
         provinciaIds: u.provincias,
@@ -204,7 +205,45 @@ class PrefetchService {
         isToday: true,
         force: true,
       );
+      var j = 0;
+      while (j < _kCapPaginasFeed) {
+        try {
+          final feed = await svc.loadMore(
+            provinciaIds: u.provincias,
+            ciudadIds: u.ciudades.isEmpty ? null : u.ciudades,
+            isToday: true,
+          );
+          if (!feed.hasMore) break;
+          j++;
+        } catch (_) {
+          break;
+        }
+      }
+      debugPrint('🔥 [Prefetch]   …${j + 1} págs del feed hoy');
     } catch (_) {}
+  }
+
+  /// Baja todas las flash de la ubicación. La API de flash es paginada por
+  /// `page`/`limit` y devuelve `{ data, hasMore, ... }`.
+  Future<void> _prefetchFlash(_Ubicacion u) async {
+    final svc = PromocionesFlashService();
+    var page = 1;
+    while (page <= _kCapPaginasFeed) {
+      try {
+        final res = await svc.feed(
+          provincia: u.provincias.first,
+          ciudades: u.ciudades.isEmpty ? null : u.ciudades,
+          page: page,
+          limit: 30,
+        );
+        final hasMore = res['hasMore'] == true;
+        if (!hasMore) break;
+        page++;
+      } catch (_) {
+        break;
+      }
+    }
+    debugPrint('🔥 [Prefetch]   …$page págs del feed flash');
   }
 
   /// Recolecta los `usuarioId` (= localId) de los locales presentes en los
