@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:enjoy/main.dart' show isPushEnabled;
 import 'package:enjoy/services/my_firebase_messaging_service.dart';
+import 'package:enjoy/services/prefetch_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -179,6 +180,10 @@ class AuthService {
           myFirebaseService?.subscribeToTopic(userId);
           // Guardar FCM token en el backend para notificaciones personalizadas
           _guardarFcmToken(userId);
+          // Pre-fetch agresivo en segundo plano: descargar TODO lo del
+          // cliente para que la app pueda usarse offline tras este login.
+          // Fire-and-forget, no bloquea la navegación al home.
+          unawaited(PrefetchService.I.warmupCliente(userId));
         }
 
         // Topics de segmentación (broadcast por provincia/ciudad/categoría).
@@ -247,6 +252,7 @@ class AuthService {
         if (userId != null && userId.isNotEmpty) {
           myFirebaseService?.subscribeToTopic(userId);
           _guardarFcmToken(userId);
+          unawaited(PrefetchService.I.warmupCliente(userId));
         }
         _suscribirTopicsCliente(user);
 
@@ -318,6 +324,7 @@ class AuthService {
       if (userId != null && userId.isNotEmpty) {
         myFirebaseService?.subscribeToTopic(userId);
         _guardarFcmToken(userId);
+        unawaited(PrefetchService.I.warmupCliente(userId));
       }
       if (context.mounted) context.go('/home_user');
       return {'registered': true};
@@ -427,6 +434,7 @@ class AuthService {
       if (userId != null && userId.isNotEmpty) {
         myFirebaseService?.subscribeToTopic(userId);
         _guardarFcmToken(userId);
+        unawaited(PrefetchService.I.warmupCliente(userId));
       }
       if (context.mounted) context.go('/home_user');
       return {'registered': true};

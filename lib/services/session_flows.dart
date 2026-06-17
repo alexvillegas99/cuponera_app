@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/biometric_service.dart';
+import 'package:enjoy/services/prefetch_service.dart';
 import 'package:enjoy/ui/enjoy.dart';
 
 /// Flujos de sesión multi-cuenta: cambio de cuenta con biometría, hoja de
@@ -44,6 +45,17 @@ class SessionFlows {
     // Push silencioso a todos los devices del cliente avisando del cambio
     // de cuenta. Fire-and-forget — no bloquea la navegación.
     _auth.notificarSwitch(nombreCuenta: acc.displayName);
+
+    // Pre-fetch del cliente recién activado: si es CLIENTE, refrescamos
+    // su cache local en segundo plano para que funcione offline luego.
+    // Best-effort: la navegación no espera por esto.
+    final activeUser = await _auth.getUser();
+    final activeId = activeUser?['_id']?.toString();
+    final esCliente = (activeUser?['kind'] ?? '').toString().toUpperCase() ==
+        'CLIENTE';
+    if (esCliente && activeId != null && activeId.isNotEmpty) {
+      PrefetchService.I.warmupCliente(activeId);
+    }
 
     // Pasa por /switching para forzar la recarga del home (aunque sea la
     // misma ruta, p.ej. admin-local → admin).
