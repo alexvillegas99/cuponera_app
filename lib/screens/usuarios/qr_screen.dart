@@ -44,6 +44,14 @@ class _QrScanScreenState extends State<QrScanScreen> {
     super.dispose();
   }
 
+  /// Devuelve true si [s] es un ObjectId de 24 chars hex (formato Mongo) — el
+  /// formato de los cupones de Enjoy. Sirve para filtrar QRs random ANTES de
+  /// pegarle al back, así no confundimos "sin red" con "QR de otra app".
+  bool _esObjectIdValido(String s) {
+    if (s.length != 24) return false;
+    return RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(s);
+  }
+
   Future<void> _handleQrDetected(String data) async {
     if (_locked) return; // ya hay una solicitud en curso
     _locked = true;
@@ -62,6 +70,13 @@ class _QrScanScreenState extends State<QrScanScreen> {
         return;
       }
 
+      // Filtro local: si el QR no tiene formato de cupón Enjoy (ObjectId Mongo)
+      // tampoco le pegamos al back. Así diferenciamos "QR de otra app" de
+      // "el back está caído o sin red" más adelante en el catch.
+      if (!_esObjectIdValido(cuponId)) {
+        throw _NoEsCuponEnjoyException();
+      }
+
       final usuario = await authService.getUser();
       final rol = usuario?['rol']?.toString().toLowerCase();
       final esStaff = rol == 'staff';
@@ -71,6 +86,10 @@ class _QrScanScreenState extends State<QrScanScreen> {
           ? (usuario?['usuarioCreacion']?.toString())
           : escaneadoPorId;
       debugPrint('[QR] rol: $rol | esStaff: $esStaff | usuarioId: $usuarioId | escaneadoPor: $escaneadoPorId');
+      if (esStaff && (usuarioId == null || usuarioId.isEmpty)) {
+        throw Exception(
+            'Tu cuenta de staff no tiene un local asignado. Pídele al admin del local que te re-asigne.');
+      }
       if (usuarioId == null || escaneadoPorId == null) {
         throw Exception('No se pudo obtener el usuario autenticado');
       }
@@ -106,14 +125,45 @@ class _QrScanScreenState extends State<QrScanScreen> {
       }
       if (!mounted) return;
 
-      // Extraer mensaje del backend si viene en una DioException
+      // Distinguir 3 casos para no confundir al usuario:
+      //  1) Sin red / timeout → "Sin conexión"
+      //  2) QR no es de Enjoy (no tiene formato de ObjectId) → "QR no válido"
+      //  3) Back rechazó por una razón específica → mostrar mensaje del back
       String errorMsg = 'El código escaneado no pertenece a ENJOY.';
-      String errorDetail = 'Verifica que el QR provenga de un cupón oficial de ENJOY (impreso o generado en la app) y vuelve a intentarlo.';
-      if (e is DioException) {
-        final data = e.response?.data;
-        final backendMsg = data is Map ? (data['message'] ?? data['error']) : null;
-        if (backendMsg != null && backendMsg.toString().isNotEmpty) {
-          errorMsg = backendMsg.toString();
+      String errorDetail =
+          'Verifica que el QR provenga de un cupón oficial de ENJOY (impreso o generado en la app) y vuelve a intentarlo.';
+
+      if (e is _NoEsCuponEnjoyException) {
+        // case (2)
+        errorMsg = 'Este QR no es un cupón de ENJOY';
+        errorDetail =
+            'El código que escaneaste no tiene el formato de un cupón de la app. Si crees que es un error, pídele al cliente que lo regenere desde la app.';
+      } else if (e is DioException) {
+        final esErrorRed = e.response == null ||
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.connectionError;
+        if (esErrorRed) {
+          // case (1)
+          errorMsg = 'Sin conexión';
+          errorDetail =
+              'No pudimos comunicarnos con el servidor de ENJOY. Verifica tu internet o WiFi del local y vuelve a intentarlo.';
+        } else {
+          final data = e.response?.data;
+          final backendMsg =
+              data is Map ? (data['message'] ?? data['error']) : null;
+          if (backendMsg != null && backendMsg.toString().isNotEmpty) {
+            // case (3)
+            errorMsg = backendMsg.toString();
+            errorDetail = '';
+          }
+        }
+      } else if (e is Exception) {
+        // Otros errores con mensaje propio (p.ej. staff sin local asignado).
+        final msg = e.toString().replaceFirst('Exception: ', '');
+        if (msg.isNotEmpty && !msg.contains('Exception')) {
+          errorMsg = msg;
           errorDetail = '';
         }
       }
@@ -403,4 +453,11 @@ class _OverlayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter _) => false;
+}
+
+/// Excepción interna del flujo de escaneo: el contenido del QR no tiene
+/// el formato de un cupón de Enjoy (un ObjectId Mongo de 24 chars hex).
+/// Permite distinguirlo de errores de red.
+class _NoEsCuponEnjoyException implements Exception {
+  const _NoEsCuponEnjoyException();
 }
