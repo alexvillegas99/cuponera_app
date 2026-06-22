@@ -11,7 +11,10 @@ import 'package:enjoy/screens/usuarios/cupones_asignados_screen.dart';
 import 'package:enjoy/screens/usuarios/nueva_cuponera_admin_screen.dart';
 import 'package:enjoy/screens/usuarios/solicitudes_admin_screen.dart';
 import 'package:enjoy/screens/usuarios/usuarios_admin_screen.dart';
+import 'package:enjoy/screens/usuarios/contrato_admin_local_screen.dart';
+import 'package:enjoy/screens/usuarios/promotores_admin_screen.dart';
 import 'package:enjoy/services/auth_service.dart';
+import 'package:enjoy/services/contrato_service.dart';
 import 'package:enjoy/services/historico_cupon_service.dart';
 import 'package:enjoy/services/permissions_service.dart';
 import 'package:enjoy/services/session_flows.dart';
@@ -65,6 +68,33 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (mounted) setState(() => _initLoading = false);
+
+    // Si es admin-local nuevo y no aceptó el contrato → mostrar pantalla
+    // bloqueante. Fire-and-forget; cuando firme, se cierra y vuelve al home.
+    if (rol == 'admin-local') _verificarContratoSiAplica();
+  }
+
+  /// Consulta el estado del contrato. Si está pendiente, abre la pantalla
+  /// modal que el admin-local debe firmar para poder operar. Best-effort:
+  /// si el back falla no bloqueamos al usuario.
+  Future<void> _verificarContratoSiAplica() async {
+    try {
+      final estado = await ContratoService().miEstado();
+      if (!mounted || estado.aceptado) return;
+      // ignore: use_build_context_synchronously
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => ContratoAdminLocalScreen(
+            onFirmado: () {
+              if (mounted) Navigator.of(context).pop();
+            },
+          ),
+        ),
+      );
+    } catch (_) {
+      // No bloqueamos si falla la consulta.
+    }
   }
 
   Future<List<EmpresaNavItem>> _buildItems() async {
@@ -198,6 +228,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return const EstablecimientosScreen();
       case 'usuarios':
         return const UsuariosAdminScreen();
+      case 'promotores':
+        return const PromotoresAdminScreen();
       case 'solicitudes':
         return const SolicitudesAdminScreen();
       case 'nueva_cuponera':

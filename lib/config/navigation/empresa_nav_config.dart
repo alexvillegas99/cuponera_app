@@ -88,6 +88,13 @@ const List<EmpresaNavItem> kEmpresaNavItems = [
     fallbackRoles: ['admin'],
   ),
   EmpresaNavItem(
+    id: 'promotores',
+    label: 'Promotores',
+    icon: Icons.workspace_premium_rounded,
+    permission: 'clientes.editar',
+    fallbackRoles: ['admin'],
+  ),
+  EmpresaNavItem(
     id: 'solicitudes',
     label: 'Solicitudes',
     icon: Icons.receipt_long_rounded,

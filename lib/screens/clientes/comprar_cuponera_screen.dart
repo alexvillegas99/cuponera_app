@@ -14,6 +14,7 @@ import '../../services/solicitud_cuponera_service.dart';
 import '../../services/versiones_service.dart';
 import '../../services/pagos_service.dart';
 import '../../services/cupones_service.dart';
+import '../../services/promotor_service.dart';
 import 'detalle_version_screen.dart';
 import 'mapa_version_screen.dart';
 
@@ -75,6 +76,13 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
   Map<String, dynamic>? _destinatario; // {id, nombre, email} validado
   bool _buscandoDest = false;
   String? _destError;
+
+  // ── Código de promotor ──────────────────────────────────────────────
+  final _codigoPromotorCtrl = TextEditingController();
+  final _promotorSvc = PromotorService();
+  DescuentoPromotor? _descuentoAplicado;
+  bool _validandoCodigo = false;
+  String? _codigoError;
 
   @override
   void initState() {
@@ -234,6 +242,62 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
     };
   }
 
+  /// Valida el código de promotor contra el back. Si es válido, persiste
+  /// [_descuentoAplicado] con el desglose para mostrar el descuento en UI.
+  Future<void> _aplicarCodigoPromotor() async {
+    final codigo = _codigoPromotorCtrl.text.trim().toUpperCase();
+    if (codigo.isEmpty) {
+      setState(() {
+        _descuentoAplicado = null;
+        _codigoError = null;
+      });
+      return;
+    }
+    if (_selectedCuponera == null) {
+      setState(() => _codigoError = 'Elegí primero una membresía.');
+      return;
+    }
+    final precioStr =
+        (_cuponeras[_selectedCuponera!]['precio'] ?? '0').toString();
+    final precio = double.tryParse(precioStr) ?? 0;
+    if (precio <= 0) {
+      setState(() => _codigoError = 'Precio inválido.');
+      return;
+    }
+    setState(() {
+      _validandoCodigo = true;
+      _codigoError = null;
+    });
+    try {
+      final d = await _promotorSvc.calcularDescuento(
+        codigo: codigo,
+        monto: precio,
+      );
+      if (!mounted) return;
+      setState(() {
+        _descuentoAplicado = d;
+        _validandoCodigo = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _descuentoAplicado = null;
+        _validandoCodigo = false;
+        _codigoError = e.toString().contains('404')
+            ? 'Código inválido. Verificá que esté bien escrito.'
+            : 'No pudimos validar el código.';
+      });
+    }
+  }
+
+  void _quitarCodigoPromotor() {
+    setState(() {
+      _descuentoAplicado = null;
+      _codigoError = null;
+      _codigoPromotorCtrl.clear();
+    });
+  }
+
   Future<void> _submit() async {
     if (_selectedCuponera == null) {
       _showSnack('Selecciona una membresía');
@@ -270,6 +334,10 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
       'cuponeraPrecio': cuponera['precio'] ?? '0.00',
       'comprobanteBase64': base64Image,
       ..._giftPayload(),
+      // Si hay código promotor aplicado, lo enviamos para que el back
+      // registre el snapshot y, al aprobarse, acredite la comisión.
+      if (_descuentoAplicado != null)
+        'codigoPromotor': _codigoPromotorCtrl.text.trim().toUpperCase(),
     };
 
     final ok = await SolicitudCuponeraService.enviar(dto);
@@ -816,6 +884,167 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
     );
   }
 
+  /// Sección "Código de descuento (opcional)". Permite al cliente aplicar
+  /// el código de un promotor y ver el descuento antes de pagar.
+  Widget _buildCodigoPromotorSection() {
+    final ec = context.ec;
+    final tieneDesc = _descuentoAplicado != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader(
+          Icons.local_offer_outlined,
+          'Código de descuento (opcional)',
+        ),
+        const SizedBox(height: 8),
+        if (tieneDesc) ...[
+          GlassCard(
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: ec.green, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Código aplicado',
+                          style: EnjoyTheme.heading(
+                            size: 14,
+                            weight: FontWeight.w700,
+                            color: ec.text,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close_rounded, color: ec.textMute, size: 18),
+                        onPressed: _quitarCodigoPromotor,
+                        tooltip: 'Quitar',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Promotor: ${_descuentoAplicado!.promotorNombre}',
+                    style: EnjoyTheme.body(size: 12.5, color: ec.textSoft),
+                  ),
+                  const SizedBox(height: 10),
+                  _resumenLinea(
+                    'Precio original',
+                    '\$${_descuentoAplicado!.montoOriginal.toStringAsFixed(2)}',
+                    ec,
+                  ),
+                  _resumenLinea(
+                    '−${_descuentoAplicado!.porcentajeDescuento.toStringAsFixed(0)}% descuento',
+                    '−\$${_descuentoAplicado!.montoDescuento.toStringAsFixed(2)}',
+                    ec,
+                    color: ec.green,
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: ec.orange.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: _resumenLinea(
+                      'Total a pagar',
+                      '\$${_descuentoAplicado!.montoFinal.toStringAsFixed(2)}',
+                      ec,
+                      bold: true,
+                      color: ec.orange,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ] else ...[
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _codigoPromotorCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  style: EnjoyTheme.body(color: ec.text),
+                  decoration: InputDecoration(
+                    hintText: 'Ej. ALEX20',
+                    hintStyle: EnjoyTheme.body(color: ec.textMute),
+                    filled: true,
+                    fillColor: ec.glass,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: ec.stroke),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: ec.stroke),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: ec.orange),
+                    ),
+                  ),
+                  onSubmitted: (_) => _aplicarCodigoPromotor(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              EnjoyButton(
+                label: _validandoCodigo ? 'Validando…' : 'Aplicar',
+                onPressed: _validandoCodigo ? null : _aplicarCodigoPromotor,
+                variant: EnjoyButtonVariant.ghost,
+              ),
+            ],
+          ),
+          if (_codigoError != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _codigoError!,
+              style: EnjoyTheme.body(size: 12, color: ec.red),
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _resumenLinea(
+    String label,
+    String value,
+    EnjoyColors ec, {
+    bool bold = false,
+    Color? color,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: EnjoyTheme.body(
+                size: 13,
+                color: color ?? ec.textSoft,
+                weight: bold ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: EnjoyTheme.body(
+              size: 13,
+              color: color ?? ec.text,
+              weight: bold ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildComprobanteSection() {
     final ec = context.ec;
     return Column(
@@ -1133,6 +1362,8 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
         if (_cuentas.isNotEmpty) const SizedBox(height: 24),
         _buildInstruccionesSection(),
         if (_instrucciones.isNotEmpty) const SizedBox(height: 24),
+        _buildCodigoPromotorSection(),
+        const SizedBox(height: 24),
         _buildComprobanteSection(),
       ];
     }

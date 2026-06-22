@@ -16,4 +16,30 @@ class ClientesAdminService {
     }
     return [];
   }
+
+  Future<Map<String, dynamic>> activarPromotor(
+    String clienteId, {
+    required String codigo,
+    int? porcentajeDescuento,
+    int? porcentajeComision,
+  }) async {
+    final resp = await _api.patch(
+      '/clientes/$clienteId/promotor/activar',
+      data: {
+        'codigoDescuento': codigo,
+        if (porcentajeDescuento != null) 'porcentajeDescuento': porcentajeDescuento,
+        if (porcentajeComision != null) 'porcentajeComision': porcentajeComision,
+      },
+    );
+    return Map<String, dynamic>.from(resp.data);
+  }
+
+  Future<void> desactivarPromotor(String clienteId) async {
+    await _api.patch('/clientes/$clienteId/promotor/desactivar');
+  }
+
+  Future<Map<String, dynamic>> promotorDefaults() async {
+    final resp = await _api.get('/clientes/promotor/defaults');
+    return Map<String, dynamic>.from(resp.data);
+  }
 }
