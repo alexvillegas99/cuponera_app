@@ -116,6 +116,69 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
     } catch (_) {}
   }
 
+  /// Elimina una entrega de la bandeja del cliente (sin tocar la campaña
+  /// global). Optimista: quita del listado y si falla la vuelve a poner.
+  Future<void> _eliminarUna(Map<String, dynamic> entrega) async {
+    final id = entrega['_id']?.toString();
+    if (id == null || id.isEmpty) return;
+    final idx = _items.indexWhere((e) => e['_id']?.toString() == id);
+    if (idx < 0) return;
+    final backup = _items[idx];
+    setState(() => _items.removeAt(idx));
+    try {
+      await _svc.eliminarEntrega(id);
+    } catch (_) {
+      if (!mounted) return;
+      // Revertir si falló.
+      setState(() {
+        _items.insert(idx.clamp(0, _items.length), backup);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No pudimos eliminar la notificación.')),
+      );
+    }
+  }
+
+  Future<void> _vaciarBandeja() async {
+    if (_items.isEmpty) return;
+    final ec = context.ec;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ec.surfaceTop,
+        title: Text('Vaciar bandeja',
+            style: EnjoyTheme.heading(size: 17, color: ec.text)),
+        content: Text(
+          'Se borrarán todas tus notificaciones. ¿Continuar?',
+          style: EnjoyTheme.body(color: ec.textSoft),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: ec.red),
+            child: const Text('Vaciar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final backup = List<Map<String, dynamic>>.from(_items);
+    setState(() => _items = []);
+    try {
+      await _svc.vaciarBandeja();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _items = backup);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No pudimos vaciar la bandeja.')),
+      );
+    }
+  }
+
   Future<void> _abrirDetalle(Map<String, dynamic> entrega) async {
     // Marca leída de inmediato (optimista).
     final id = entrega['_id']?.toString() ?? '';
@@ -191,6 +254,30 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
             onTap: _items.any((e) => e['leida'] != true)
                 ? _marcarTodasLeidas
                 : null,
+          ),
+          const SizedBox(width: 6),
+          PopupMenuButton<String>(
+            tooltip: 'Más opciones',
+            color: ec.surfaceTop,
+            icon: Icon(Icons.more_vert_rounded, color: ec.text),
+            onSelected: (v) {
+              if (v == 'vaciar') _vaciarBandeja();
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem<String>(
+                value: 'vaciar',
+                enabled: _items.isNotEmpty,
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_sweep_rounded,
+                        size: 18, color: ec.red),
+                    const SizedBox(width: 8),
+                    Text('Vaciar bandeja',
+                        style: EnjoyTheme.body(size: 14, color: ec.text)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -310,8 +397,59 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
     final cuerpo = (e['cuerpo'] ?? '').toString();
     final img = (e['imagenUrl'] ?? '').toString();
     final fecha = e['createdAt']?.toString() ?? '';
+    final id = e['_id']?.toString() ?? '';
 
-    return GestureDetector(
+    return Dismissible(
+      key: ValueKey('notif-$id'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: ec.red.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: ec.red.withValues(alpha: 0.45)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.delete_outline_rounded, color: ec.red),
+            const SizedBox(width: 8),
+            Text('Eliminar',
+                style: EnjoyTheme.body(
+                  size: 13, color: ec.red, weight: FontWeight.w700,
+                )),
+          ],
+        ),
+      ),
+      confirmDismiss: (_) async {
+        return await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: ec.surfaceTop,
+                title: Text('Eliminar notificación',
+                    style: EnjoyTheme.heading(size: 16, color: ec.text)),
+                content: Text(
+                  'Esta notificación se borrará de tu bandeja.',
+                  style: EnjoyTheme.body(color: ec.textSoft),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Cancelar'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: TextButton.styleFrom(foregroundColor: ec.red),
+                    child: const Text('Eliminar'),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+      },
+      onDismissed: (_) => _eliminarUna(e),
+      child: GestureDetector(
       onTap: () => _abrirDetalle(e),
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -398,6 +536,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

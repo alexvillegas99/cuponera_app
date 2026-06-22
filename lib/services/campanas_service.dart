@@ -62,6 +62,16 @@ class CampanasService {
     await ApiClient.instance.post('/campanas/cliente/leer-todas');
   }
 
+  /** Borra UNA notificación de la bandeja del cliente actual. */
+  Future<void> eliminarEntrega(String entregaId) async {
+    await ApiClient.instance.delete('/campanas/cliente/entrega/$entregaId');
+  }
+
+  /** Vacía toda la bandeja del cliente actual. */
+  Future<void> vaciarBandeja() async {
+    await ApiClient.instance.delete('/campanas/cliente/entregas');
+  }
+
   Future<Map<String, dynamic>> getPrefs() async {
     try {
       final resp = await ApiClient.instance.get('/campanas/cliente/prefs');
