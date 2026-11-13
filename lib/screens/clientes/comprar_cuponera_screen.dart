@@ -1483,11 +1483,11 @@ class _SegBtn extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
           decoration: BoxDecoration(
-            gradient: selected ? ec.accentGradient : null,
-            color: selected ? null : ec.glass,
+            color: selected ? ec.secondaryTint : ec.glass,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? Colors.transparent : ec.stroke,
+              color: selected ? ec.secondaryDeep : ec.stroke,
+              width: selected ? 1.5 : 1,
             ),
           ),
           child: Row(
@@ -1496,7 +1496,7 @@ class _SegBtn extends StatelessWidget {
               Icon(
                 icon,
                 size: 18,
-                color: selected ? ec.onAccent : ec.textMute,
+                color: selected ? ec.secondaryDeep : ec.textMute,
               ),
               const SizedBox(width: 8),
               Flexible(
@@ -1506,7 +1506,7 @@ class _SegBtn extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: EnjoyTheme.heading(
                     size: 14,
-                    color: selected ? ec.onAccent : ec.textSoft,
+                    color: selected ? ec.text : ec.textSoft,
                   ),
                 ),
               ),

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import '../ui/palette.dart';
+import '../ui/enjoy_colors.dart';
 
+/// Botón de filtro por provincia/ciudad de la cabecera. Mismo estilo que la
+/// campana (neutro); el número de provincias elegidas va en una insignia
+/// discreta en el tono secundario del tema (no en el acento).
 class CityFilterIcon extends StatelessWidget {
   final int count;
   final VoidCallback onTap;
@@ -8,6 +11,7 @@ class CityFilterIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ec = context.ec;
     final active = count > 0;
     return Stack(
       clipBehavior: Clip.none,
@@ -17,44 +21,39 @@ class CityFilterIcon extends StatelessWidget {
           child: GestureDetector(
             onTap: onTap,
             child: Container(
-              width: 36,
-              height: 36,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                color: active
-                    ? Palette.kAccent.withOpacity(0.09)
-                    : Palette.kPrimary.withOpacity(0.09),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: active
-                      ? Palette.kAccent.withOpacity(0.25)
-                      : Palette.kPrimary.withOpacity(0.18),
-                ),
+                color: ec.glass,
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: ec.stroke),
               ),
               child: Icon(
                 Icons.location_city_rounded,
-                size: 18,
-                color: active ? Palette.kAccent : Palette.kPrimary,
+                size: 19,
+                color: active ? ec.secondaryDeep : ec.textSoft,
               ),
             ),
           ),
         ),
         if (active)
           Positioned(
-            right: -5,
-            top: -5,
+            right: -4,
+            top: -4,
             child: Container(
-              width: 18,
+              constraints: const BoxConstraints(minWidth: 18),
               height: 18,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
               decoration: BoxDecoration(
-                color: Palette.kAccent,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 1.5),
+                color: ec.secondaryDeep,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: ec.bgBottom, width: 1.5),
               ),
               child: Center(
                 child: Text(
                   '$count',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: ec.isDark ? const Color(0xFF1D1E21) : Colors.white,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                   ),

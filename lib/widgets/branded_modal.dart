@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:enjoy/ui/enjoy_colors.dart';
 
 /// ---------- D I Á L O G O  (AlertDialog) ----------
 Future<void> showBrandedDialog(
@@ -18,11 +18,11 @@ Future<void> showBrandedDialog(
     builder: (_) {
       return Dialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        backgroundColor: Palette.kSurface,
+        backgroundColor: context.ec.surfaceTop,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: Palette.kBorder),
+          side: BorderSide(color: context.ec.stroke),
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
@@ -33,10 +33,10 @@ Future<void> showBrandedDialog(
               Container(
                 height: 56,
                 width: 56,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
-                    colors: [Palette.kPrimary, Palette.kAccent],
+                    colors: [context.ec.secondaryDeep, context.ec.orange],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -47,8 +47,8 @@ Future<void> showBrandedDialog(
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Palette.kTitle,
+                style: TextStyle(
+                  color: context.ec.text,
                   fontWeight: FontWeight.w800,
                   fontSize: 18,
                 ),
@@ -57,7 +57,7 @@ Future<void> showBrandedDialog(
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Palette.kSub, height: 1.35),
+                style: TextStyle(color: context.ec.textSoft, height: 1.35),
               ),
               const SizedBox(height: 16),
               Row(
@@ -66,8 +66,8 @@ Future<void> showBrandedDialog(
                     Expanded(
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Palette.kTitle,
-                          side: const BorderSide(color: Palette.kBorder),
+                          foregroundColor: context.ec.text,
+                          side: BorderSide(color: context.ec.stroke),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -84,7 +84,7 @@ Future<void> showBrandedDialog(
                   Expanded(
                     child: FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: Palette.kAccent,
+                        backgroundColor: context.ec.orange,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -116,10 +116,10 @@ Future<T?> showBrandedBottomSheet<T>(
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: isScrollControlled,
-    backgroundColor: Palette.kSurface,
-    shape: const RoundedRectangleBorder(
+    backgroundColor: context.ec.surfaceTop,
+    shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      side: BorderSide(color: Palette.kBorder),
+      side: BorderSide(color: context.ec.stroke),
     ),
     builder: (ctx) {
       final insets = MediaQuery.of(ctx).viewInsets;
@@ -137,7 +137,7 @@ Future<T?> showBrandedBottomSheet<T>(
                   Container(
                     width: 44, height: 4,
                     decoration: BoxDecoration(
-                      color: Palette.kBorder,
+                      color: context.ec.stroke,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),

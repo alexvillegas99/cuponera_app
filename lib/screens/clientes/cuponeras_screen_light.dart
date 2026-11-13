@@ -449,38 +449,24 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
           child: GestureDetector(
             onTap: () => _showAdquirirSheet(context),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                gradient: ec.accentGradient,
-                borderRadius: BorderRadius.circular(18),
-                // Anillo doble: blanco translúcido por dentro + sombra naranja por fuera.
-                // Despega visualmente el botón del contenido sin necesidad de blur ni barra.
-                border: Border.all(
-                  color: ec.onAccent.withValues(alpha: 0.35),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  // Halo exterior (separación con cards)
-                  BoxShadow(
-                    color: ec.surfaceMid.withValues(alpha: 0.9),
-                    blurRadius: 0,
-                    spreadRadius: 2,
-                  ),
-                  // Sombra de acento discreta (Polar/Tormenta)
-                  ...ec.shadowAccent,
-                ],
+                color: ec.surfaceTop,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: ec.stroke),
+                boxShadow: ec.shadowSm,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.add, color: ec.onAccent, size: 20),
-                  const SizedBox(width: 9),
+                  Icon(Icons.add, color: ec.text, size: 18),
+                  const SizedBox(width: 6),
                   Text(
-                    'Adquirir Membresía',
-                    style: EnjoyTheme.heading(
-                      size: 14,
+                    'Otra cuponera',
+                    style: EnjoyTheme.body(
+                      size: 13,
                       weight: FontWeight.w700,
-                      color: ec.onAccent,
+                      color: ec.text,
                     ),
                   ),
                 ],
@@ -660,7 +646,7 @@ class _CuponeraTicketCard extends StatelessWidget {
     final count = c.scans.isNotEmpty ? c.scans.length : c.totalEscaneos;
     final progress = _lifeProgress(c.emitidaEl, c.expiraEl);
     final progressColor =
-        vencida ? ec.red : (porExpirar ? ec.yellow : ec.orange);
+        vencida ? ec.red : (porExpirar ? ec.yellow : ec.secondaryDeep);
 
     return GlassCard(
       padding: EdgeInsets.zero,
@@ -670,22 +656,24 @@ class _CuponeraTicketCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: Column(
           children: [
-            // ── Header gradiente ──
+            // ── Cabecera neutra (el acento queda para el CTA) ──
             Container(
               padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
-              decoration: BoxDecoration(gradient: ec.accentGradient),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: ec.stroke)),
+              ),
               child: Row(
                 children: [
                   Container(
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      color: ec.onAccent.withValues(alpha: 0.14),
+                      color: ec.secondaryTint,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
                       Icons.local_activity_rounded,
-                      color: ec.onAccent,
+                      color: ec.secondaryDeep,
                       size: 20,
                     ),
                   ),
@@ -698,7 +686,7 @@ class _CuponeraTicketCard extends StatelessWidget {
                           c.nombre,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: EnjoyTheme.heading(size: 16, weight: FontWeight.w800, color: ec.onAccent),
+                          style: EnjoyTheme.heading(size: 16, weight: FontWeight.w800, color: ec.text),
                         ),
                         const SizedBox(height: 3),
                         // Secuencial pill (+ badge de regalo si aplica)
@@ -712,12 +700,12 @@ class _CuponeraTicketCard extends StatelessWidget {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: ec.onAccent.withValues(alpha: 0.16),
+                                color: ec.secondaryTint,
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
                                 _secFmt(c.secuencial),
-                                style: EnjoyTheme.body(size: 11, weight: FontWeight.w700, color: ec.onAccent),
+                                style: EnjoyTheme.body(size: 11, weight: FontWeight.w700, color: ec.secondaryDeep),
                               ),
                             ),
                             if (c.esRegalo)
@@ -806,7 +794,6 @@ class _CuponeraTicketCard extends StatelessWidget {
                       Pill(
                         '$count ${count == 1 ? "escaneo" : "escaneos"}',
                         icon: Icons.qr_code_scanner_rounded,
-                        variant: PillVariant.orange,
                         dense: true,
                       ),
                       if (lastUse != null) ...[
@@ -834,7 +821,7 @@ class _CuponeraTicketCard extends StatelessWidget {
                           icon: Icons.event_available_rounded,
                           label: 'Emitida',
                           value: _fmt(c.emitidaEl),
-                          color: ec.green,
+                          color: ec.textMute,
                         ),
                         Container(
                           width: 1,
@@ -878,7 +865,7 @@ class _CuponeraTicketCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Inicio',
+                          'Vigencia',
                           style: EnjoyTheme.body(size: 11, color: ec.textMute),
                         ),
                         Container(
@@ -911,11 +898,8 @@ class _CuponeraTicketCard extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(
-                          color: ec.orange.withValues(alpha: 0.10),
+                          color: ec.secondaryTint,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: ec.orange.withValues(alpha: 0.28),
-                          ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -923,12 +907,12 @@ class _CuponeraTicketCard extends StatelessWidget {
                             Icon(
                               Icons.map_rounded,
                               size: 16,
-                              color: ec.orangeSoft,
+                              color: ec.secondaryDeep,
                             ),
                             const SizedBox(width: 6),
                             Text(
                               'Ver locales en el mapa',
-                              style: EnjoyTheme.body(size: 13, weight: FontWeight.w600, color: ec.orangeSoft),
+                              style: EnjoyTheme.body(size: 13, weight: FontWeight.w600, color: ec.secondaryDeep),
                             ),
                           ],
                         ),
