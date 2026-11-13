@@ -787,27 +787,62 @@ class _ComercioDetalleMiniScreenState
     );
   }
 
-  /// Si la promoción del local NO aplica hoy, el motivo para mostrar.
+  static const _diasSemana = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+
+  String _sinTilde(String d) => d.toLowerCase()
+      .replaceAll('é', 'e').replaceAll('á', 'a');
+
+  /// ¿La promo aplica en ese día calendario?
+  bool _aplicaEn(PromoPrincipal p, DateTime dia) {
+    final ymd = '${dia.year}-${dia.month.toString().padLeft(2, '0')}-${dia.day.toString().padLeft(2, '0')}';
+    final excluida = p.fechasExcluidas.any((e) {
+      final d = DateTime.tryParse(e)?.toUtc();
+      return d != null && d.toIso8601String().substring(0, 10) == ymd;
+    });
+    if (excluida) return false;
+    if (p.aplicaTodosLosDias == false && p.diasAplicables.isNotEmpty) {
+      final dias = p.diasAplicables.map(_sinTilde).toSet();
+      return dias.contains(_sinTilde(_diasSemana[dia.weekday - 1]));
+    }
+    return true;
+  }
+
+  String _fechaCorta(DateTime d) =>
+      '${_diasSemana[d.weekday - 1]} ${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+
+  /// Si la promoción del local NO aplica hoy, el motivo (con días) para mostrar.
   String? _motivoNoAplicaHoy() {
     final p = _data?.promoPrincipal;
     if (p == null) return null;
     final now = DateTime.now();
-    final hoy = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    final excluida = p.fechasExcluidas.any((e) {
-      final d = DateTime.tryParse(e)?.toUtc();
-      return d != null && d.toIso8601String().substring(0, 10) == hoy;
-    });
-    if (excluida) return 'Hoy no aplica la promoción de este local. Tu cupón sigue disponible para otro día.';
-    if (p.aplicaTodosLosDias == false && p.diasAplicables.isNotEmpty) {
-      const dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
-      final hoyNombre = dias[now.weekday - 1];
-      final norm = p.diasAplicables.map((d) => d.toLowerCase()
-          .replaceAll('é', 'e').replaceAll('á', 'a')).toList();
-      if (!norm.contains(hoyNombre)) {
-        return 'Esta promoción aplica ${norm.join(', ')}. Tu cupón sigue disponible para esos días.';
+    final hoy = DateTime(now.year, now.month, now.day);
+    if (_aplicaEn(p, hoy)) return null;
+
+    // Próximo día en que vuelve a aplicar (hasta 60 días).
+    DateTime? proximo;
+    for (var k = 1; k <= 60; k++) {
+      final d = hoy.add(Duration(days: k));
+      if (_aplicaEn(p, d)) {
+        proximo = d;
+        break;
       }
     }
-    return null;
+    final cuando = proximo == null
+        ? ''
+        : proximo.difference(hoy).inDays == 1
+            ? ' Puedes usar tu cupón desde mañana, ${_fechaCorta(proximo)}.'
+            : ' Puedes usar tu cupón el ${_fechaCorta(proximo)}.';
+
+    final soloAlgunos = p.aplicaTodosLosDias == false && p.diasAplicables.isNotEmpty;
+    if (soloAlgunos) {
+      final orden = _diasSemana.where((d) =>
+          p.diasAplicables.map(_sinTilde).contains(_sinTilde(d))).toList();
+      final lista = orden.length == 1
+          ? 'los ${orden.first}'
+          : '${orden.sublist(0, orden.length - 1).join(', ')} y ${orden.last}';
+      return 'Esta promoción solo aplica $lista.$cuando';
+    }
+    return 'Hoy, ${_fechaCorta(hoy)}, no aplica la promoción de este local.$cuando';
   }
 
   void _abrirCuponeras(String ciudad) {
