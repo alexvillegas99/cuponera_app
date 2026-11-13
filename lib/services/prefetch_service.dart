@@ -8,7 +8,6 @@ import 'package:enjoy/services/categorias_service.dart';
 import 'package:enjoy/services/ciudades_service.dart';
 import 'package:enjoy/services/comercios_service.dart';
 import 'package:enjoy/services/cupones_service.dart';
-import 'package:enjoy/services/historico_cupon_service.dart';
 import 'package:enjoy/services/informacion_perfil_cliente_service.dart';
 import 'package:enjoy/services/promociones_flash_service.dart';
 import 'package:enjoy/services/promotions_service.dart';
@@ -89,12 +88,6 @@ class PrefetchService {
       await _ejecutarPaso(
         'locales con cupón disponible',
         () => CuponesService().localesDisponibles(clienteId),
-      );
-
-      // 5) Historial de canjes del cliente.
-      await _ejecutarPaso(
-        'historial de canjes',
-        () => HistoricoCuponService().obtenerPorUsuario(clienteId),
       );
 
       // 6) Feed de promociones de su ubicación (varias páginas para tener

@@ -56,3 +56,10 @@ app.*.map.json
 
 # Android build artifacts (tracked por error)
 android/build/
+
+# Firma Android: nunca en el repo
+*.jks
+*.keystore
+android/key.properties
+# Respaldos
+*.bak

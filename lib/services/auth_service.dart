@@ -970,9 +970,14 @@ class AuthService {
       final fcmToken = await MyFirebaseMessagingService().getTokenWithRetry();
       if (fcmToken == null || fcmToken.isEmpty) return;
 
+      // Con la sesión: el backend solo deja cambiar el dispositivo propio.
+      final token = await getToken();
       await http.patch(
         Uri.parse('$baseUrl$path'),
-        headers: _jsonHeaders,
+        headers: {
+          ..._jsonHeaders,
+          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({'fcmToken': fcmToken}),
       );
       debugPrint('✅ FCM token guardado: $path');
