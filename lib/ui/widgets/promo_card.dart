@@ -134,10 +134,10 @@ class PromoCard extends StatelessWidget {
                     child: Container(
                       width: 34,
                       height: 34,
+                      // Sobre foto: mismo fondo mate que la etiqueta 2x1 en ambos temas.
                       decoration: BoxDecoration(
-                        color: ec.glassStrong,
+                        color: const Color(0xB31D1E21),
                         borderRadius: BorderRadius.circular(11),
-                        border: Border.all(color: ec.stroke),
                       ),
                       child: Icon(
                         isFavorite ? Icons.favorite : Icons.favorite_border,

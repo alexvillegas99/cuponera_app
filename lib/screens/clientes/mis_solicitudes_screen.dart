@@ -38,7 +38,7 @@ class _MisSolicitudesScreenState extends State<MisSolicitudesScreen> {
       case 'RECHAZADO':
         return ec.red;
       default:
-        return ec.orange;
+        return ec.yellow; // pendiente: ámbar, no el acento de marca
     }
   }
 
@@ -90,7 +90,7 @@ class _MisSolicitudesScreenState extends State<MisSolicitudesScreen> {
     final ec = context.ec;
     return EnjoyScaffold(
       padding: EdgeInsets.zero,
-      appBar: const EnjoyAppBar(title: 'Mis Solicitudes'),
+      appBar: const EnjoyAppBar(title: 'Mis solicitudes'),
       body: _loading
           ? Center(child: CircularProgressIndicator(color: ec.orange))
           : _solicitudes.isEmpty

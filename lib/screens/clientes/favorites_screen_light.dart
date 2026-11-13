@@ -50,13 +50,12 @@ class _FavoritesScreenLightState extends State<FavoritesScreenLight> {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: ec.orange.withValues(alpha: 0.12),
+              color: ec.secondaryTint,
               shape: BoxShape.circle,
-              border: Border.all(color: ec.orange.withValues(alpha: 0.28)),
             ),
             child: Icon(
               Icons.favorite_border_rounded,
-              color: ec.orangeSoft,
+              color: ec.secondaryDeep,
               size: 30,
             ),
           ),

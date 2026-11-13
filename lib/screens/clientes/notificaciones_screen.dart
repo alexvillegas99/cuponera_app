@@ -348,15 +348,16 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: on ? ec.orange.withValues(alpha: 0.18) : ec.glass,
+          // Filtro activo en tono secundario (el acento queda para el CTA).
+          color: on ? ec.secondaryTint : ec.glass,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: on ? ec.orange : ec.stroke),
+          border: Border.all(color: on ? ec.secondaryDeep : ec.stroke),
         ),
         child: Text(
           label,
           style: EnjoyTheme.body(
             size: 13,
-            color: on ? ec.orange : ec.textSoft,
+            color: on ? ec.text : ec.textSoft,
             weight: FontWeight.w600,
           ),
         ),
