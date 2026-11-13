@@ -306,7 +306,22 @@ class _ElegirCuponeraState extends State<_ElegirCuponera> {
                       style: EnjoyTheme.heading(size: 20, weight: FontWeight.w800, color: ec.text)),
                 ],
               ),
-              if (sel) ...[
+              if (sel && c['totalLocales'] == 0) ...[
+                const SizedBox(height: 12),
+                Text('Todavía no hay locales afiliados en esta zona. Te avisamos cuando se sumen.',
+                    style: EnjoyTheme.body(size: 12.5, height: 1.4, color: ec.textSoft)),
+                const SizedBox(height: 10),
+                EnjoyButton(
+                  label: 'Avisarme por WhatsApp',
+                  icon: Icons.chat_outlined,
+                  variant: EnjoyButtonVariant.ghost,
+                  dense: true,
+                  onPressed: () {
+                    Navigator.pop(context);
+                    widget.onWhatsApp(c);
+                  },
+                ),
+              ] else if (sel) ...[
                 const SizedBox(height: 14),
                 EnjoyButton(
                   label: 'Comprar por transferencia',

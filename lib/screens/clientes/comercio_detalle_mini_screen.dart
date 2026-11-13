@@ -1379,6 +1379,23 @@ class _ComercioDetalleMiniScreenState
     );
   }
 
+  /// Próximas fechas excluidas (hoy en adelante, máx. 4) como "12/11",
+  /// en el día calendario guardado (medianoche UTC → se lee en UTC).
+  List<String> _proximasExcluidas(PromoPrincipal p) {
+    final now = DateTime.now();
+    final hoy = DateTime.utc(now.year, now.month, now.day);
+    final fechas = p.fechasExcluidas
+        .map((e) => DateTime.tryParse(e)?.toUtc())
+        .whereType<DateTime>()
+        .where((d) => !DateTime.utc(d.year, d.month, d.day).isBefore(hoy))
+        .toList()
+      ..sort();
+    return fechas
+        .take(4)
+        .map((d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}')
+        .toList();
+  }
+
   // ─────────────────────────── PROMO DETAILS CARD
   Widget _buildPromoDetailsCard(PromoPrincipal p) {
     final ec = context.ec;
@@ -1417,7 +1434,17 @@ class _ComercioDetalleMiniScreenState
             _detailRow(
               icon: Icons.calendar_today_rounded,
               iconColor: ec.green,
-              text: 'Válida todos los días',
+              text: _proximasExcluidas(p).isEmpty
+                  ? 'Válida todos los días'
+                  : 'Válida todos los días, excepto las fechas indicadas',
+            ),
+          ],
+          if (_proximasExcluidas(p).isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _detailRow(
+              icon: Icons.event_busy_outlined,
+              iconColor: ec.textMute,
+              text: 'No aplica: ${_proximasExcluidas(p).join(', ')}',
             ),
           ],
           if (p.tags.isNotEmpty) ...[
