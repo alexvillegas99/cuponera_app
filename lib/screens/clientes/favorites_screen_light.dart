@@ -122,9 +122,9 @@ class _FavoritesScreenLightState extends State<FavoritesScreenLight> {
                     final p = list[i];
                     return PromoCard(
                       title: p.placeName.isNotEmpty ? p.placeName : p.title,
-                      subtitle: p.title,
+                      subtitle: promoTextos(p).oferta,
+                      meta: promoTextos(p).meta,
                       imageUrl: p.coverUrl,
-                      topBadge: p.categories.isNotEmpty ? p.categories.first : null,
                       discount: p.isTwoForOne ? '2x1' : null,
                       isFavorite: true,
                       onFavorite: () => widget.onUnfavorite(p),

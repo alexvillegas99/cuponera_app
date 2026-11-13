@@ -509,7 +509,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   Widget _promoCard(Promotion p, FavoritesStore favs) {
     final dist = _distanciaA(p);
     final distStr =
-        dist.isFinite ? '${(dist / 1000).toStringAsFixed(1)} km' : null;
+        dist.isFinite ? '${(dist / 1000).toStringAsFixed(1).replaceAll('.', ',')} km' : null;
     final cat = p.categories.isNotEmpty ? p.categories.first : '';
     final title = nombreLegible(p.placeName.isNotEmpty ? p.placeName : p.title);
     // Lo que el cliente necesita para decidir: QUÉ es la oferta y DÓNDE/CUÁNDO.
@@ -517,7 +517,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
         ? p.title.trim()
         : '';
     final subtitle = oferta.isNotEmpty ? oferta : cat;
-    final meta = [p.city, oferta.isNotEmpty ? cat : '', p.scheduleLabel, distStr ?? '']
+    final meta = [p.city, distStr ?? '', oferta.isNotEmpty ? cat : '', p.scheduleLabel]
         .where((e) => e.trim().isNotEmpty)
         .join(' · ');
     return Padding(
@@ -1476,109 +1476,66 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   }
 
   /// CTA en el home cuando el cliente NO tiene cuponeras: lo lleva a la
-  /// Tarjeta de membresía activa (hero del Home) usando datos reales.
+  /// Membresía activa como franja compacta (una línea): estado, nombre,
+  /// vigencia y acceso a sus locales. Neutra: no compite con las promos.
   Widget _buildMembershipHero() {
     final ec = context.ec;
     final c = _featuredCuponera;
     if (c == null) return const SizedBox.shrink();
     final vence = c.expiraEl != null
-        ? 'Vigente hasta ${c.expiraEl!.day.toString().padLeft(2, '0')}/${c.expiraEl!.month.toString().padLeft(2, '0')}/${c.expiraEl!.year}'
-        : 'Membresía activa';
+        ? 'hasta ${c.expiraEl!.day.toString().padLeft(2, '0')}/${c.expiraEl!.month.toString().padLeft(2, '0')}/${c.expiraEl!.year}'
+        : 'activa';
     final localesCount =
         c.versionId != null ? _localesCountByVersion[c.versionId] : null;
-    final localesLabel = localesCount != null
-        ? '$localesCount ${localesCount == 1 ? "local" : "locales"} disponibles'
-        : 'Ver locales disponibles';
     final hasMultiple = _cuponeras.length > 1;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
       child: GlassCard(
-        accent: true,
-        radius: 24,
-        padding: const EdgeInsets.all(18),
+        radius: 14,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         onTap: () => _openCuponera(c),
-        child: Stack(
+        child: Row(
           children: [
-            Positioned(
-              right: -30,
-              top: -30,
-              child: GlowHalo(size: 130, color: ec.glowOrange),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: ec.green, shape: BoxShape.circle),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Pill('Activa', variant: PillVariant.green, dot: true),
-                    if (hasMultiple)
-                      GestureDetector(
-                        onTap: _pickFeaturedCuponera,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.swap_horiz_rounded,
-                                size: 15, color: ec.orangeSoft),
-                            const SizedBox(width: 4),
-                            Text('Cambiar',
-                                style: EnjoyTheme.body(
-                                    size: 12.5,
-                                    weight: FontWeight.w700,
-                                    color: ec.orangeSoft)),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Text(c.nombre,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(c.nombre,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: EnjoyTheme.heading(size: 14, weight: FontWeight.w700, color: ec.text)),
+                  const SizedBox(height: 1),
+                  Text(
+                    [
+                      'Membresía $vence',
+                      if (localesCount != null) '$localesCount ${localesCount == 1 ? "local" : "locales"}',
+                    ].join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: EnjoyTheme.heading(
-                        size: 20, weight: FontWeight.w700, color: ec.text)),
-                const SizedBox(height: 4),
-                Text(vence, style: EnjoyTheme.body(size: 13, color: ec.textSoft)),
-                const EnjoyDivider(height: 28),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.storefront_rounded,
-                              size: 16, color: ec.orangeSoft),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(localesLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: EnjoyTheme.body(
-                                    size: 13,
-                                    weight: FontWeight.w600,
-                                    color: ec.text)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('Ver',
-                            style: EnjoyTheme.heading(
-                                size: 14,
-                                weight: FontWeight.w700,
-                                color: ec.orangeSoft)),
-                        const SizedBox(width: 4),
-                        Icon(Icons.arrow_forward_rounded,
-                            color: ec.orangeSoft, size: 16),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
+                    style: EnjoyTheme.body(size: 12, color: ec.textMute),
+                  ),
+                ],
+              ),
             ),
+            if (hasMultiple) ...[
+              GestureDetector(
+                onTap: _pickFeaturedCuponera,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Icon(Icons.swap_horiz_rounded, size: 20, color: ec.textSoft),
+                ),
+              ),
+            ],
+            Text('Locales',
+                style: EnjoyTheme.body(size: 13, weight: FontWeight.w700, color: ec.accentText)),
+            Icon(Icons.chevron_right_rounded, size: 18, color: ec.accentText),
           ],
         ),
       ),

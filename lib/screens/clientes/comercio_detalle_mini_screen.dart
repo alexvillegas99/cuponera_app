@@ -8,6 +8,7 @@ import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/comentarios_service.dart';
 import 'package:enjoy/services/compartidos_service.dart';
 import 'package:enjoy/services/cupones_service.dart';
+import 'package:enjoy/services/versiones_service.dart';
 import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 import 'package:enjoy/services/comercios_service.dart';
@@ -45,6 +46,11 @@ class _ComercioDetalleMiniScreenState
   bool _saving = false;
 
   List<Map<String, dynamic>> _cuponesDisponibles = [];
+
+  /// Para la línea informativa cuando NO puede canjear aquí.
+  bool? _tieneCuponera; // null = aún no se sabe
+  bool _yaCanjeoAqui = false;
+  Map<String, dynamic>? _cuponeraSugerida;
   bool _cuponesExpandido = false;
 
   ComercioMini? _data;
@@ -127,6 +133,26 @@ class _ComercioDetalleMiniScreenState
         if (mounted) setState(() => _cuponesDisponibles = cupones);
       } catch (_) {}
 
+      // ¿Tiene alguna cuponera activa? Si no, sugerir la más económica que
+      // cubra la ciudad de este local.
+      try {
+        final mias = await CuponesService().listarPorCliente(clienteId);
+        if (mounted) setState(() => _tieneCuponera = mias.isNotEmpty);
+        if (mias.isEmpty) {
+          final ciudad = (_data?.ciudades.isNotEmpty ?? false)
+              ? _data!.ciudades.first.trim().toLowerCase()
+              : '';
+          final todas = await VersionesService.disponibles();
+          final cubren = todas.where((v) => ((v['ciudades'] as List?) ?? const [])
+              .any((c) => c.toString().trim().toLowerCase() == ciudad)).toList()
+            ..sort((a, b) => (double.tryParse('${a['precio']}') ?? 1e9)
+                .compareTo(double.tryParse('${b['precio']}') ?? 1e9));
+          if (mounted && cubren.isNotEmpty) {
+            setState(() => _cuponeraSugerida = cubren.first);
+          }
+        }
+      } catch (_) {}
+
       final e = await _comentSvc.elegibilidad(
         usuarioId: widget.usuarioId,
         clienteId: clienteId,
@@ -142,6 +168,8 @@ class _ComercioDetalleMiniScreenState
 
       setState(() {
         _eligibileParaComentar = e['elegible'] == true;
+        // `elegible` = ya tiene un canje registrado en este local.
+        _yaCanjeoAqui = e['elegible'] == true;
         _miComentario = mio;
         _myRating = (mio?['calificacion'] is num)
             ? (mio!['calificacion'] as num).toInt()
@@ -254,21 +282,24 @@ class _ComercioDetalleMiniScreenState
       final nombreVersion = (version['nombre'] ?? 'Cupón').toString();
       final secuencial = cupon['secuencial']?.toString() ?? '';
 
-      return GlassCard(
-        accent: true,
-        padding: const EdgeInsets.all(14),
-        radius: 18,
+      // Solo informa cuál cupón se usará: la acción está en la barra fija.
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: ec.secondaryTint,
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Row(
           children: [
-            IconBox(Icons.confirmation_number_rounded, accent: true, size: 42),
-            const SizedBox(width: 12),
+            Icon(Icons.confirmation_number_outlined, size: 18, color: ec.secondaryDeep),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Cupón disponible',
-                    style: EnjoyTheme.heading(size: 14, color: ec.text),
+                    'Tienes un cupón para este local',
+                    style: EnjoyTheme.body(size: 13, weight: FontWeight.w700, color: ec.text),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -277,14 +308,6 @@ class _ComercioDetalleMiniScreenState
                   ),
                 ],
               ),
-            ),
-            const SizedBox(width: 8),
-            EnjoyButton(
-              label: 'Canjear',
-              icon: Icons.qr_code_rounded,
-              dense: true,
-              expand: false,
-              onPressed: () => _mostrarQrCupon(cupon),
             ),
           ],
         ),
@@ -631,7 +654,7 @@ class _ComercioDetalleMiniScreenState
       safeTop: false,
       showGlow: false,
       // Barra fija compacta (altura fija: la versión anterior se estiraba).
-      bottomBar: _barraAccion(ec),
+      bottomBar: _cuponesDisponibles.length == 1 ? _barraAccion(ec) : null,
       body: RefreshIndicator(
         color: ec.orange,
         backgroundColor: ec.surfaceMid,
@@ -680,6 +703,66 @@ class _ComercioDetalleMiniScreenState
           ),
         ),
       ),
+    );
+  }
+
+  /// Línea discreta cuando el cliente NO puede canjear aquí (sin presión de venta).
+  Widget? _avisoCuponera(EnjoyColors ec) {
+    if (_cuponesDisponibles.isNotEmpty || _tieneCuponera == null) return null;
+    final ciudad = (_data?.ciudades.isNotEmpty ?? false) ? _data!.ciudades.first : '';
+
+    String texto;
+    String? accion;
+    IconData icono;
+    if (_tieneCuponera! && _yaCanjeoAqui) {
+      texto = 'Ya usaste tu cupón en este local';
+      icono = Icons.check_circle_outline_rounded;
+    } else if (_tieneCuponera!) {
+      texto = 'Tu cuponera no incluye este local';
+      accion = 'Ver opciones';
+      icono = Icons.info_outline_rounded;
+    } else if (_cuponeraSugerida != null) {
+      final v = double.tryParse('${_cuponeraSugerida!['precio']}');
+      final precio = v == null
+          ? ''
+          : ' · desde \$${v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2)}';
+      texto = 'Incluido en la ${_cuponeraSugerida!['nombre']}$precio';
+      accion = 'Ver';
+      icono = Icons.local_activity_outlined;
+    } else {
+      texto = 'Necesitas una cuponera para usar esta promoción';
+      accion = 'Ver';
+      icono = Icons.local_activity_outlined;
+    }
+
+    final fila = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: ec.secondaryTint,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icono, size: 18, color: ec.secondaryDeep),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(texto,
+                style: EnjoyTheme.body(size: 13, height: 1.35, color: ec.textSoft)),
+          ),
+          if (accion != null) ...[
+            const SizedBox(width: 8),
+            Text(accion,
+                style: EnjoyTheme.body(size: 13, weight: FontWeight.w700, color: ec.accentText)),
+            Icon(Icons.chevron_right_rounded, size: 18, color: ec.accentText),
+          ],
+        ],
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: accion == null
+          ? fila
+          : GestureDetector(onTap: () => _abrirCuponeras(ciudad), child: fila),
     );
   }
 
@@ -1030,6 +1113,10 @@ class _ComercioDetalleMiniScreenState
 
           // ── Info card ──
           _buildInfoCard(p),
+          if (_avisoCuponera(context.ec) case final aviso?) ...[
+            const SizedBox(height: 10),
+            aviso,
+          ],
 
           // ── Cupón disponible ──
           if (_cuponesDisponibles.isNotEmpty) ...[
@@ -1496,10 +1583,10 @@ class _ComercioDetalleMiniScreenState
                   width: 28,
                   height: 28,
                   decoration: BoxDecoration(
-                    color: ec.red.withValues(alpha: 0.14),
+                    color: ec.secondaryTint,
                     borderRadius: BorderRadius.circular(9),
                   ),
-                  child: Icon(Icons.place_rounded, size: 14, color: ec.red),
+                  child: Icon(Icons.place_rounded, size: 14, color: ec.secondaryDeep),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1538,6 +1625,8 @@ class _ComercioDetalleMiniScreenState
                             urlTemplate:
                                 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                             userAgentPackageName: 'com.enjoy.app',
+                            // En el tema oscuro el mapa claro deslumbra.
+                            tileBuilder: ec.isDark ? mapaOscuroTileBuilder : null,
                           ),
                           MarkerLayer(
                             markers: [
@@ -1559,11 +1648,22 @@ class _ComercioDetalleMiniScreenState
                     Positioned(
                       bottom: 8,
                       right: 8,
-                      child: Pill(
-                        'Cómo llegar',
-                        variant: PillVariant.orange,
-                        icon: Icons.directions_rounded,
-                        dense: true,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xE61D1E21),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.directions_rounded, size: 14, color: Colors.white),
+                            const SizedBox(width: 5),
+                            Text('Cómo llegar',
+                                style: EnjoyTheme.body(
+                                    size: 12, weight: FontWeight.w700, color: Colors.white)),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -1591,10 +1691,10 @@ class _ComercioDetalleMiniScreenState
                 width: 28,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: ec.green.withValues(alpha: 0.14),
+                  color: ec.secondaryTint,
                   borderRadius: BorderRadius.circular(9),
                 ),
-                child: Icon(Icons.phone_rounded, size: 14, color: ec.green),
+                child: Icon(Icons.phone_rounded, size: 14, color: ec.secondaryDeep),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1631,6 +1731,40 @@ class _ComercioDetalleMiniScreenState
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
+          if (_data!.totalComentarios == 0 && _miComentario == null) ...[
+            GlassCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Opiniones', style: EnjoyTheme.heading(size: 15, color: ec.text)),
+                  const SizedBox(height: 6),
+                  Text(
+                    _eligibileParaComentar
+                        ? 'Aún no hay reseñas. Ya usaste una promoción aquí: cuéntanos qué tal.'
+                        : 'Aún no hay reseñas. Podrás opinar después de usar una promoción en este local.',
+                    style: EnjoyTheme.body(size: 13, height: 1.45, color: ec.textMute),
+                  ),
+                ],
+              ),
+            ),
+            if (_eligibileParaComentar) ...[
+              const SizedBox(height: 10),
+              _MiResenaCard(
+                elegible: true,
+                miComentario: null,
+                modoEdicion: true,
+                rating: _myRating,
+                onRatingChanged: (v) => setState(() => _myRating = v),
+                commentCtrl: _myCommentCtrl,
+                saving: _saving,
+                onGuardar: _guardarMiComentario,
+                onEliminar: null,
+                onEditar: _startEditar,
+                onCancelar: null,
+              ),
+            ],
+          ] else ...[
           // ── Rating hero card ──
           GlassCard(
             padding: const EdgeInsets.all(16),
@@ -1640,11 +1774,11 @@ class _ComercioDetalleMiniScreenState
                   width: 30,
                   height: 30,
                   decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.14),
+                    color: ec.secondaryTint,
                     borderRadius: BorderRadius.circular(9),
                   ),
-                  child: const Icon(Icons.star_rounded,
-                      size: 16, color: Colors.amber),
+                  child: Icon(Icons.star_rounded,
+                      size: 16, color: ec.secondaryDeep),
                 ),
                 const SizedBox(width: 10),
                 Text(
@@ -1726,6 +1860,7 @@ class _ComercioDetalleMiniScreenState
                 ],
               ),
             ),
+          ],
           ],
         ],
       ),

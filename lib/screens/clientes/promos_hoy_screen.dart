@@ -486,18 +486,15 @@ class _PromosHoyScreenState extends State<PromosHoyScreen> {
           final p = list[i];
           final distance = _distanciaA(p);
           final distanceLabel = distance.isFinite
-              ? '${(distance / 1000).toStringAsFixed(1)} km'
+              ? '${(distance / 1000).toStringAsFixed(1).replaceAll('.', ',')} km'
               : null;
-          final cat = p.categories.isNotEmpty ? p.categories.first : p.city;
-          final subtitle = [
-            distanceLabel,
-            cat,
-          ].where((value) => value != null && value.isNotEmpty).join(' · ');
+          final tx = promoTextos(p, distancia: distanceLabel);
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: PromoCard(
               title: p.placeName.isNotEmpty ? p.placeName : p.title,
-              subtitle: subtitle.isEmpty ? p.title : subtitle,
+              subtitle: tx.oferta,
+              meta: tx.meta,
               imageUrl: p.coverUrl,
               discount: p.isTwoForOne ? '2x1' : null,
               tieneFlash: p.tieneFlash,

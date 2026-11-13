@@ -129,15 +129,16 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
                   padding: const EdgeInsets.symmetric(vertical: 9),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    gradient: active ? ec.accentGradient : null,
+                    color: active ? ec.surfaceTop : null,
                     borderRadius: BorderRadius.circular(11),
+                    boxShadow: active ? ec.shadowSm : null,
                   ),
                   child: Text(
                     tabs[i],
                     style: EnjoyTheme.heading(
                       size: 13,
-                      weight: FontWeight.w600,
-                      color: active ? ec.onAccent : ec.textSoft,
+                      weight: active ? FontWeight.w700 : FontWeight.w600,
+                      color: active ? ec.text : ec.textSoft,
                     ),
                   ),
                 ),
@@ -330,20 +331,18 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
           Container(
             padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
             decoration: BoxDecoration(
-              gradient: ec.accentGradient,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
+              border: Border(bottom: BorderSide(color: ec.stroke)),
             ),
             child: Row(
               children: [
                 Container(
                   width: 38, height: 38,
                   decoration: BoxDecoration(
-                    color: ec.onAccent.withValues(alpha: 0.14),
+                    color: ec.secondaryTint,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(Icons.local_activity_rounded,
-                      color: ec.onAccent, size: 20),
+                      color: ec.secondaryDeep, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -357,7 +356,7 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
                         style: EnjoyTheme.heading(
                             size: 16,
                             weight: FontWeight.w800,
-                            color: ec.onAccent),
+                            color: ec.text),
                       ),
                       if (c.secuencial != null) ...[
                         const SizedBox(height: 4),
@@ -365,7 +364,7 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: ec.onAccent.withValues(alpha: 0.16),
+                            color: ec.secondaryTint,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -373,7 +372,7 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
                             style: EnjoyTheme.body(
                                 size: 11,
                                 weight: FontWeight.w700,
-                                color: ec.onAccent),
+                                color: ec.secondaryDeep),
                           ),
                         ),
                       ],
@@ -385,7 +384,7 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: ec.onAccent.withValues(alpha: 0.16),
+                    color: estadoColor.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -397,11 +396,14 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
                           decoration: BoxDecoration(
                               color: estadoColor, shape: BoxShape.circle)),
                       const SizedBox(width: 5),
-                      Text(c.estado,
+                      Text(
+                          c.estado.isEmpty
+                              ? ''
+                              : c.estado[0].toUpperCase() + c.estado.substring(1).toLowerCase(),
                           style: EnjoyTheme.body(
                               size: 11,
                               weight: FontWeight.w700,
-                              color: ec.onAccent)),
+                              color: ec.text)),
                     ],
                   ),
                 ),
@@ -475,8 +477,7 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
                           spacing: 5,
                           runSpacing: 4,
                           children: v.ciudadesDisponibles
-                              .map((ci) => Pill(ci,
-                                  variant: PillVariant.orange, dense: true))
+                              .map((ci) => Pill(ci, dense: true))
                               .toList(),
                         ),
                       ],
@@ -520,9 +521,9 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
         Container(
           width: 26, height: 26,
           decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.14),
+              color: ec.secondaryTint,
               borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, size: 14, color: iconColor),
+          child: Icon(icon, size: 14, color: ec.secondaryDeep),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -586,9 +587,9 @@ class _CuponDetalleScreenState extends State<CuponDetalleScreen>
             Container(
               width: 32, height: 32,
               decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.14),
+                  color: ec.secondaryTint,
                   borderRadius: BorderRadius.circular(9)),
-              child: Icon(icon, size: 17, color: iconColor),
+              child: Icon(icon, size: 17, color: ec.secondaryDeep),
             ),
             const SizedBox(height: 6),
             Text(value,
@@ -727,8 +728,7 @@ class _LocalTile extends StatelessWidget {
                     spacing: 5,
                     runSpacing: 4,
                     children: ciudades
-                        .map((c) => Pill(c,
-                            variant: PillVariant.orange, dense: true))
+                        .map((c) => Pill(c, dense: true))
                         .toList(),
                   ),
                 ],

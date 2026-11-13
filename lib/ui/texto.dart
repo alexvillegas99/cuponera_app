@@ -1,3 +1,4 @@
+import "package:flutter/material.dart";
 // Utilidades de presentación de texto compartidas por las pantallas.
 
 /// Los locales suelen registrarse en MAYÚSCULAS ("MIDGARD RESTAURANTE-BAR").
@@ -17,3 +18,17 @@ String nombreLegible(String s) {
   });
 }
 
+
+/// Teselas de mapa para el tema oscuro: escala de grises atenuada (sobrio,
+/// sin la inversión de colores de `darkModeTileBuilder`).
+Widget mapaOscuroTileBuilder(BuildContext context, Widget tile, dynamic _) {
+  return ColorFiltered(
+    colorFilter: const ColorFilter.matrix(<double>[
+      -0.25, -0.5, -0.08, 0, 205,
+      -0.25, -0.5, -0.08, 0, 210,
+      -0.25, -0.5, -0.08, 0, 220,
+      0, 0, 0, 1, 0,
+    ]),
+    child: tile,
+  );
+}

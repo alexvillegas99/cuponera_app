@@ -1,3 +1,4 @@
+import "package:enjoy/ui/texto.dart";
 import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -51,9 +52,8 @@ class _MapaVersionScreenState extends State<MapaVersionScreen> {
       if (!mounted) return;
       final loc = LatLng(pos.latitude, pos.longitude);
       setState(() => _userLocation = loc);
-      if (recenter && _mapReady) {
-        _mapController.move(loc, 15);
-      }
+      // Al cargar, encuadrar locales (+ usuario si está cerca), no solo el usuario.
+      if (recenter && _mapReady) _encuadrarLocales();
     } catch (_) {
       // Silencioso: el mapa ya tiene un centro de respaldo.
     }
@@ -66,6 +66,30 @@ class _MapaVersionScreenState extends State<MapaVersionScreen> {
     } else {
       await _loadUserLocation();
     }
+  }
+
+  /// Encuadra todos los locales de la cuponera (más el usuario si está a
+  /// menos de 30 km), para que al abrir el mapa se vean los locales.
+  void _encuadrarLocales() {
+    final pts = _localesConUbicacion
+        .map((l) => LatLng((l['ubicacion']['lat'] as num).toDouble(),
+            (l['ubicacion']['lng'] as num).toDouble()))
+        .toList();
+    if (pts.isEmpty) return;
+    if (_userLocation != null) {
+      const d = Distance();
+      final cerca = pts.any((p) => d.as(LengthUnit.Kilometer, p, _userLocation!) < 30);
+      if (cerca) pts.add(_userLocation!);
+    }
+    if (pts.length == 1) {
+      _mapController.move(pts.first, 15);
+      return;
+    }
+    _mapController.fitCamera(CameraFit.coordinates(
+      coordinates: pts,
+      padding: const EdgeInsets.fromLTRB(48, 140, 48, 120),
+      maxZoom: 15,
+    ));
   }
 
   /// Centro inicial del mapa: usuario > promedio de locales > Quito.
@@ -116,20 +140,18 @@ class _MapaVersionScreenState extends State<MapaVersionScreen> {
                         ec.isDark ? const Color(0xFF11141B) : const Color(0xFFE8ECF1),
                     onMapReady: () {
                       _mapReady = true;
-                      if (_userLocation != null) {
-                        _mapController.move(_userLocation!, 15);
-                      }
+                      _encuadrarLocales();
                     },
                     onTap: (_, __) => setState(() => _selectedLocal = null),
                   ),
                   children: [
-                    // Tiles CartoDB según tema: dark_all (oscuro) / light_all (claro).
+                    // OpenStreetMap (CARTO ahora exige API key y mostraba marcas
+                    // de agua). En el tema oscuro se oscurece el mapa claro.
                     TileLayer(
-                      urlTemplate:
-                          'https://{s}.basemaps.cartocdn.com/${ec.isDark ? "dark_all" : "light_all"}/{z}/{x}/{y}.png',
-                      subdomains: const ['a', 'b', 'c', 'd'],
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.pixelsmart.enjoy',
-                      maxZoom: 20,
+                      maxZoom: 19,
+                      tileBuilder: ec.isDark ? mapaOscuroTileBuilder : null,
                     ),
                     // Marcador de la ubicación del usuario.
                     if (_userLocation != null)

@@ -1,3 +1,4 @@
+import 'package:enjoy/ui/texto.dart';
 import 'package:flutter/material.dart';
 
 import 'package:enjoy/ui/enjoy_colors.dart';
@@ -178,7 +179,7 @@ class PromoCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      title,
+                      nombreLegible(title),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       // Siempre blanco: va sobre la foto + overlay oscuro,
@@ -253,4 +254,24 @@ class PromoCard extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// Oferta y línea de datos de una promoción, iguales en todas las listas:
+/// subtítulo = la oferta; meta = ciudad · categoría · horario · distancia.
+({String? oferta, String meta}) promoTextos(dynamic p, {String? distancia}) {
+  final String place = (p.placeName ?? '').toString();
+  final String title = (p.title ?? '').toString();
+  final List cats = (p.categories ?? const []) as List;
+  final oferta = title.trim().isNotEmpty && title.trim().toLowerCase() != place.trim().toLowerCase()
+      ? title.trim()
+      : null;
+  // Lo corto primero (el horario puede ser largo y se recorta al final).
+  final meta = [
+    (p.city ?? '').toString(),
+    distancia ?? '',
+    cats.isNotEmpty ? cats.first.toString() : '',
+    (p.scheduleLabel ?? '').toString(),
+  ].where((e) => e.trim().isNotEmpty).join(' · ');
+  return (oferta: oferta, meta: meta);
 }
