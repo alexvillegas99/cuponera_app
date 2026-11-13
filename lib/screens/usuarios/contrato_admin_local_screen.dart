@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:enjoy/screens/usuarios/contrato_lectura_screen.dart';
+import 'package:enjoy/screens/usuarios/selfie_liveness_screen.dart';
 import 'package:enjoy/services/contrato_service.dart';
 import 'package:enjoy/ui/enjoy.dart';
 import 'package:flutter/material.dart';
@@ -24,11 +26,11 @@ class ContratoAdminLocalScreen extends StatefulWidget {
 
 class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
   final _svc = ContratoService();
-  final _scroll = ScrollController();
   final _picker = ImagePicker();
 
   bool _cargando = true;
   bool _guardando = false;
+  bool _omitiendo = false;
   ContratoEstado? _estado;
 
   // Datos del local
@@ -39,7 +41,15 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
   final _celularCtrl = TextEditingController();
   String _estadoCivil = 'soltero';
 
-  // Cédula
+  /// Claves de los campos que llegaron con valor del backend — se muestran
+  /// como solo lectura y no pueden editarse desde este flujo. Los faltantes
+  /// se piden acá y suben en el POST /contratos/aceptar.
+  final Set<String> _bloqueados = <String>{};
+
+  // Selfie con liveness (paso 1)
+  String? _selfieBase64;
+
+  // Cédula (paso 2)
   File? _cedulaFile;
   String? _cedulaBase64;
 
@@ -50,13 +60,11 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
   @override
   void initState() {
     super.initState();
-    _scroll.addListener(_onScroll);
     _cargar();
   }
 
   @override
   void dispose() {
-    _scroll.dispose();
     _rucCtrl.dispose();
     _direccionCtrl.dispose();
     _repreCtrl.dispose();
@@ -71,28 +79,36 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
       if (!mounted) return;
       setState(() {
         _estado = e;
-        _rucCtrl.text = (e.datosLocal['ruc'] ?? '').toString();
-        _direccionCtrl.text = (e.datosLocal['direccion'] ?? '').toString();
-        _repreCtrl.text =
-            (e.datosLocal['representanteLegal'] ?? '').toString();
-        _cedulaRepreCtrl.text =
-            (e.datosLocal['cedulaRepresentante'] ?? '').toString();
-        _celularCtrl.text = (e.datosLocal['celular'] ?? '').toString();
+
+        // Datos del representante legal: se prellenan si ya existen, pero
+        // quedan EDITABLES para que el admin-local pueda corregirlos al firmar.
+        // Solo los datos del local (RUC, dirección, celular) se bloquean.
+        const editables = {'representanteLegal', 'cedulaRepresentante'};
+
+        void aplicar(String key, TextEditingController ctrl) {
+          final valor = (e.datosLocal[key] ?? '').toString();
+          ctrl.text = valor;
+          if (valor.trim().isNotEmpty && !editables.contains(key)) {
+            _bloqueados.add(key);
+          }
+        }
+
+        aplicar('ruc', _rucCtrl);
+        aplicar('direccion', _direccionCtrl);
+        aplicar('representanteLegal', _repreCtrl);
+        aplicar('cedulaRepresentante', _cedulaRepreCtrl);
+        aplicar('celular', _celularCtrl);
+
+        // Estado civil siempre editable: solo prellenamos el valor guardado.
         final ec = (e.datosLocal['estadoCivilRepresentante'] ?? '').toString();
-        if (ec.isNotEmpty) _estadoCivil = ec;
+        if (ec.isNotEmpty) {
+          _estadoCivil = ec;
+        }
         _cargando = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() => _cargando = false);
-    }
-  }
-
-  void _onScroll() {
-    if (!_scroll.hasClients) return;
-    final pos = _scroll.position;
-    if (!_scrollCompleto && pos.pixels >= pos.maxScrollExtent - 16) {
-      setState(() => _scrollCompleto = true);
     }
   }
 
@@ -137,12 +153,111 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
   bool get _puedeFirmar =>
       _scrollCompleto &&
       _aceptaTerminos &&
+      _selfieBase64 != null &&
       _cedulaBase64 != null &&
       _rucCtrl.text.trim().isNotEmpty &&
       _direccionCtrl.text.trim().isNotEmpty &&
       _repreCtrl.text.trim().isNotEmpty &&
       _cedulaRepreCtrl.text.trim().isNotEmpty &&
       _celularCtrl.text.trim().isNotEmpty;
+
+  /// Abre la pantalla con cámara frontal + ML Kit y guarda el selfie en estado.
+  Future<void> _capturarSelfie() async {
+    final result = await Navigator.of(context).push<String?>(
+      MaterialPageRoute(
+        builder: (_) => const SelfieLivenessScreen(),
+        fullscreenDialog: true,
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() => _selfieBase64 = result);
+    }
+  }
+
+  /// Abre el contrato en su propia pantalla a pantalla completa. Cuando el
+  /// usuario llega al final y toca "He leído", volvemos con `true` y
+  /// habilitamos el checkbox de aceptación.
+  Future<void> _abrirContrato() async {
+    final nombre =
+        (_estado?.datosLocal['nombreLocal'] ?? '').toString();
+    final leido = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ContratoLecturaScreen(nombreLocal: nombre),
+        fullscreenDialog: true,
+      ),
+    );
+    if (leido == true && mounted) {
+      setState(() => _scrollCompleto = true);
+    }
+  }
+
+  /// Llama al endpoint /contratos/omitir. Cierra la pantalla al confirmarse.
+  /// Antes pide confirmación y avisa cuántas omisiones le quedarán después.
+  Future<void> _omitirContrato() async {
+    final estado = _estado;
+    if (estado == null || estado.omisionesRestantes <= 0) return;
+
+    final restantesTrasEsta = estado.omisionesRestantes - 1;
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final ec = ctx.ec;
+        return AlertDialog(
+          backgroundColor: ec.surfaceTop,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18)),
+          title: Text(
+            'Omitir por ahora',
+            style: EnjoyTheme.heading(
+                size: 17, color: ec.text, weight: FontWeight.w800),
+          ),
+          content: Text(
+            restantesTrasEsta > 0
+                ? 'Podrás usar la app, pero te vamos a volver a pedir la firma la próxima vez. Después de esta te quedarán $restantesTrasEsta omisiones.'
+                : 'Esta es tu última omisión. La próxima vez que entres tendrás que firmar el contrato sí o sí para poder operar.',
+            style: EnjoyTheme.body(size: 13.5, color: ec.textSoft, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Cancelar',
+                  style: EnjoyTheme.body(size: 13.5, color: ec.textSoft)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(
+                'Sí, omitir',
+                style: EnjoyTheme.body(
+                    size: 13.5,
+                    color: ec.orange,
+                    weight: FontWeight.w800),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmar != true || !mounted) return;
+
+    setState(() => _omitiendo = true);
+    try {
+      await _svc.omitir();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _omitiendo = false);
+      String backMsg = '';
+      try {
+        final dyn = e as dynamic;
+        backMsg = (dyn.response?.data?['message'] ??
+                dyn.response?.data?.toString() ??
+                '')
+            .toString();
+      } catch (_) {}
+      _toast(backMsg.isNotEmpty ? backMsg : 'No pudimos omitir. Intentá más tarde.');
+    }
+  }
 
   Future<void> _firmar() async {
     if (!_puedeFirmar) {
@@ -151,10 +266,29 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
       );
       return;
     }
+    // 1) Pedir OTP → email al admin-local.
+    setState(() => _guardando = true);
+    Map<String, String> info;
+    try {
+      info = await _svc.solicitarOtp();
+    } catch (e) {
+      setState(() => _guardando = false);
+      _toast('No se pudo enviar el código. Reintentá.');
+      return;
+    }
+    setState(() => _guardando = false);
+    if (!mounted) return;
+
+    // 2) Pedir el código al usuario.
+    final otp = await _pedirOtpDialog(info['email'] ?? '');
+    if (otp == null) return; // canceló
+
+    // 3) Enviar firma con OTP + selfie (ya capturado antes).
     setState(() => _guardando = true);
     try {
       await _svc.aceptar(
         cedulaBase64: _cedulaBase64!,
+        selfieBase64: _selfieBase64,
         datosLocal: {
           'ruc': _rucCtrl.text.trim(),
           'direccion': _direccionCtrl.text.trim(),
@@ -164,6 +298,7 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
           'celular': _celularCtrl.text.trim(),
         },
         aceptaTerminos: true,
+        otp: otp,
       );
       if (!mounted) return;
       _toast('¡Contrato firmado!');
@@ -171,8 +306,189 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _guardando = false);
-      _toast('No pudimos guardar tu contrato. Reintentá.');
+      // Extraer el mensaje real del back. Dio envuelve la respuesta:
+      // e.response.data.message → '... no solicitaste código ...' etc.
+      String backMsg = '';
+      try {
+        final dyn = e as dynamic;
+        backMsg = (dyn.response?.data?['message'] ??
+                dyn.response?.data?.toString() ??
+                '')
+            .toString();
+      } catch (_) {}
+      final raw = (backMsg.isNotEmpty ? backMsg : e.toString()).toLowerCase();
+      String msg;
+      if (raw.contains('código') ||
+          raw.contains('codigo') ||
+          raw.contains('otp')) {
+        msg =
+            'El código no es válido o expiró. Pedí uno nuevo (la app puede haberse reiniciado).';
+      } else if (raw.contains('timeout') || raw.contains('connection')) {
+        msg =
+            'Sin conexión estable. Verificá tu internet y volvé a intentar.';
+      } else if (backMsg.isNotEmpty) {
+        msg = backMsg;
+      } else {
+        msg = 'No pudimos firmar tu contrato. Intentá de nuevo.';
+      }
+      _toast(msg);
     }
+  }
+
+  /// Modal con input de 6 dígitos. Retorna el código o null si cancela.
+  Future<String?> _pedirOtpDialog(String emailEnmascarado) async {
+    final ctrl = TextEditingController();
+    final ec = context.ec;
+    bool reenviando = false;
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: ec.surfaceMid,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(20, 18, 20, 20 + bottom),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: ec.stroke,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Icon(Icons.mark_email_read_outlined, color: ec.orange),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Código de firma enviado',
+                        style: EnjoyTheme.heading(
+                            size: 17, weight: FontWeight.w800, color: ec.text),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Te enviamos un código de 6 dígitos a $emailEnmascarado. Ingresalo para completar la firma del contrato.',
+                  style: EnjoyTheme.body(size: 13, color: ec.textSoft, height: 1.4),
+                ),
+                const SizedBox(height: 18),
+                TextField(
+                  controller: ctrl,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  textAlign: TextAlign.center,
+                  style: EnjoyTheme.heading(
+                      size: 26,
+                      weight: FontWeight.w800,
+                      color: ec.text,
+                      letterSpacing: 8),
+                  decoration: InputDecoration(
+                    counterText: '',
+                    hintText: '••••••',
+                    hintStyle: EnjoyTheme.heading(
+                        size: 26,
+                        weight: FontWeight.w800,
+                        color: ec.textMute,
+                        letterSpacing: 8),
+                    filled: true,
+                    fillColor: ec.glass,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: ec.stroke),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: ec.stroke),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: ec.orange, width: 1.5),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: reenviando
+                          ? null
+                          : () async {
+                              setLocal(() => reenviando = true);
+                              try {
+                                await _svc.solicitarOtp();
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Te enviamos un código nuevo.')),
+                                );
+                              } catch (_) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('No se pudo reenviar.')),
+                                );
+                              }
+                              setLocal(() => reenviando = false);
+                            },
+                      icon: Icon(Icons.refresh, color: ec.orangeSoft, size: 18),
+                      label: Text(
+                        reenviando ? 'Enviando…' : 'Reenviar código',
+                        style: EnjoyTheme.body(
+                            size: 13,
+                            color: ec.orangeSoft,
+                            weight: FontWeight.w700),
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(
+                        'Cancelar',
+                        style:
+                            EnjoyTheme.body(size: 13.5, color: ec.textSoft),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: EnjoyButton(
+                    label: 'Confirmar firma',
+                    icon: Icons.verified_user_outlined,
+                    onPressed: () {
+                      final v = ctrl.text.trim();
+                      if (v.length != 6) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(
+                              content: Text('Ingresá los 6 dígitos.')),
+                        );
+                        return;
+                      }
+                      Navigator.pop(ctx, v);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void _toast(String m) {
@@ -183,6 +499,56 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
   @override
   Widget build(BuildContext context) {
     final ec = context.ec;
+
+    // Mientras se está firmando (subiendo cédula/selfie, generando PDF,
+    // subiendo a S3, enviando mail), tapamos toda la pantalla con un loader
+    // claro y descriptivo. Sin esto, parecía que la app se colgaba.
+    if (_guardando) {
+      return PopScope(
+        canPop: false,
+        child: EnjoyScaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: CircularProgressIndicator(
+                      color: ec.orange,
+                      strokeWidth: 4,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Text(
+                    'Firmando tu contrato…',
+                    textAlign: TextAlign.center,
+                    style: EnjoyTheme.heading(
+                      size: 20,
+                      weight: FontWeight.w800,
+                      color: ec.text,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Estamos generando tu PDF, subiendo tu cédula y selfie, y enviándote una copia por email. Esto puede tardar unos segundos. Por favor no cierres la app.',
+                    textAlign: TextAlign.center,
+                    style: EnjoyTheme.body(
+                      size: 13.5,
+                      color: ec.textSoft,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return PopScope(
       canPop: false, // no se puede volver atrás
       child: EnjoyScaffold(
@@ -194,16 +560,57 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Aviso arriba explicando por qué algunos campos están
+                    // bloqueados — evita que el usuario piense que la app
+                    // está rota cuando no puede tocar RUC/dirección/etc.
+                    if (_bloqueados.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 4, bottom: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: ec.glass,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: ec.stroke),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline,
+                                color: ec.orangeSoft, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Algunos datos ya están cargados en tu ficha y no se pueden editar acá. Completá los faltantes y firmá el contrato.',
+                                style: EnjoyTheme.body(
+                                    size: 12.5,
+                                    color: ec.textSoft,
+                                    height: 1.4),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
                     // Datos del local
                     _sectionTitle(ec, 'Datos del local'),
                     _label('RUC del local *'),
-                    _input(_rucCtrl, hint: '1801234567001'),
+                    _input(_rucCtrl,
+                        hint: '1801234567001',
+                        readOnly: _bloqueados.contains('ruc')),
                     _label('Dirección del local *'),
-                    _input(_direccionCtrl, hint: 'Calle, número, sector'),
+                    _input(_direccionCtrl,
+                        hint: 'Calle, número, sector',
+                        readOnly: _bloqueados.contains('direccion')),
                     _label('Representante legal *'),
-                    _input(_repreCtrl, hint: 'Nombres y apellidos'),
+                    _input(_repreCtrl,
+                        hint: 'Nombres y apellidos',
+                        readOnly: _bloqueados.contains('representanteLegal')),
                     _label('Cédula del representante *'),
-                    _input(_cedulaRepreCtrl, hint: '1801234567'),
+                    _input(_cedulaRepreCtrl,
+                        hint: '1801234567',
+                        readOnly:
+                            _bloqueados.contains('cedulaRepresentante')),
                     _label('Estado civil'),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -218,57 +625,136 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
                         underline: const SizedBox.shrink(),
                         dropdownColor: ec.surfaceTop,
                         items: const [
-                          DropdownMenuItem(value: 'soltero', child: Text('Soltero/a')),
-                          DropdownMenuItem(value: 'casado', child: Text('Casado/a')),
-                          DropdownMenuItem(value: 'divorciado', child: Text('Divorciado/a')),
-                          DropdownMenuItem(value: 'viudo', child: Text('Viudo/a')),
-                          DropdownMenuItem(value: 'union_libre', child: Text('Unión libre')),
+                          DropdownMenuItem(
+                              value: 'soltero', child: Text('Soltero/a')),
+                          DropdownMenuItem(
+                              value: 'casado', child: Text('Casado/a')),
+                          DropdownMenuItem(
+                              value: 'divorciado', child: Text('Divorciado/a')),
+                          DropdownMenuItem(
+                              value: 'viudo', child: Text('Viudo/a')),
+                          DropdownMenuItem(
+                              value: 'union_libre', child: Text('Unión libre')),
                         ],
-                        onChanged: (v) => setState(() => _estadoCivil = v ?? 'soltero'),
+                        onChanged: (v) =>
+                            setState(() => _estadoCivil = v ?? 'soltero'),
                       ),
                     ),
                     _label('Celular *'),
-                    _input(_celularCtrl, hint: '0991234567'),
+                    _input(_celularCtrl,
+                        hint: '0991234567',
+                        readOnly: _bloqueados.contains('celular')),
 
                     const SizedBox(height: 18),
-                    _sectionTitle(ec, 'Leé el contrato completo'),
-                    if (!_scrollCompleto)
+                    _sectionTitle(ec, 'Contrato de cooperación'),
+                    Text(
+                      'Se abre en pantalla completa. Leelo hasta el final para poder aceptar.',
+                      style: EnjoyTheme.body(
+                          size: 12.5, color: ec.textSoft, height: 1.4),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: EnjoyButton(
+                        label: _scrollCompleto
+                            ? 'Volver a leer el contrato'
+                            : 'Leer el contrato',
+                        icon: _scrollCompleto
+                            ? Icons.menu_book
+                            : Icons.menu_book_outlined,
+                        onPressed: _abrirContrato,
+                        variant: _scrollCompleto
+                            ? EnjoyButtonVariant.ghost
+                            : EnjoyButtonVariant.orange,
+                      ),
+                    ),
+                    if (_scrollCompleto)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          '↓ Desplazá hasta el final para poder aceptar.',
-                          style: EnjoyTheme.body(size: 12, color: ec.orange),
-                        ),
-                      )
-                    else
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.only(top: 8),
                         child: Row(
                           children: [
-                            Icon(Icons.check_circle, color: ec.green, size: 16),
+                            Icon(Icons.check_circle,
+                                color: ec.green, size: 16),
                             const SizedBox(width: 6),
-                            Text('Leído completo',
-                                style: EnjoyTheme.body(size: 12, color: ec.green)),
+                            Text('Contrato leído',
+                                style: EnjoyTheme.body(
+                                    size: 12.5, color: ec.green)),
                           ],
                         ),
                       ),
-                    Container(
-                      height: 280,
-                      decoration: BoxDecoration(
-                        color: ec.glass,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: ec.stroke),
-                      ),
-                      child: Scrollbar(
-                        controller: _scroll,
-                        child: SingleChildScrollView(
-                          controller: _scroll,
-                          padding: const EdgeInsets.all(16),
-                          child: _contratoTexto(ec),
+
+                    // ─── Paso 1: Selfie con prueba de vida ───
+                    const SizedBox(height: 18),
+                    _sectionTitle(ec, 'Selfie del representante *'),
+                    Text(
+                      'Tomate una selfie con prueba de vida (sonreí, parpadeá y girá la cabeza). Queda como anexo del contrato.',
+                      style: EnjoyTheme.body(
+                          size: 12.5, color: ec.textSoft, height: 1.4),
+                    ),
+                    const SizedBox(height: 10),
+                    if (_selfieBase64 != null)
+                      Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                color: ec.green.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(14),
+                                border:
+                                    Border.all(color: ec.green, width: 1.5),
+                              ),
+                              child: Icon(Icons.check_circle,
+                                  color: ec.green, size: 36),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Selfie capturado ✓',
+                                  style: EnjoyTheme.heading(
+                                      size: 14,
+                                      weight: FontWeight.w800,
+                                      color: ec.text),
+                                ),
+                                const SizedBox(height: 4),
+                                TextButton.icon(
+                                  onPressed: _capturarSelfie,
+                                  icon: Icon(Icons.refresh,
+                                      color: ec.orangeSoft, size: 16),
+                                  label: Text(
+                                    'Volver a tomar',
+                                    style: EnjoyTheme.body(
+                                        size: 12.5,
+                                        color: ec.orangeSoft,
+                                        weight: FontWeight.w700),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: const Size(0, 0)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      SizedBox(
+                        width: double.infinity,
+                        child: EnjoyButton(
+                          label: 'Tomar selfie con prueba de vida',
+                          icon: Icons.face_retouching_natural,
+                          onPressed: _capturarSelfie,
+                          variant: EnjoyButtonVariant.ghost,
                         ),
                       ),
-                    ),
 
+                    // ─── Paso 2: Cédula ───
                     const SizedBox(height: 18),
                     _sectionTitle(ec, 'Foto de tu cédula *'),
                     if (_cedulaFile != null)
@@ -361,6 +847,29 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
                         onPressed: _guardando || !_puedeFirmar ? null : _firmar,
                       ),
                     ),
+                    if ((_estado?.omisionesRestantes ?? 0) > 0) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton.icon(
+                          onPressed: (_guardando || _omitiendo)
+                              ? null
+                              : _omitirContrato,
+                          icon: Icon(Icons.schedule,
+                              size: 18, color: ec.textSoft),
+                          label: Text(
+                            _omitiendo
+                                ? 'Omitiendo…'
+                                : 'Omitir por ahora  ·  te quedan ${_estado!.omisionesRestantes} de 3',
+                            style: EnjoyTheme.body(
+                              size: 13,
+                              color: ec.textSoft,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                   ],
                 ),
@@ -393,16 +902,29 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
         ),
       );
 
-  Widget _input(TextEditingController ctrl, {String? hint}) {
+  Widget _input(
+    TextEditingController ctrl, {
+    String? hint,
+    bool readOnly = false,
+  }) {
     final ec = context.ec;
     return TextField(
       controller: ctrl,
-      style: EnjoyTheme.body(color: ec.text),
+      readOnly: readOnly,
+      style: EnjoyTheme.body(color: readOnly ? ec.textSoft : ec.text),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: EnjoyTheme.body(color: ec.textMute),
         filled: true,
-        fillColor: ec.glass,
+        fillColor: readOnly ? ec.stroke.withValues(alpha: 0.25) : ec.glass,
+        suffixIcon: readOnly
+            ? Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: Icon(Icons.lock_outline, size: 18, color: ec.textMute),
+              )
+            : null,
+        suffixIconConstraints:
+            const BoxConstraints(minWidth: 32, minHeight: 32),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
@@ -415,109 +937,11 @@ class _ContratoAdminLocalScreenState extends State<ContratoAdminLocalScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: ec.orange),
+          borderSide: BorderSide(color: readOnly ? ec.stroke : ec.orange),
         ),
       ),
       onChanged: (_) => setState(() {}),
     );
   }
 
-  Widget _contratoTexto(EnjoyColors ec) {
-    final nombre = (_estado?.datosLocal['nombreLocal'] ?? '__________').toString();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'CONTRATO DE COOPERACIÓN ENTRE MARCAS',
-          textAlign: TextAlign.center,
-          style: EnjoyTheme.heading(
-            size: 14,
-            weight: FontWeight.w800,
-            color: ec.text,
-          ),
-        ),
-        const SizedBox(height: 10),
-        _p('En la ciudad de Ambato, comparecen CLUB ENJOY (CONTRATADO) y $nombre (CONTRATANTE), libres y capaces para contratar.'),
-        _h('CLÁUSULA PRIMERA: ANTECEDENTES'),
-        _p('1. CLUB ENJOY es una compañía ecuatoriana ubicada en Cevallos, Tungurahua.'),
-        _p('2. ENJOY es una plataforma de beneficios mediante promociones en consumo, operada vía app digital.'),
-        _p('3. Club Enjoy distribuye membresías temporales e impulsa las ventas de locales afiliados.'),
-        _h('CLÁUSULA SEGUNDA: OBJETO'),
-        _p('Cooperación entre marcas, incorporando al local "$nombre" a la red de afiliados. No involucra relación laboral.'),
-        _h('CLÁUSULA TERCERA: OBLIGACIONES DEL LOCAL'),
-        _p('a) Honrar los Beneficios ofrecidos en la app a los Socios.'),
-        _p('b) Mantenerlos activos durante todo el horario de atención.'),
-        _p('c) Validar cada Beneficio solo vía escaneo de QR.'),
-        _p('d) Designar y capacitar al personal responsable.'),
-        _p('e) Entregar información veraz del establecimiento.'),
-        _p('f) Notificar con anticipación cambios en horarios, ubicación o cierre.'),
-        _p('g) Cumplir con la normativa aplicable.'),
-        _p('h) Atender los reclamos de los Socios.'),
-        _p('i) Pagar a Club Enjoy el valor económico pactado.'),
-        _p('j) Abstenerse de usar marcas de Club Enjoy fuera de lo autorizado.'),
-        _h('CLÁUSULA CUARTA: OBLIGACIONES DE CLUB ENJOY'),
-        _p('a) Incorporar al local y difundir sus beneficios entre suscriptores.'),
-        _p('b) Acceso a la plataforma y panel del afiliado.'),
-        _p('c) Reportes y estadísticas de canjes.'),
-        _p('d) Soporte y capacitación.'),
-        _p('e) Acciones de promoción y marketing del local.'),
-        _p('f) Emitir comprobante de venta por la afiliación.'),
-        _p('g) Tratar los datos personales conforme a Ley.'),
-        _p('h) Notificar suspensiones o cambios de la plataforma.'),
-        _h('CLÁUSULA QUINTA: EXCLUSIVIDAD'),
-        _p('El local no trabajará con otro aplicativo móvil de promociones similares.'),
-        _h('CLÁUSULA SEXTA: CONFIDENCIALIDAD'),
-        _p('Las partes mantienen confidencialidad hasta 1 año después del contrato.'),
-        _h('CLÁUSULA SÉPTIMA: PROTECCIÓN DE DATOS'),
-        _p('Conforme a la Ley Orgánica de Protección de Datos del Ecuador.'),
-        _h('CLÁUSULA OCTAVA: RESPONSABILIDAD'),
-        _p('Club Enjoy no responde por calidad de productos o servicios del local. El local es responsable de la higiene y presentación.'),
-        _h('CLÁUSULA NOVENA: DISPOSICIONES GENERALES'),
-        _p('Toda modificación debe ser escrita y aceptada por ambas partes. (Art. 1561 del Código Civil.)'),
-        _h('CLÁUSULA DÉCIMA: DURACIÓN Y RENOVACIÓN'),
-        _p('Vigencia de un año, renovable por mutuo acuerdo.'),
-        _h('CLÁUSULA DÉCIMA PRIMERA: TERMINACIÓN'),
-        _p('Causas previstas en el Código Civil o por acuerdo escrito.'),
-        _h('CLÁUSULA DÉCIMA SEGUNDA: CLÁUSULA PENAL'),
-        _p('Multa económica por incumplimiento, pagadera de manera inmediata.'),
-        _h('CLÁUSULA DÉCIMA TERCERA: MEDIACIÓN'),
-        _p('Centro de mediación y arbitraje de Ambato.'),
-        _h('CLÁUSULA DÉCIMA CUARTA: JURISDICCIÓN'),
-        _p('Jueces competentes de Ambato, provincia de Tungurahua.'),
-        const SizedBox(height: 10),
-        Text(
-          'Las partes aceptan todas las cláusulas del presente instrumento.',
-          style: EnjoyTheme.body(
-            size: 12.5,
-            color: ec.text,
-            weight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _h(String t) => Padding(
-        padding: const EdgeInsets.only(top: 12, bottom: 4),
-        child: Text(
-          t,
-          style: EnjoyTheme.heading(
-            size: 12.5,
-            weight: FontWeight.w800,
-            color: context.ec.text,
-          ),
-        ),
-      );
-
-  Widget _p(String t) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(
-          t,
-          style: EnjoyTheme.body(
-            size: 12.5,
-            color: context.ec.textSoft,
-            height: 1.5,
-          ),
-        ),
-      );
 }

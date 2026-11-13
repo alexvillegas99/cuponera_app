@@ -8,7 +8,6 @@ import 'package:enjoy/services/ciudades_service.dart';
 import 'package:enjoy/services/establecimientos_empresa_service.dart';
 import 'package:enjoy/services/geocoding_service.dart';
 import 'package:enjoy/ui/enjoy.dart';
-import 'package:enjoy/widgets/horario_builder.dart';
 import 'package:enjoy/utils/image_pick.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -73,6 +72,13 @@ class _EstablecimientoWizardScreenState
   final _descripcion = TextEditingController();
   String _horarioLabel = '';
   bool _aplicaTodosLosDias = true;
+
+  /// Horario "todos los días" — sólo UI; se persiste como `scheduleLabel`
+  /// generado automáticamente. Default 09:00–18:00.
+  final Map<String, String> _horarioGeneral = {
+    'abre': '09:00',
+    'cierra': '18:00',
+  };
   final List<String> _diasAplicables = [];
   final Map<String, Map<String, String>> _horarioPorDia = {};
   final List<String> _tags = [];
@@ -174,6 +180,8 @@ class _EstablecimientoWizardScreenState
         }
       }
     }
+    // Reconstituir horarioGeneral desde el scheduleLabel guardado.
+    _hidratarHorarioGeneral();
   }
 
   String _desformatearTel(String tel) {
@@ -840,27 +848,30 @@ class _EstablecimientoWizardScreenState
       _label('Título de la promoción', req: true),
       _input(_titulo, 'Ej: 2x1 en pizzas'),
       const SizedBox(height: 14),
-      _label('Horario de la promoción', req: true),
-      _hint('Elige días y rango de hora; el texto se arma solo en formato estándar.'),
-      if (_horarioLabel.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Text('Actual: $_horarioLabel',
-              style: EnjoyTheme.body(
-                  size: 13, weight: FontWeight.w600, color: ec.text)),
-        ),
-      HorarioBuilder(
-        onChanged: (v) => setState(() => _horarioLabel = v),
-      ),
-      const SizedBox(height: 14),
       _label('Descripción'),
       _input(_descripcion, 'Describe la promoción…', lines: 3),
-      const SizedBox(height: 6),
-      // 2x1 ya no es editable: todas las promos son 2x1 (siempre true).
-      _switch('Aplica todos los días', _aplicaTodosLosDias,
-          (v) => setState(() => _aplicaTodosLosDias = v)),
-      if (!_aplicaTodosLosDias) ...[
-        const SizedBox(height: 8),
+      const SizedBox(height: 14),
+
+      // ── Horario de la promoción (unificado) ──
+      _label('Horario de la promoción', req: true),
+      _hint(
+          'Definí cuándo está activa. Si "Aplica todos los días" está marcado, usás un solo horario; sino, elegís los días con su horario propio.'),
+      const SizedBox(height: 8),
+      _switch('Aplica todos los días (Lun a Dom)', _aplicaTodosLosDias,
+          (v) {
+        setState(() => _aplicaTodosLosDias = v);
+        if (v) {
+          // Al volver a "todos los días" limpiamos overrides — coincide con
+          // la lógica del back (no manda diasAplicables/horarioPorDia).
+          _diasAplicables.clear();
+          _horarioPorDia.clear();
+        }
+        _actualizarHorarioLabel();
+      }),
+      const SizedBox(height: 10),
+      if (_aplicaTodosLosDias) ...[
+        _horarioRowGeneral(),
+      ] else ...[
         _label('Días que aplica', req: true),
         Wrap(
           spacing: 8,
@@ -870,20 +881,47 @@ class _EstablecimientoWizardScreenState
             return Pill(
               d,
               variant: sel ? PillVariant.orange : PillVariant.glass,
-              onTap: () => setState(() {
-                if (sel) {
-                  _diasAplicables.remove(d);
-                  _horarioPorDia.remove(d);
-                } else {
-                  _diasAplicables.add(d);
-                  _horarioPorDia[d] = {'abre': '09:00', 'cierra': '18:00'};
-                }
-              }),
+              onTap: () {
+                setState(() {
+                  if (sel) {
+                    _diasAplicables.remove(d);
+                    _horarioPorDia.remove(d);
+                  } else {
+                    _diasAplicables.add(d);
+                    _horarioPorDia[d] = {'abre': '09:00', 'cierra': '18:00'};
+                  }
+                });
+                _actualizarHorarioLabel();
+              },
             );
           }).toList(),
         ),
         const SizedBox(height: 12),
         for (final d in _diasAplicables) _horarioRow(d),
+      ],
+      if (_horarioLabel.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: ec.glass,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ec.stroke),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: ec.textMute),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Texto visible para el cliente: $_horarioLabel',
+                  style: EnjoyTheme.body(
+                      size: 12.5, color: ec.textSoft),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
       const SizedBox(height: 14),
       _label('Etiquetas (tags)'),
@@ -939,6 +977,7 @@ class _EstablecimientoWizardScreenState
           final mm = res.minute.toString().padLeft(2, '0');
           _horarioPorDia[dia] = {...h, key: '$hh:$mm'};
         });
+        _actualizarHorarioLabel();
       }
     }
 
@@ -963,6 +1002,120 @@ class _EstablecimientoWizardScreenState
 
   Widget _timeChip(String value, VoidCallback onTap) =>
       Pill(value, variant: PillVariant.glass, onTap: onTap);
+
+  /// Fila "Lunes a Domingo" + abre + cierra cuando aplicaTodosLosDias=true.
+  Widget _horarioRowGeneral() {
+    final ec = context.ec;
+    Future<void> pick(String key) async {
+      final parts = (_horarioGeneral[key] ?? '09:00').split(':');
+      final res = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay(
+            hour: int.tryParse(parts[0]) ?? 9,
+            minute: int.tryParse(parts[1]) ?? 0),
+      );
+      if (res != null) {
+        setState(() {
+          final hh = res.hour.toString().padLeft(2, '0');
+          final mm = res.minute.toString().padLeft(2, '0');
+          _horarioGeneral[key] = '$hh:$mm';
+        });
+        _actualizarHorarioLabel();
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(
+              'Lun a Dom',
+              style: EnjoyTheme.body(
+                  size: 13.5, color: ec.text, weight: FontWeight.w700),
+            ),
+          ),
+          Text(' Abre ', style: EnjoyTheme.body(size: 12, color: ec.textMute)),
+          _timeChip(_horarioGeneral['abre'] ?? '09:00', () => pick('abre')),
+          Text(' · Cierra ',
+              style: EnjoyTheme.body(size: 12, color: ec.textMute)),
+          _timeChip(_horarioGeneral['cierra'] ?? '18:00',
+              () => pick('cierra')),
+        ],
+      ),
+    );
+  }
+
+  /// Genera el `_horarioLabel` (texto visible al cliente) a partir del estado
+  /// actual del form. Reemplaza al viejo `HorarioBuilder`.
+  void _actualizarHorarioLabel() {
+    String fmt(String s) => s.length >= 5 ? s.substring(0, 5) : s;
+    const abrev = {
+      'lunes': 'Lun',
+      'martes': 'Mar',
+      'miercoles': 'Mié',
+      'jueves': 'Jue',
+      'viernes': 'Vie',
+      'sabado': 'Sáb',
+      'domingo': 'Dom',
+    };
+
+    if (_aplicaTodosLosDias) {
+      final a = fmt(_horarioGeneral['abre'] ?? '09:00');
+      final c = fmt(_horarioGeneral['cierra'] ?? '18:00');
+      setState(() => _horarioLabel = 'Lun-Dom $a-$c');
+      return;
+    }
+
+    const orden = [
+      'lunes',
+      'martes',
+      'miercoles',
+      'jueves',
+      'viernes',
+      'sabado',
+      'domingo'
+    ];
+    final ordenados =
+        orden.where((d) => _diasAplicables.contains(d)).toList();
+    if (ordenados.isEmpty) {
+      setState(() => _horarioLabel = '');
+      return;
+    }
+
+    final horarios = ordenados.map((d) => _horarioPorDia[d]).toList();
+    final mismo = horarios.isNotEmpty &&
+        horarios.every((h) =>
+            h != null &&
+            fmt(h['abre'] ?? '') == fmt(horarios.first?['abre'] ?? '') &&
+            fmt(h['cierra'] ?? '') == fmt(horarios.first?['cierra'] ?? ''));
+
+    String label;
+    if (mismo) {
+      final a = fmt(horarios.first!['abre']!);
+      final c = fmt(horarios.first!['cierra']!);
+      label = '${ordenados.map((d) => abrev[d] ?? d).join(', ')} $a-$c';
+    } else {
+      label = ordenados.map((d) {
+        final h = _horarioPorDia[d];
+        if (h == null) return abrev[d] ?? d;
+        return '${abrev[d] ?? d} ${fmt(h['abre'] ?? '')}-${fmt(h['cierra'] ?? '')}';
+      }).join(' · ');
+    }
+    setState(() => _horarioLabel = label);
+  }
+
+  /// Al cargar un local existente, parsea el `scheduleLabel` guardado para
+  /// pre-rellenar `_horarioGeneral` (caso aplicaTodosLosDias).
+  void _hidratarHorarioGeneral() {
+    final m = RegExp(r'(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*$')
+        .firstMatch(_horarioLabel);
+    if (m != null) {
+      _horarioGeneral['abre'] = m.group(1)!;
+      _horarioGeneral['cierra'] = m.group(2)!;
+    }
+  }
 
   // ── Paso 4: Imágenes ──
   Widget _stepImagenes() {

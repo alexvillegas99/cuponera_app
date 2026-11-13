@@ -996,6 +996,8 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
                 label: _validandoCodigo ? 'Validando…' : 'Aplicar',
                 onPressed: _validandoCodigo ? null : _aplicarCodigoPromotor,
                 variant: EnjoyButtonVariant.ghost,
+                expand: false,
+                dense: true,
               ),
             ],
           ),

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Tokens de color del sistema visual **Enjoy · Premium Dark + Glow**.
+/// Tokens de color del sistema visual **Enjoy**, alineado con el panel web:
+///  · Claro  = **Edición Polar**    → 60 Blanco Polar · 30 Azul Glaciar · 10 Rojo Racing #E4002B
+///  · Oscuro = **Edición Tormenta** → 60 Gris Tormenta · 30 Negro Mate · 10 Naranja Seguridad #FF5F00
+/// `orange`/`orangeSoft` se conservan como nombre del **acento** de cada tema.
 ///
 /// Se exponen como [ThemeExtension] para poder tener variante oscura y clara
 /// y alternarlas con el [ThemeController]. Cualquier widget lee los tokens con
@@ -122,68 +125,123 @@ class EnjoyColors extends ThemeExtension<EnjoyColors> {
       );
 
   // ===================================================================
-  //  Variante OSCURA (la de la propuesta)
+  //  Variante OSCURA — Edición Tormenta
   // ===================================================================
   factory EnjoyColors.dark() => const EnjoyColors(
         brightness: Brightness.dark,
-        bgTop: Color(0xFF070D18),
-        bgBottom: Color(0xFF060C16),
-        glowOrange: Color(0x1AFF9F1C), // naranja 10%
-        glowBlue: Color(0x1F2B78D6), // azul 12%
-        surfaceTop: Color(0xFF0E1B2E),
-        surfaceMid: Color(0xFF0A1322),
-        surfaceBottom: Color(0xFF080F1C),
-        glass: Color(0x17FFFFFF), // blanco ~9% (cards visibles sobre fondo sólido)
-        glassStrong: Color(0x26FFFFFF), // blanco ~15%
-        stroke: Color(0x24FFFFFF), // blanco ~14% (bordes que definen las cards)
-        strokeStrong: Color(0x38FFFFFF), // blanco ~22%
-        cardGradTop: Color(0x2BFF9F1C),
-        cardGradBottom: Color(0x0AFFFFFF),
-        orange: Color(0xFFFF9F1C),
-        orangeSoft: Color(0xFFFFB54D),
-        yellow: Color(0xFFFFBF46),
-        green: Color(0xFF2BD67B),
-        red: Color(0xFFFF5C73),
-        blue: Color(0xFF5BA4F0),
-        text: Color(0xFFF4F7FB),
-        textSoft: Color(0xFFB8C4D8), // un poco más claro: subtítulos legibles
-        textMute: Color(0xFF93A1BC), // antes #6E7E99 (muy tenue) → más legible
-        onAccent: Color(0xFF1A1206),
-        iconGlassTop: Color(0xFF27406B),
-        iconGlassBottom: Color(0xFF142540),
+        bgTop: Color(0xFF41464E), // Gris Tormenta
+        bgBottom: Color(0xFF393E45),
+        glowOrange: Color(0x00000000), // sin halos
+        glowBlue: Color(0x00000000),
+        surfaceTop: Color(0xFF4E545C),
+        surfaceMid: Color(0xFF474D55),
+        surfaceBottom: Color(0xFF41474F),
+        glass: Color(0xFF4B5159), // tarjetas
+        glassStrong: Color(0xFF555B64),
+        stroke: Color(0x38000000), // negro 22%
+        strokeStrong: Color(0x61000000), // negro 38%
+        cardGradTop: Color(0x1AFF5F00),
+        cardGradBottom: Color(0x00FFFFFF),
+        orange: Color(0xFFFF5F00), // Naranja Seguridad
+        orangeSoft: Color(0xFFFF7A2B),
+        yellow: Color(0xFFF2B33D),
+        green: Color(0xFF3DD68C),
+        red: Color(0xFFFF5A6A),
+        blue: Color(0xFF8DB8E6),
+        text: Color(0xFFF5F6F8),
+        textSoft: Color(0xFFD7DBE0),
+        textMute: Color(0xFFC4CAD2),
+        onAccent: Color(0xFF140A00), // texto casi negro sobre naranja
+        iconGlassTop: Color(0xFF2B2D31), // Negro Mate
+        iconGlassBottom: Color(0xFF1D1E21),
       );
 
   // ===================================================================
-  //  Variante CLARA (mismo lenguaje, piel luminosa)
+  //  Variante CLARA — Edición Polar
   // ===================================================================
   factory EnjoyColors.light() => const EnjoyColors(
         brightness: Brightness.light,
-        bgTop: Color(0xFFF4F7FC),
-        bgBottom: Color(0xFFEAF0F8),
-        glowOrange: Color(0x1FFF9F1C),
-        glowBlue: Color(0x142B78D6),
+        bgTop: Color(0xFFF3F6F9), // Blanco Polar
+        bgBottom: Color(0xFFEBF0F5),
+        glowOrange: Color(0x00000000), // sin halos rojos
+        glowBlue: Color(0x479DBDD8), // lavado glaciar suave
         surfaceTop: Color(0xFFFFFFFF),
-        surfaceMid: Color(0xFFF6F9FD),
-        surfaceBottom: Color(0xFFEFF3F9),
+        surfaceMid: Color(0xFFF7F9FC),
+        surfaceBottom: Color(0xFFF1F5F9),
         glass: Color(0xFFFFFFFF),
-        glassStrong: Color(0xFFF1F5FA),
-        stroke: Color(0xFFE3E9F1),
-        strokeStrong: Color(0xFFD3DCE8),
-        cardGradTop: Color(0x24FF9F1C),
+        glassStrong: Color(0xFFF3F6F9),
+        stroke: Color(0xFFE3EAF2),
+        strokeStrong: Color(0xFFC9D8E6),
+        cardGradTop: Color(0x0FE4002B),
         cardGradBottom: Color(0x00FFFFFF),
-        orange: Color(0xFFF08800),
-        orangeSoft: Color(0xFFFF9F1C),
-        yellow: Color(0xFFE0A521),
-        green: Color(0xFF12A85C),
-        red: Color(0xFFE23A52),
-        blue: Color(0xFF2F7BD0),
-        text: Color(0xFF18233A),
-        textSoft: Color(0xFF51607A),
-        textMute: Color(0xFF8694AC),
-        onAccent: Color(0xFF3A2600),
-        iconGlassTop: Color(0xFFEAF1FB),
-        iconGlassBottom: Color(0xFFDDE7F5),
+        orange: Color(0xFFE4002B), // Rojo Racing
+        orangeSoft: Color(0xFFFF2D52),
+        yellow: Color(0xFFD99A0B),
+        green: Color(0xFF12A060),
+        red: Color(0xFFB4233A), // error, distinto del acento
+        blue: Color(0xFF3F78A6),
+        text: Color(0xFF1C2B3D),
+        textSoft: Color(0xFF4A6077),
+        textMute: Color(0xFF5F738B),
+        onAccent: Color(0xFFFFFFFF),
+        iconGlassTop: Color(0xFFE6EEF6), // Azul Glaciar tint
+        iconGlassBottom: Color(0xFFDCE8F2),
       );
+
+  // ===================================================================
+  //  Tokens derivados (no animados): secundario 30%, navegación, estados
+  // ===================================================================
+
+  /// Acento usado como TEXTO (legible sobre la superficie del tema).
+  Color get accentText => isDark ? const Color(0xFFFFB27A) : const Color(0xFFE4002B);
+
+  /// Color secundario (el 30%): Azul Glaciar en Polar, Negro Mate en Tormenta.
+  Color get secondary => isDark ? const Color(0xFF1D1E21) : const Color(0xFF9DBDD8);
+
+  /// Tono profundo del secundario (íconos neutros, botones secundarios).
+  Color get secondaryDeep => isDark ? const Color(0xFFE6E8EB) : const Color(0xFF2E5674);
+
+  /// Tinte del secundario (fondos de chips, cabeceras, activo de navegación).
+  Color get secondaryTint => isDark ? const Color(0x12FFFFFF) : const Color(0xFFE6EEF6);
+
+  /// Superficie de navegación (dock, app bars, sheets).
+  Color get navSurface => isDark ? const Color(0xFF1D1E21) : const Color(0xFFFBFCFE);
+
+  /// Fondo del ítem activo de navegación.
+  Color get navActive => isDark ? const Color(0x12FFFFFF) : const Color(0xFFE6EEF6);
+
+  /// Sombra estándar de tarjeta.
+  List<BoxShadow> get shadowSm => isDark
+      ? const [BoxShadow(color: Color(0x80000000), blurRadius: 24, offset: Offset(0, 10), spreadRadius: -12)]
+      : const [
+          BoxShadow(color: Color(0x0D1C2B3D), blurRadius: 2, offset: Offset(0, 1)),
+          BoxShadow(color: Color(0x291C2B3D), blurRadius: 24, offset: Offset(0, 8), spreadRadius: -12),
+        ];
+
+  /// Sombra del CTA principal (acento), discreta.
+  List<BoxShadow> get shadowAccent => [
+        BoxShadow(color: orange.withValues(alpha: .28), blurRadius: 12, offset: const Offset(0, 4)),
+      ];
+
+  /// Tonos de estado legibles (texto / fondo / borde).
+  EnjoyTone get toneOk => isDark
+      ? const EnjoyTone(Color(0xFF7EE2B0), Color(0x243DD68C), Color(0x593DD68C))
+      : const EnjoyTone(Color(0xFF0B7A48), Color(0xFFE3F5EC), Color(0xFFBFE6D1));
+  EnjoyTone get toneWarn => isDark
+      ? const EnjoyTone(Color(0xFFFFD27A), Color(0x24F2B33D), Color(0x61F2B33D))
+      : const EnjoyTone(Color(0xFF8A5A00), Color(0xFFFBF0D6), Color(0xFFF0D9A0));
+  EnjoyTone get toneDanger => isDark
+      ? const EnjoyTone(Color(0xFFFFB3BB), Color(0x29FF5A6A), Color(0x66FF5A6A))
+      : const EnjoyTone(Color(0xFFA31D33), Color(0xFFFBE6EA), Color(0xFFF2C2CB));
+  EnjoyTone get toneInfo => isDark
+      ? const EnjoyTone(Color(0xFFB5D4F2), Color(0x248DB8E6), Color(0x5C8DB8E6))
+      : const EnjoyTone(Color(0xFF2A5F8A), Color(0xFFE3EEF7), Color(0xFFC2D5E6));
+  EnjoyTone get toneAccent => isDark
+      ? const EnjoyTone(Color(0xFFFFB27A), Color(0x29FF5F00), Color(0x66FF5F00))
+      : const EnjoyTone(Color(0xFFC80026), Color(0xFFFDECEF), Color(0xFFF7C6CF));
+  EnjoyTone get toneNeutral => isDark
+      ? const EnjoyTone(Color(0xFFD7DBE0), Color(0x2E000000), Color(0x4D000000))
+      : const EnjoyTone(Color(0xFF4A6077), Color(0xFFF3F6F9), Color(0xFFDCE6F0));
 
   @override
   EnjoyColors copyWith({
@@ -276,6 +334,15 @@ class EnjoyColors extends ThemeExtension<EnjoyColors> {
       iconGlassBottom: Color.lerp(iconGlassBottom, other.iconGlassBottom, t)!,
     );
   }
+}
+
+/// Tripleta de color para pills/badges de estado.
+@immutable
+class EnjoyTone {
+  const EnjoyTone(this.fg, this.bg, this.border);
+  final Color fg;
+  final Color bg;
+  final Color border;
 }
 
 /// Acceso rápido a los tokens Enjoy desde cualquier `BuildContext`.

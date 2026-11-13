@@ -88,7 +88,9 @@
 		<key>NSLocalNetworkUsageDescription</key>
 		<string>Permite conectar con las herramientas de desarrollo de Flutter durante la depuración.</string>
 		<key>NSCameraUsageDescription</key>
-		<string>La aplicación utiliza la cámara para leer el código QR de los cupones.</string>
+		<string>La aplicación utiliza la cámara para leer códigos QR y tomar la selfie de verificación al firmar el contrato.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>La cámara puede requerir acceso al micrófono al capturar. La aplicación no graba audio.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>Necesitamos tu ubicación para registrar las coordenadas GPS del establecimiento.</string>
 		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

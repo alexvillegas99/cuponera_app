@@ -5,6 +5,7 @@ import 'package:enjoy/screens/usuarios/establecimiento_form_screen.dart'
     show SearchablePickerField;
 import 'package:enjoy/services/ciudades_service.dart';
 import 'package:enjoy/widgets/branded_modal.dart';
+import 'package:enjoy/widgets/location_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:enjoy/ui/enjoy.dart';
 import 'package:enjoy/services/registration_api.dart';
@@ -22,7 +23,12 @@ class RegisterClienteScreen extends StatefulWidget {
   /// Contiene: nombres, apellidos, email, googleId (opcional).
   final Map<String, dynamic>? googleData;
 
-  const RegisterClienteScreen({super.key, this.googleData});
+  /// Email a pre-llenar cuando el usuario llega desde el login y ya tiene
+  /// cuenta de empresa pero quiere crear también la de cliente. NO marca
+  /// el email como verificado — la persona aún debe pulsar "Verificar".
+  final String? prefillEmail;
+
+  const RegisterClienteScreen({super.key, this.googleData, this.prefillEmail});
 
   @override
   State<RegisterClienteScreen> createState() => _RegisterClienteScreenState();
@@ -68,8 +74,42 @@ class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
       _email.text = g['email'] ?? '';
       _fromGoogle = true;
       _emailOk = true; // Email verificado por Google, saltar OTP
+    } else if (widget.prefillEmail != null && widget.prefillEmail!.isNotEmpty) {
+      _email.text = widget.prefillEmail!;
+      // No marcamos _emailOk = true — la persona aún debe pulsar "Verificar"
+      // para confirmar que el correo no esté ya registrado como cliente y
+      // recibir el OTP.
     }
     _cargarProvincias();
+  }
+
+  /// Dado el listado completo y una lista de nombres (normalizados) que
+  /// queremos resaltar como "populares", devuelve los IDs correspondientes
+  /// en el mismo orden que aparecen en `nombresPreferidos`. Si un nombre no
+  /// se encuentra, se ignora silenciosamente.
+  List<String> _idsPopulares(
+    List<({String id, String label})> items,
+    List<String> nombresPreferidos,
+  ) {
+    String norm(String s) => s
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u')
+        .trim();
+    final byLabel = {for (final it in items) norm(it.label): it.id};
+    final out = <String>[];
+    final visto = <String>{};
+    for (final nombre in nombresPreferidos) {
+      final id = byLabel[norm(nombre)];
+      if (id != null && !visto.contains(id)) {
+        out.add(id);
+        visto.add(id);
+      }
+    }
+    return out;
   }
 
   Future<void> _cargarProvincias() async {
@@ -446,14 +486,30 @@ class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-                                SearchablePickerField(
+                                LocationPicker(
                                   label: 'Provincia',
+                                  emptyHint: 'Seleccionar provincia',
                                   icon: Icons.map_outlined,
                                   value: _provinciaId,
                                   items: _provincias
                                       .map((p) =>
                                           (id: p.id, label: p.nombre))
                                       .toList(),
+                                  // Provincias más usadas de Ecuador — se
+                                  // resaltan como chips arriba del listado.
+                                  populares: _idsPopulares(
+                                    _provincias
+                                        .map((p) => (id: p.id, label: p.nombre))
+                                        .toList(),
+                                    const [
+                                      'pichincha',
+                                      'guayas',
+                                      'tungurahua',
+                                      'azuay',
+                                      'manabí',
+                                      'manabi',
+                                    ],
+                                  ),
                                   onChanged: (id) {
                                     setState(() {
                                       _provinciaId = id;
@@ -464,10 +520,15 @@ class _RegisterClienteScreenState extends State<RegisterClienteScreen> {
                                   },
                                 ),
                                 const SizedBox(height: 10),
-                                SearchablePickerField(
+                                LocationPicker(
                                   label: 'Ciudad',
+                                  emptyHint: _provinciaId == null
+                                      ? 'Primero elegí provincia'
+                                      : 'Seleccionar ciudad',
                                   icon: Icons.location_city_rounded,
                                   value: _ciudadId,
+                                  disabled: _provinciaId == null ||
+                                      _ciudades.isEmpty,
                                   items: _ciudades
                                       .map((c) =>
                                           (id: c.id, label: c.nombre))

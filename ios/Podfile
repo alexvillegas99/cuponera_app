@@ -31,6 +31,13 @@ target 'Runner' do
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
+  # google_mlkit_commons declara `MLKitVision` sin versión, por lo que CocoaPods
+  # toma la última (10.x → MLKitCommon ~> 14), que choca con la que exige
+  # google_mlkit_face_detection 0.12.0 (GoogleMLKit/FaceDetection 7.0.0 → MLKitCommon ~> 12).
+  # face_camera 0.1.4 fija face_detection en ^0.12.0, así que fijamos MLKitVision a la
+  # línea 8.x compatible con GoogleMLKit 7.0.0.
+  pod 'MLKitVision', '~> 8.0.0'
+
   target 'RunnerTests' do
     inherit! :search_paths
   end

@@ -7,6 +7,11 @@ import 'package:go_router/go_router.dart';
 
 enum LoginMode { cliente, empresa }
 
+/// Opciones cuando un correo tiene SOLO cuenta de empresa y el usuario quiere
+/// loguearse / registrarse. Le ofrecemos entrar como empresa o crearse
+/// también una cuenta de cliente con el mismo correo.
+enum _EmpresaOnlyChoice { entrarEmpresa, registrarCliente }
+
 enum _LoginStep { email, password }
 
 class LoginScreen extends StatefulWidget {
@@ -74,8 +79,20 @@ class _LoginScreenState extends State<LoginScreen>
       if (types.cliente && types.usuario) {
         mode = await _chooseTypeSheet();
         if (mode == null) return; // canceló
+      } else if (types.cliente) {
+        mode = LoginMode.cliente;
       } else {
-        mode = types.cliente ? LoginMode.cliente : LoginMode.empresa;
+        // Solo cuenta de empresa: damos al usuario la opción de entrar como
+        // empresa o crear también cuenta de cliente con el mismo correo.
+        // Sin esto, los empresarios quedaban "atrapados" en su rol y no
+        // tenían forma de tener también su cuenta de consumidor.
+        final eleccion = await _empresaOnlySheet();
+        if (eleccion == null) return;
+        if (eleccion == _EmpresaOnlyChoice.registrarCliente) {
+          if (mounted) context.push('/registro-cliente', extra: {'email': email});
+          return;
+        }
+        mode = LoginMode.empresa;
       }
       setState(() {
         _mode = mode!;
@@ -145,6 +162,70 @@ class _LoginScreenState extends State<LoginScreen>
                 subtitle: 'Panel de gestión del negocio',
                 trailing: Icon(Icons.chevron_right_rounded, color: ec.textMute),
                 onTap: () => Navigator.pop(ctx, LoginMode.empresa),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Sheet que aparece cuando el correo tiene SOLO cuenta de empresa.
+  /// Le da al usuario 2 caminos en vez de mandarlo de cabeza al login de
+  /// empresa: entrar como empresa, o crear cuenta de cliente con ese mismo
+  /// correo (el back permite cliente + empresa coexistiendo).
+  Future<_EmpresaOnlyChoice?> _empresaOnlySheet() {
+    final ec = context.ec;
+    return showModalBottomSheet<_EmpresaOnlyChoice>(
+      context: context,
+      backgroundColor: ec.surfaceMid,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: ec.strokeStrong,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('Este correo es de una empresa',
+                  style: EnjoyTheme.heading(
+                      size: 18, weight: FontWeight.w800, color: ec.text)),
+              const SizedBox(height: 4),
+              Text(
+                  'Podés entrar como empresa o crear también una cuenta de cliente con el mismo correo.',
+                  style: EnjoyTheme.body(size: 13, color: ec.textSoft)),
+              const SizedBox(height: 16),
+              ListRowTile(
+                leading: const IconBox(Icons.storefront_rounded, accent: true),
+                title: 'Entrar como empresa',
+                subtitle: 'Acceder al panel del negocio',
+                trailing: Icon(Icons.chevron_right_rounded, color: ec.textMute),
+                onTap: () =>
+                    Navigator.pop(ctx, _EmpresaOnlyChoice.entrarEmpresa),
+              ),
+              const SizedBox(height: 10),
+              ListRowTile(
+                leading: const IconBox(Icons.person_add_alt_1_rounded),
+                title: 'Crear cuenta de cliente',
+                subtitle:
+                    'Con el mismo correo, para tus membresías y descuentos',
+                trailing: Icon(Icons.chevron_right_rounded, color: ec.textMute),
+                onTap: () =>
+                    Navigator.pop(ctx, _EmpresaOnlyChoice.registrarCliente),
               ),
             ],
           ),

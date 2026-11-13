@@ -261,6 +261,7 @@ class GlassCard extends StatelessWidget {
         border: Border.all(
           color: accent ? ec.orange.withValues(alpha: .28) : border,
         ),
+        boxShadow: (color == null || accent) ? ec.shadowSm : null,
       ),
       child: child,
     );
@@ -275,15 +276,8 @@ class GlassCard extends StatelessWidget {
       );
     }
 
-    if (blur && ec.isDark) {
-      content = ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: content,
-        ),
-      );
-    }
+    // Sin vidrio esmerilado en Polar/Tormenta: superficies sólidas (más limpio
+    // y más liviano en listas). `blur` se conserva por compatibilidad.
 
     if (onTap != null) {
       content = _Tappable(onTap: onTap, borderRadius: radius, child: content);
@@ -336,14 +330,7 @@ class EnjoyButton extends StatelessWidget {
       case EnjoyButtonVariant.orange:
         grad = ec.accentGradient;
         fg = ec.onAccent;
-        shadow = [
-          BoxShadow(
-            color: ec.orange.withValues(alpha: .45),
-            blurRadius: 30,
-            offset: const Offset(0, 14),
-            spreadRadius: -8,
-          ),
-        ];
+        shadow = ec.shadowAccent;
         break;
       case EnjoyButtonVariant.green:
         grad = ec.greenGradient;
@@ -360,9 +347,9 @@ class EnjoyButton extends StatelessWidget {
         border = Border.all(color: ec.red.withValues(alpha: .4));
         break;
       case EnjoyButtonVariant.blueGlass:
-        solid = ec.blue.withValues(alpha: .14);
-        fg = ec.blue;
-        border = Border.all(color: ec.blue.withValues(alpha: .3));
+        solid = ec.secondaryTint;
+        fg = ec.secondaryDeep;
+        border = Border.all(color: ec.strokeStrong);
         break;
     }
 
@@ -460,29 +447,24 @@ class Pill extends StatelessWidget {
     late Color bg, fg, br;
     switch (variant) {
       case PillVariant.orange:
-        bg = ec.orange.withValues(alpha: .14);
-        fg = ec.orangeSoft;
-        br = ec.orange.withValues(alpha: .30);
+        final t = ec.toneAccent;
+        bg = t.bg; fg = t.fg; br = t.border;
         break;
       case PillVariant.green:
-        bg = ec.green.withValues(alpha: .13);
-        fg = ec.green;
-        br = ec.green.withValues(alpha: .30);
+        final t = ec.toneOk;
+        bg = t.bg; fg = t.fg; br = t.border;
         break;
       case PillVariant.red:
-        bg = ec.red.withValues(alpha: .13);
-        fg = ec.red;
-        br = ec.red.withValues(alpha: .30);
+        final t = ec.toneDanger;
+        bg = t.bg; fg = t.fg; br = t.border;
         break;
       case PillVariant.blue:
-        bg = ec.blue.withValues(alpha: .13);
-        fg = ec.blue;
-        br = ec.blue.withValues(alpha: .30);
+        final t = ec.toneInfo;
+        bg = t.bg; fg = t.fg; br = t.border;
         break;
       case PillVariant.glass:
-        bg = ec.glassStrong;
-        fg = ec.textSoft;
-        br = ec.stroke;
+        final t = ec.toneNeutral;
+        bg = t.bg; fg = t.fg; br = t.border;
         break;
     }
 
@@ -498,7 +480,11 @@ class Pill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (dot) ...[
-            BlinkDot(color: fg),
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
+            ),
             const SizedBox(width: 7),
           ] else if (icon != null) ...[
             Icon(icon, size: dense ? 12 : 14, color: fg),
@@ -552,7 +538,7 @@ class IconBox extends StatelessWidget {
       ),
       child: Icon(icon,
           size: iconSize,
-          color: accent ? ec.onAccent : (color ?? ec.orangeSoft)),
+          color: accent ? ec.onAccent : (color ?? ec.secondaryDeep)),
     );
   }
 }

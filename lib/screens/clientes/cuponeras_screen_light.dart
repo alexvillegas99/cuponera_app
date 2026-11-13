@@ -519,7 +519,7 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
     );
   }
 
-  // ─────────────────────────── Barra CTA inferior
+  // ─────────────────────────── CTA flotante inferior derecha
   Widget _buildBottomCta(BuildContext context) {
     final ec = context.ec;
     return SafeArea(
@@ -534,12 +534,25 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
               decoration: BoxDecoration(
                 gradient: ec.accentGradient,
                 borderRadius: BorderRadius.circular(18),
+                // Anillo doble: blanco translúcido por dentro + sombra naranja por fuera.
+                // Despega visualmente el botón del contenido sin necesidad de blur ni barra.
+                border: Border.all(
+                  color: ec.onAccent.withValues(alpha: 0.35),
+                  width: 1.5,
+                ),
                 boxShadow: [
+                  // Halo exterior (separación con cards)
                   BoxShadow(
-                    color: ec.orange.withValues(alpha: .45),
-                    blurRadius: 30,
-                    offset: const Offset(0, 14),
-                    spreadRadius: -8,
+                    color: ec.surfaceMid.withValues(alpha: 0.9),
+                    blurRadius: 0,
+                    spreadRadius: 2,
+                  ),
+                  // Sombra naranja suave
+                  BoxShadow(
+                    color: ec.orange.withValues(alpha: 0.45),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                    spreadRadius: -4,
                   ),
                 ],
               ),
@@ -550,7 +563,11 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
                   const SizedBox(width: 9),
                   Text(
                     'Adquirir Membresía',
-                    style: EnjoyTheme.heading(size: 14, weight: FontWeight.w700, color: ec.onAccent),
+                    style: EnjoyTheme.heading(
+                      size: 14,
+                      weight: FontWeight.w700,
+                      color: ec.onAccent,
+                    ),
                   ),
                 ],
               ),
@@ -616,7 +633,7 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
               16,
               16,
               16,
-              88 + MediaQuery.of(context).padding.bottom,
+              120 + MediaQuery.of(context).padding.bottom,
             ),
             itemCount: _items.length,
             separatorBuilder: (_, __) => const SizedBox(height: 14),

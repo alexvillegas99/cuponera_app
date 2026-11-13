@@ -159,6 +159,13 @@ class _PromoFlashFormScreenState extends State<PromoFlashFormScreen> {
     // Intentar extraer el message del backend si viene en el DioException.
     final m = RegExp(r'"message":\s*"([^"]+)"').firstMatch(s);
     if (m != null) return m.group(1)!;
+    final low = s.toLowerCase();
+    if (low.contains('timeout')) {
+      return 'La conexión tardó demasiado. Revisá tu internet y reintentá.';
+    }
+    if (low.contains('connection') || low.contains('socketexception')) {
+      return 'Sin conexión. Verificá tu internet e intentá de nuevo.';
+    }
     return 'No se pudo guardar la promoción. Intenta de nuevo.';
   }
 

@@ -79,12 +79,26 @@ GoRouter buildRouter(String initialRoute) {
       ),
       GoRoute(
         path: '/registro-cliente',
-        pageBuilder: (context, state) => _slidePage(
-          state,
-          RegisterClienteScreen(
-            googleData: state.extra as Map<String, dynamic>?,
-          ),
-        ),
+        pageBuilder: (context, state) {
+          // `extra` puede traer:
+          //   - {nombres, apellidos, email, googleId}  → flujo Google
+          //   - {email: '...'}                         → solo prefill desde login
+          //   - null                                    → entrada normal
+          // Decidimos cuál ramo activar mirando si trae sólo `email`.
+          final extra = state.extra as Map<String, dynamic>?;
+          final esSoloPrefill = extra != null &&
+              extra.containsKey('email') &&
+              !extra.containsKey('googleId') &&
+              !extra.containsKey('nombres');
+          return _slidePage(
+            state,
+            RegisterClienteScreen(
+              googleData: esSoloPrefill ? null : extra,
+              prefillEmail:
+                  esSoloPrefill ? extra['email'] as String? : null,
+            ),
+          );
+        },
       ),
       GoRoute(
         path: '/solicitud-empresa',

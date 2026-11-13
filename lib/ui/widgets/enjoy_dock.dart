@@ -56,20 +56,21 @@ class EnjoyDock extends StatelessWidget {
             Positioned.fill(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(24),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                  child: Container(
+                child: Container(
                     decoration: BoxDecoration(
-                      color: ec.surfaceMid
-                          .withValues(alpha: ec.isDark ? .86 : .96),
+                      color: ec.navSurface,
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: ec.stroke),
+                      border: Border.all(
+                          color: ec.isDark
+                              ? Colors.white.withValues(alpha: .06)
+                              : ec.stroke),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: .35),
-                          blurRadius: 40,
-                          offset: const Offset(0, 18),
-                          spreadRadius: -16,
+                          color: (ec.isDark ? Colors.black : const Color(0xFF1C2B3D))
+                              .withValues(alpha: ec.isDark ? .35 : .14),
+                          blurRadius: 28,
+                          offset: const Offset(0, 12),
+                          spreadRadius: -14,
                         ),
                       ],
                     ),
@@ -78,7 +79,6 @@ class EnjoyDock extends StatelessWidget {
                       children: rowChildren,
                     ),
                   ),
-                ),
               ),
             ),
             // FAB central, dibujado por encima (sin recortar).
@@ -104,7 +104,7 @@ class _DockTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ec = context.ec;
-    final color = active ? ec.orangeSoft : ec.textMute;
+    final color = active ? ec.orange : ec.textMute;
     return Expanded(
       child: InkWell(
         onTap: item.onTap,
@@ -166,16 +166,12 @@ class _FabState extends State<_Fab> with SingleTickerProviderStateMixin {
               decoration: BoxDecoration(
                 gradient: ec.accentGradient,
                 borderRadius: BorderRadius.circular(19),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: .30),
-                  width: 1.4,
-                ),
                 boxShadow: [
                   BoxShadow(
-                    color: ec.orange.withValues(alpha: .55 + .25 * _c.value),
-                    blurRadius: 28 + 6 * _c.value,
-                    offset: const Offset(0, 12),
-                    spreadRadius: -4,
+                    color: ec.orange.withValues(alpha: .30),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                    spreadRadius: -2,
                   ),
                 ],
               ),

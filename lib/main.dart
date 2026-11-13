@@ -12,6 +12,8 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
+import 'package:face_camera/face_camera.dart';
+
 import 'package:enjoy/config/router/app_router.dart';
 import 'package:enjoy/services/cache_service.dart';
 import 'package:enjoy/services/core/api_client.dart';
@@ -64,6 +66,17 @@ Future<void> main() async {
   imageCache.maximumSizeBytes = 300 << 20; // 300 MB (default ~100 MB)
 
   await dotenv.load();
+
+  // Inicializar face_camera (necesita la lista de cámaras disponibles).
+  // Lo esperamos (con timeout) para que la lista de cámaras esté lista ANTES
+  // de que el usuario pueda abrir la pantalla de selfie. Si se dejaba en
+  // `unawaited`, abrir la selfie antes de que terminara dejaba al
+  // FaceCameraController sin cámaras y la UI se quedaba colgada.
+  try {
+    await FaceCamera.initialize().timeout(const Duration(seconds: 5));
+  } catch (e) {
+    debugPrint('⚠️  FaceCamera.initialize falló/timeout: $e');
+  }
 
   // Warm-up del cache en disco (SharedPreferences). No bloquea si falla.
   unawaited(CacheService.I.init());

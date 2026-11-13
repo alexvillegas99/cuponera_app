@@ -24,8 +24,15 @@ class ApiClient {
 
     dio = Dio(BaseOptions(
       baseUrl: baseUrl,
+      // connectTimeout: 15s alcanza para abrir la conexión.
+      // sendTimeout/receiveTimeout: 90s — algunos endpoints suben imágenes
+      // base64 (promos flash, cédulas, selfies, comprobantes) que el back
+      // re-sube a S3. Con 15s se quedaban cortos en datos móviles y Dio
+      // cancelaba la petición ANTES de que llegara al back (no aparecía nada
+      // en logs server-side y al usuario le salía un error genérico).
       connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
+      sendTimeout: const Duration(seconds: 90),
+      receiveTimeout: const Duration(seconds: 90),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',

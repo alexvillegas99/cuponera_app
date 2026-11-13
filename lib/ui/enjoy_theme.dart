@@ -3,7 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:enjoy/ui/enjoy_colors.dart';
 
-/// Construye los `ThemeData` del sistema **Enjoy · Premium Dark + Glow**.
+/// Construye los `ThemeData` del sistema **Enjoy**: claro = Edición Polar,
+/// oscuro = Edición Tormenta (ver [EnjoyColors]).
 ///
 /// Tipografía: **Sora** para títulos (`.hi`) e **Inter** para cuerpo, igual que
 /// la propuesta. Se cargan vía `google_fonts` (ya en pubspec), sin assets.
@@ -62,8 +63,8 @@ class EnjoyTheme {
         brightness: ec.brightness,
         primary: ec.orange,
         onPrimary: ec.onAccent,
-        secondary: ec.orangeSoft,
-        onSecondary: ec.onAccent,
+        secondary: ec.secondaryDeep,
+        onSecondary: ec.isDark ? ec.text : Colors.white,
         surface: ec.surfaceMid,
         onSurface: ec.text,
         error: ec.red,
@@ -71,7 +72,7 @@ class EnjoyTheme {
         primaryContainer: ec.surfaceTop,
         onPrimaryContainer: ec.text,
         secondaryContainer: ec.glassStrong,
-        onSecondaryContainer: ec.orangeSoft,
+        onSecondaryContainer: ec.secondaryDeep,
         outline: ec.stroke,
       ),
       textTheme: textTheme,
@@ -90,9 +91,9 @@ class EnjoyTheme {
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(color: ec.orange),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: ec.surfaceTop,
-        contentTextStyle: body(color: ec.text),
-        actionTextColor: ec.orangeSoft,
+        backgroundColor: ec.isDark ? ec.secondary : ec.text,
+        contentTextStyle: body(color: ec.isDark ? ec.text : Colors.white),
+        actionTextColor: ec.isDark ? ec.accentText : const Color(0xFFFF8FA3),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
@@ -118,7 +119,7 @@ class EnjoyTheme {
             const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
         hintStyle: body(size: 14, color: ec.textMute),
         labelStyle: body(size: 14, color: ec.textSoft),
-        prefixIconColor: ec.orangeSoft,
+        prefixIconColor: ec.textMute,
         suffixIconColor: ec.textMute,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
@@ -130,7 +131,8 @@ class EnjoyTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(color: ec.orange.withValues(alpha: .5), width: 1.5),
+          borderSide: BorderSide(
+              color: ec.isDark ? ec.orange : const Color(0xFF9DBDD8), width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
@@ -146,18 +148,18 @@ class EnjoyTheme {
           backgroundColor: ec.orange,
           foregroundColor: ec.onAccent,
           elevation: 0,
-          textStyle: heading(size: 15, weight: FontWeight.w600),
+          textStyle: body(size: 15, weight: FontWeight.w600),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
           padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 18),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: ec.orangeSoft),
+        style: TextButton.styleFrom(foregroundColor: ec.accentText),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: ec.text,
+          foregroundColor: ec.isDark ? ec.text : ec.secondaryDeep,
           side: BorderSide(color: ec.strokeStrong),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
@@ -168,7 +170,9 @@ class EnjoyTheme {
           (s) => s.contains(WidgetState.selected) ? Colors.white : ec.textMute,
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? ec.orange : ec.glassStrong,
+          (s) => s.contains(WidgetState.selected)
+              ? ec.orange
+              : (ec.isDark ? const Color(0xFF2B2D31) : ec.strokeStrong),
         ),
         trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),
@@ -178,6 +182,11 @@ class EnjoyTheme {
         labelStyle: body(size: 12, weight: FontWeight.w600, color: ec.textSoft),
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: ec.navSurface,
+        selectedItemColor: ec.isDark ? ec.text : ec.text,
+        unselectedItemColor: ec.textMute,
       ),
       dividerTheme: DividerThemeData(color: ec.stroke, thickness: 1, space: 1),
       cardTheme: CardThemeData(
