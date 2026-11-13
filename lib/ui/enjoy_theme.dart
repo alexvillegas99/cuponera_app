@@ -93,7 +93,7 @@ class EnjoyTheme {
       snackBarTheme: SnackBarThemeData(
         backgroundColor: ec.isDark ? ec.secondary : ec.text,
         contentTextStyle: body(color: ec.isDark ? ec.text : Colors.white),
-        actionTextColor: ec.isDark ? ec.accentText : const Color(0xFFFF8FA3),
+        actionTextColor: ec.isDark ? ec.accentText : const Color(0xFF9CC3FF),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
@@ -132,7 +132,7 @@ class EnjoyTheme {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
           borderSide: BorderSide(
-              color: ec.isDark ? ec.orange : const Color(0xFF9DBDD8), width: 1.5),
+              color: ec.orange, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
