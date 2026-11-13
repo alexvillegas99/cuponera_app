@@ -186,8 +186,29 @@ class _ElegirCuponeraState extends State<_ElegirCuponera> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
               children: [
-                Text('Elige tu cuponera',
-                    style: EnjoyTheme.heading(size: 20, weight: FontWeight.w800, color: ec.text)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Elige tu cuponera',
+                          style: EnjoyTheme.heading(size: 20, weight: FontWeight.w800, color: ec.text)),
+                    ),
+                    // Arriba y visible: con muchas cuponeras, al final nadie lo ve.
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        widget.onVerSolicitudes();
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: ec.secondaryDeep,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      icon: const Icon(Icons.receipt_long_rounded, size: 16),
+                      label: Text('Mis solicitudes',
+                          style: EnjoyTheme.body(size: 13, weight: FontWeight.w600, color: ec.secondaryDeep)),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 Text('Una membresía para usar los beneficios de los locales afiliados de tu zona.',
                     style: EnjoyTheme.body(size: 13, height: 1.45, color: ec.textMute)),
@@ -237,17 +258,6 @@ class _ElegirCuponeraState extends State<_ElegirCuponera> {
                   )
                 else
                   for (final c in lista) _itemCuponera(context, c),
-                const SizedBox(height: 6),
-                Center(
-                  child: TextButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      widget.onVerSolicitudes();
-                    },
-                    icon: const Icon(Icons.receipt_long_rounded, size: 18),
-                    label: const Text('Ver mis solicitudes'),
-                  ),
-                ),
               ],
             ),
           ),

@@ -973,70 +973,44 @@ class _GiftPendingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ec = context.ec;
+    // Tarjeta clara con borde en el tono secundario: destaca sin el bloque
+    // rojo a pantalla completa. El rojo queda para la caja al abrirlo.
     return GlassCard(
-      padding: EdgeInsets.zero,
-      radius: 20,
       onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          decoration: BoxDecoration(gradient: ec.accentGradient),
-          padding: const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: ec.onAccent.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(16),
+      radius: 20,
+      borderColor: ec.secondaryDeep.withValues(alpha: 0.35),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          const IconBox(Icons.card_giftcard_rounded, size: 48),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Regalo sin abrir',
+                  style: EnjoyTheme.body(size: 12, weight: FontWeight.w700, color: ec.secondaryDeep),
                 ),
-                child: Icon(
-                  Icons.card_giftcard_rounded,
-                  color: ec.onAccent,
-                  size: 30,
+                const SizedBox(height: 3),
+                Text(
+                  c.regaloDe != null && c.regaloDe!.trim().isNotEmpty
+                      ? 'Tienes un regalo de ${c.regaloDe}'
+                      : 'Tienes un regalo',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: EnjoyTheme.heading(size: 15.5, weight: FontWeight.w700, color: ec.text),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: ec.onAccent.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '🎁 Regalo sin abrir',
-                        style: EnjoyTheme.body(size: 11, weight: FontWeight.w800, color: ec.onAccent),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      c.regaloDe != null && c.regaloDe!.trim().isNotEmpty
-                          ? 'Tienes un regalo de ${c.regaloDe}'
-                          : 'Tienes un regalo',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: EnjoyTheme.heading(size: 16, weight: FontWeight.w800, color: ec.onAccent),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Toca para abrirlo',
-                      style: EnjoyTheme.body(size: 13, color: ec.onAccent.withValues(alpha: 0.85)),
-                    ),
-                  ],
+                const SizedBox(height: 2),
+                Text(
+                  'Toca para abrirlo',
+                  style: EnjoyTheme.body(size: 13, color: ec.textMute),
                 ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: ec.onAccent, size: 24),
-            ],
+              ],
+            ),
           ),
-        ),
+          Icon(Icons.chevron_right_rounded, color: ec.textMute, size: 22),
+        ],
       ),
     );
   }

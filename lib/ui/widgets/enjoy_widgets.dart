@@ -572,8 +572,10 @@ class EnjoyAvatar extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
+        // Sobrio: tono secundario (no el acento) para no competir con las acciones.
+        color: accent ? ec.secondaryTint : null,
         gradient: accent
-            ? ec.accentGradient
+            ? null
             : LinearGradient(colors: [ec.iconGlassTop, ec.iconGlassBottom]),
         borderRadius: br,
         image: (imageUrl != null && imageUrl!.isNotEmpty)
@@ -589,7 +591,7 @@ class EnjoyAvatar extends StatelessWidget {
               style: EnjoyTheme.heading(
                 size: size * 0.36,
                 weight: FontWeight.w700,
-                color: accent ? ec.onAccent : ec.orangeSoft,
+                color: accent ? ec.secondaryDeep : ec.textSoft,
               ),
             ),
     );

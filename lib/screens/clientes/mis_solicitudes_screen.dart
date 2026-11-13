@@ -31,17 +31,6 @@ class _MisSolicitudesScreenState extends State<MisSolicitudesScreen> {
     }
   }
 
-  Color _estadoColor(EnjoyColors ec, String estado) {
-    switch (estado) {
-      case 'APROBADO':
-        return ec.green;
-      case 'RECHAZADO':
-        return ec.red;
-      default:
-        return ec.yellow; // pendiente: ámbar, no el acento de marca
-    }
-  }
-
   PillVariant _estadoPill(String estado) {
     switch (estado) {
       case 'APROBADO':
@@ -49,7 +38,7 @@ class _MisSolicitudesScreenState extends State<MisSolicitudesScreen> {
       case 'RECHAZADO':
         return PillVariant.red;
       default:
-        return PillVariant.orange;
+        return PillVariant.blue; // en revisión: informativo, no alarma
     }
   }
 
@@ -135,22 +124,17 @@ class _MisSolicitudesScreenState extends State<MisSolicitudesScreen> {
 
   Widget _card(EnjoyColors ec, dynamic s) {
     final estado = (s['estado'] ?? 'PENDIENTE').toString();
-    final color = _estadoColor(ec, estado);
     final aprobado = estado == 'APROBADO';
     final rechazado = estado == 'RECHAZADO';
 
+    // Sin franja de color: el estado ya lo dice la etiqueta.
     return GlassCard(
-      leftAccent: color,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              // Ícono de membresía (acento si está aprobada/pendiente)
-              IconBox(
-                Icons.local_activity_rounded,
-                accent: !rechazado,
-              ),
+              const IconBox(Icons.local_activity_rounded),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -200,8 +184,8 @@ class _MisSolicitudesScreenState extends State<MisSolicitudesScreen> {
                   text: () {
                     final para =
                         (s['destinatarioNombre']?.toString().trim().isNotEmpty ?? false)
-                            ? '🎁 Para ${s['destinatarioNombre']}'
-                            : '🎁 Regalo';
+                            ? 'Para ${s['destinatarioNombre']}'
+                            : 'Regalo';
                     if (!aprobado) return para;
                     return s['regaloAbierto'] == true
                         ? '$para · Abierto'
@@ -226,9 +210,7 @@ class _MisSolicitudesScreenState extends State<MisSolicitudesScreen> {
                     style: EnjoyTheme.body(
                       size: 12.5,
                       height: 1.4,
-                      color: rechazado
-                          ? ec.red
-                          : (aprobado ? ec.textSoft : ec.textSoft),
+                      color: ec.textSoft,
                     ),
                   ),
                 ),
@@ -259,7 +241,7 @@ class _InfoChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: ec.orangeSoft),
+          Icon(icon, size: 14, color: ec.textMute),
           const SizedBox(width: 5),
           Text(text,
               style: EnjoyTheme.body(

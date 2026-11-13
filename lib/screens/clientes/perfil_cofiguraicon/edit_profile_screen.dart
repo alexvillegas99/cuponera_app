@@ -212,11 +212,12 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  gradient: ec.accentGradient,
+                  color: ec.secondaryDeep,
                   shape: BoxShape.circle,
                   border: Border.all(color: ec.bgBottom, width: 2),
                 ),
-                child: Icon(Icons.edit_rounded, color: ec.onAccent, size: 15),
+                child: Icon(Icons.edit_rounded,
+                    color: ec.isDark ? ec.bgBottom : Colors.white, size: 15),
               ),
             ),
           ),
@@ -244,10 +245,16 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
                   style: EnjoyTheme.body(size: 11, color: ec.textMute),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  email,
-                  style: EnjoyTheme.heading(
-                      size: 14, weight: FontWeight.w600, color: ec.text),
+                // Un correo largo se achica en vez de partirse a la mitad.
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    email,
+                    maxLines: 1,
+                    style: EnjoyTheme.heading(
+                        size: 14, weight: FontWeight.w600, color: ec.text),
+                  ),
                 ),
               ],
             ),
@@ -265,19 +272,21 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
   // ── Lock toggle ────────────────────────────────────────────────────
   Widget _buildLockToggle(bool busy) {
     final ec = context.ec;
-    final accent = _locked ? ec.orange : ec.green;
+    // Bloqueado es el estado normal: neutro. Verde solo al habilitar edición.
+    final tono = _locked ? null : ec.green;
     return ListRowTile(
-      borderColor: accent.withValues(alpha: .3),
+      borderColor: tono?.withValues(alpha: .3),
       leading: IconBox(
         _locked ? Icons.lock_outline_rounded : Icons.lock_open_rounded,
-        color: accent,
+        color: tono,
       ),
       title: _locked ? 'Campos bloqueados' : 'Edición habilitada',
-      titleColor: accent,
+      titleColor: tono,
       subtitle: _locked
           ? 'Toca para habilitar la edición'
           : 'Toca para bloquear los campos',
-      trailing: Icon(Icons.chevron_right_rounded, color: accent, size: 20),
+      trailing: Icon(Icons.chevron_right_rounded,
+          color: tono ?? ec.textMute, size: 20),
       onTap: busy ? null : () => setState(() => _locked = !_locked),
     );
   }
@@ -314,7 +323,7 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
                   decoration: InputDecoration(
                     labelText: 'Nombres',
                     prefixIcon: Icon(Icons.badge_outlined,
-                        color: ec.orangeSoft, size: 18),
+                        color: ec.textSoft, size: 18),
                   ),
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? 'Ingresa tus nombres'
@@ -330,7 +339,7 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
                   decoration: InputDecoration(
                     labelText: 'Apellidos',
                     prefixIcon: Icon(Icons.perm_identity_rounded,
-                        color: ec.orangeSoft, size: 18),
+                        color: ec.textSoft, size: 18),
                   ),
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? 'Ingresa tus apellidos'
@@ -346,11 +355,11 @@ class _EditContactWithOtpScreenState extends State<EditContactWithOtpScreen> {
                   cursorColor: ec.orange,
                   style: EnjoyTheme.body(size: 14, color: ec.text),
                   decoration: InputDecoration(
-                    labelText: 'Número local',
+                    labelText: 'Teléfono',
                     counterText: '',
                     hintText: '0999999999',
                     prefixIcon: Icon(Icons.phone_outlined,
-                        color: ec.orangeSoft, size: 18),
+                        color: ec.textSoft, size: 18),
                     prefix: Container(
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.only(right: 8),

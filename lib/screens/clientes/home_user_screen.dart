@@ -1344,20 +1344,22 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: active ? ec.orange.withValues(alpha: 0.18) : ec.glass,
+          // Activo en el tono secundario (como los chips de categoría):
+          // el acento queda para acciones, no para filtros.
+          color: active ? ec.secondaryTint : ec.glass,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: active ? ec.orange : ec.stroke),
+          border: Border.all(color: active ? ec.secondaryDeep : ec.stroke),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: active ? ec.orange : ec.textMute),
+            Icon(icon, size: 14, color: active ? ec.secondaryDeep : ec.textMute),
             const SizedBox(width: 4),
             Text(
               label,
               style: EnjoyTheme.body(
                 size: 12.5,
-                color: active ? ec.orange : ec.textSoft,
+                color: active ? ec.secondaryDeep : ec.textSoft,
                 weight: FontWeight.w700,
               ),
             ),

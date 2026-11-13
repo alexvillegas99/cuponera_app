@@ -92,13 +92,12 @@ class _AccountPickerScreenState extends State<AccountPickerScreen> {
                 ],
                 if (!_bioReady) ...[
                   GlassCard(
-                    accent: true,
                     padding: const EdgeInsets.all(13),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(Icons.fingerprint_rounded,
-                            size: 18, color: ec.orangeSoft),
+                            size: 18, color: ec.secondaryDeep),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(

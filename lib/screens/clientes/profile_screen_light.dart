@@ -139,7 +139,6 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
     final displayName = p.name.isEmpty ? 'Invitado' : p.name;
 
     return GlassCard(
-      accent: true,
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 20),
       child: Column(
         children: [
@@ -184,12 +183,12 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
                       width: 28,
                       height: 28,
                       decoration: BoxDecoration(
-                        gradient: ec.accentGradient,
+                        color: ec.secondaryDeep,
                         borderRadius: BorderRadius.circular(9),
                         border: Border.all(color: ec.surfaceTop, width: 2),
                       ),
                       child: Icon(Icons.camera_alt_rounded,
-                          size: 14, color: ec.onAccent),
+                          size: 14, color: ec.isDark ? ec.bgBottom : Colors.white),
                     ),
                   ),
                 ],
@@ -235,7 +234,6 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
           child: StatCard(
             value: '${p.cuponeras}',
             label: 'Membresías',
-            accent: true,
           ),
         ),
         const SizedBox(width: 10),
@@ -301,7 +299,7 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
           title: 'Cerrar sesión',
           subtitle: 'Salir de tu cuenta',
           titleColor: ec.red,
-          borderColor: ec.red.withValues(alpha: .3),
+          borderColor: ec.stroke,
           onTap: () => SessionFlows.confirmLogout(context),
         ),
       ],
@@ -397,7 +395,7 @@ class _ProfileScreenLightState extends State<ProfileScreenLight> {
           title: 'Eliminar cuenta',
           subtitle: 'Acción permanente e irreversible',
           titleColor: ec.red,
-          borderColor: ec.red.withValues(alpha: .3),
+          borderColor: ec.stroke,
           trailing:
               Icon(Icons.chevron_right_rounded, color: ec.red, size: 20),
           onTap: _confirmDeleteAccount,

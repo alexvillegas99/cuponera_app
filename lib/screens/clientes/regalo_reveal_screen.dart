@@ -132,16 +132,16 @@ class _RegaloRevealScreenState extends State<RegaloRevealScreen>
             width: 96,
             height: 96,
             decoration: BoxDecoration(
-              gradient: ec.accentGradient,
+              color: ec.green,
               shape: BoxShape.circle,
-              boxShadow: ec.shadowAccent,
+              boxShadow: ec.shadowSm,
             ),
-            child: Icon(Icons.check_rounded, color: ec.onAccent, size: 52),
+            child: const Icon(Icons.check_rounded, color: Colors.white, size: 52),
           ),
         ),
         const SizedBox(height: 24),
         Text(
-          '¡Sorpresa! 🎉',
+          'Tienes una cuponera nueva',
           textAlign: TextAlign.center,
           style: EnjoyTheme.heading(size: 24, weight: FontWeight.w800, color: ec.text),
         ),
@@ -155,10 +155,9 @@ class _RegaloRevealScreenState extends State<RegaloRevealScreen>
         ),
         const SizedBox(height: 18),
         GlassCard(
-          accent: true,
           child: Row(
             children: [
-              const IconBox(Icons.local_activity_rounded, accent: true, size: 48),
+              const IconBox(Icons.local_activity_rounded, size: 48),
               const SizedBox(width: 14),
               Expanded(
                 child: Text(
@@ -178,11 +177,11 @@ class _RegaloRevealScreenState extends State<RegaloRevealScreen>
               children: [
                 Row(
                   children: [
-                    Icon(Icons.format_quote_rounded, size: 18, color: ec.orangeSoft),
+                    Icon(Icons.format_quote_rounded, size: 18, color: ec.textMute),
                     const SizedBox(width: 6),
                     Text(
                       'Mensaje',
-                      style: EnjoyTheme.body(size: 12, weight: FontWeight.w700, color: ec.orangeSoft),
+                      style: EnjoyTheme.body(size: 12, weight: FontWeight.w700, color: ec.textMute),
                     ),
                   ],
                 ),

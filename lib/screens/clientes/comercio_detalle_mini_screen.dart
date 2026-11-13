@@ -4,6 +4,7 @@ import 'package:enjoy/screens/clientes/comprar_cuponera_screen.dart';
 import 'package:enjoy/services/configuracion_service.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
+import 'package:enjoy/screens/clientes/mis_solicitudes_screen.dart';
 import 'package:enjoy/services/auth_service.dart';
 import 'package:enjoy/services/comentarios_service.dart';
 import 'package:enjoy/services/compartidos_service.dart';
@@ -875,7 +876,18 @@ class _ComercioDetalleMiniScreenState
           mode: LaunchMode.externalApplication,
         );
       },
-      onVerSolicitudes: () {},
+      onVerSolicitudes: () async {
+        final usuario = await authService.getUser();
+        if (usuario == null || !mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MisSolicitudesScreen(
+              clienteId: usuario['_id']?.toString() ?? '',
+            ),
+          ),
+        );
+      },
     );
   }
 
