@@ -567,16 +567,13 @@ class _LoginScreenState extends State<LoginScreen>
     return Container(
       width: 86,
       height: 86,
+      // Logo oficial (ondas azul marino) sobre baldosa blanca: se lee igual
+      // en Polar y en Tormenta y no compite con el acento del CTA.
       decoration: BoxDecoration(
-        gradient: ec.accentGradient,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(26),
-        boxShadow: [
-          BoxShadow(
-            color: ec.orange.withValues(alpha: 0.5),
-            blurRadius: 32,
-            offset: const Offset(0, 14),
-          ),
-        ],
+        border: Border.all(color: ec.isDark ? Colors.black.withValues(alpha: .25) : ec.stroke),
+        boxShadow: ec.shadowSm,
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

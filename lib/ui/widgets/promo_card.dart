@@ -12,6 +12,7 @@ class PromoCard extends StatelessWidget {
     super.key,
     required this.title,
     this.subtitle,
+    this.meta,
     this.imageUrl,
     this.discount,
     this.topBadge,
@@ -26,6 +27,9 @@ class PromoCard extends StatelessWidget {
 
   final String title;
   final String? subtitle;
+
+  /// Línea de datos prácticos (ciudad · categoría · horario · distancia).
+  final String? meta;
   final String? imageUrl;
 
   /// Texto del badge de descuento (ej. "-40%", "2x1").
@@ -104,13 +108,7 @@ class PromoCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       gradient: ec.accentGradient,
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: ec.orange.withValues(alpha: .45),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      boxShadow: ec.shadowAccent,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -143,7 +141,8 @@ class PromoCard extends StatelessWidget {
                       child: Icon(
                         isFavorite ? Icons.favorite : Icons.favorite_border,
                         size: 18,
-                        color: ec.orange,
+                        // Solo el favorito marcado lleva acento.
+                        color: isFavorite ? ec.orange : Colors.white,
                       ),
                     ),
                   ),
@@ -156,22 +155,16 @@ class PromoCard extends StatelessWidget {
                   child: Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    // Etiqueta sobre foto: negro mate legible; casi todas las
+                    // promos son 2x1, así que en acento sería ruido.
                     decoration: BoxDecoration(
-                      gradient: ec.accentGradient,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: ec.orange.withValues(alpha: .5),
-                          blurRadius: 18,
-                          offset: const Offset(0, 8),
-                          spreadRadius: -4,
-                        ),
-                      ],
+                      color: const Color(0xE61D1E21),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       discount!,
                       style: EnjoyTheme.heading(
-                          size: 15, weight: FontWeight.w800, color: ec.onAccent),
+                          size: 14, weight: FontWeight.w800, color: Colors.white),
                     ),
                   ),
                 ),
@@ -214,6 +207,16 @@ class PromoCard extends StatelessWidget {
                             bottomPill!,
                           ],
                         ],
+                      ),
+                    ],
+                    if (meta != null && meta!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        meta!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: EnjoyTheme.body(
+                            size: 11, color: Colors.white.withValues(alpha: .72)),
                       ),
                     ],
                   ],

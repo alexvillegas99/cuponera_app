@@ -51,3 +51,18 @@ class AppDelegate: FlutterAppDelegate, MessagingDelegate {
     print("FCM Token iOS: \(String(describing: fcmToken))")
   }
 }
+
+// ── Solo simulador (ENJOY_SIM=1 pod install) ───────────────────────────────
+// MLKit no tiene binario para simulador en Apple Silicon: se registran plugins
+// vacíos para que el resto de la app funcione. El selfie no está disponible aquí.
+#if targetEnvironment(simulator)
+@objc(FaceCameraPlugin) class EnjoySimFaceCameraPlugin: NSObject, FlutterPlugin {
+  static func register(with registrar: FlutterPluginRegistrar) {}
+}
+@objc(GoogleMlKitCommonsPlugin) class EnjoySimMlKitCommonsPlugin: NSObject, FlutterPlugin {
+  static func register(with registrar: FlutterPluginRegistrar) {}
+}
+@objc(GoogleMlKitFaceDetectionPlugin) class EnjoySimMlKitFaceDetectionPlugin: NSObject, FlutterPlugin {
+  static func register(with registrar: FlutterPluginRegistrar) {}
+}
+#endif

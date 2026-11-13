@@ -14,5 +14,6 @@ String? distanciaLabel(
   final metros =
       Geolocator.distanceBetween(userLat, userLng, localLat, localLng);
   if (metros < 1000) return '${metros.round()} m';
-  return '${(metros / 1000).toStringAsFixed(1)} km';
+  // Coma decimal (formato de Ecuador): "1,2 km".
+  return '${(metros / 1000).toStringAsFixed(1).replaceAll('.', ',')} km';
 }

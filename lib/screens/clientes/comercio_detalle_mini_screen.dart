@@ -1,3 +1,7 @@
+import 'package:enjoy/ui/texto.dart';
+import 'package:enjoy/screens/clientes/elegir_cuponera_sheet.dart';
+import 'package:enjoy/screens/clientes/comprar_cuponera_screen.dart';
+import 'package:enjoy/services/configuracion_service.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:enjoy/services/auth_service.dart';
@@ -566,8 +570,8 @@ class _ComercioDetalleMiniScreenState
 
   // ─────────────────────────── Helpers de nombre
   String _placeName(PromoPrincipal? p) {
-    if ((p?.placeName ?? '').trim().isNotEmpty) return p!.placeName!.trim();
-    return p?.title?.trim() ?? 'Comercio';
+    if ((p?.placeName ?? '').trim().isNotEmpty) return nombreLegible(p!.placeName!);
+    return nombreLegible(p?.title ?? 'Comercio');
   }
 
   // ─────────────────────────── BUILD
@@ -626,9 +630,8 @@ class _ComercioDetalleMiniScreenState
       padding: EdgeInsets.zero,
       safeTop: false,
       showGlow: false,
-      // bottomBar temporalmente desactivado (se estiraba/sobreponía). Las
-      // acciones "Cómo llegar / Canjear" van ahora al final del cuerpo.
-      // bottomBar: _buildBottomBar(ec, p, telefono),
+      // Barra fija compacta (altura fija: la versión anterior se estiraba).
+      bottomBar: _barraAccion(ec),
       body: RefreshIndicator(
         color: ec.orange,
         backgroundColor: ec.surfaceMid,
@@ -645,6 +648,72 @@ class _ComercioDetalleMiniScreenState
           ],
         ),
       ),
+    );
+  }
+
+  // ─────────────────────────── BARRA DE ACCIÓN FIJA
+  /// Una sola acción principal: canjear si el cliente ya puede; si no,
+  /// ver las cuponeras que sirven en la ciudad de este local.
+  Widget _barraAccion(EnjoyColors ec) {
+    final puedeCanjear = _cuponesDisponibles.isNotEmpty;
+    final ciudad = (_data?.ciudades.isNotEmpty ?? false) ? _data!.ciudades.first : '';
+    return Container(
+      decoration: BoxDecoration(
+        color: ec.navSurface,
+        border: Border(top: BorderSide(color: ec.stroke)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              EnjoyButton(
+                label: puedeCanjear ? 'Canjear cupón' : 'Ver cuponeras para este local',
+                icon: puedeCanjear ? Icons.qr_code_2_rounded : Icons.local_activity_outlined,
+                onPressed: puedeCanjear
+                    ? () => _mostrarQrCupon(_cuponesDisponibles.first)
+                    : () => _abrirCuponeras(ciudad),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _abrirCuponeras(String ciudad) {
+    showElegirCuponera(
+      context,
+      busquedaInicial: ciudad,
+      onComprar: (c) async {
+        final me = await AuthService().getUser();
+        if (me == null || !mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ComprarCuponeraScreen(
+              clienteId: me['_id']?.toString() ?? '',
+              nombreCliente: '${me['nombres'] ?? ''} ${me['apellidos'] ?? ''}'.trim(),
+              emailCliente: me['email']?.toString() ?? '',
+              telefonoCliente: me['telefono']?.toString(),
+              versionIdInicial: c['_id']?.toString(),
+            ),
+          ),
+        );
+      },
+      onWhatsApp: (c) async {
+        final numero = (await ConfiguracionService.obtenerValor('whatsapp_numero') ?? '')
+            .replaceAll(RegExp(r'[^0-9]'), '');
+        if (numero.isEmpty) return;
+        final msg = 'Hola, me interesa la ${c['nombre'] ?? 'cuponera'} para usarla en ${_placeName(_data?.promoPrincipal)}.';
+        await launchUrl(
+          Uri.parse('https://wa.me/$numero?text=${Uri.encodeComponent(msg)}'),
+          mode: LaunchMode.externalApplication,
+        );
+      },
+      onVerSolicitudes: () {},
     );
   }
 
@@ -1020,40 +1089,8 @@ class _ComercioDetalleMiniScreenState
           const SizedBox(height: 12),
           _buildReviewsBlock(),
 
-          // ── Acciones (Cómo llegar / Canjear cupón) ──
-          if ((_data?.lat != null && _data?.lng != null) ||
-              _cuponesDisponibles.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  if (_data?.lat != null && _data?.lng != null)
-                    Expanded(
-                      child: EnjoyButton(
-                        label: 'Cómo llegar',
-                        icon: Icons.directions_rounded,
-                        variant: EnjoyButtonVariant.ghost,
-                        onPressed: () =>
-                            _abrirGoogleMaps(_data!.lat!, _data!.lng!),
-                      ),
-                    ),
-                  if ((_data?.lat != null && _data?.lng != null) &&
-                      _cuponesDisponibles.isNotEmpty)
-                    const SizedBox(width: 10),
-                  if (_cuponesDisponibles.isNotEmpty)
-                    Expanded(
-                      child: EnjoyButton(
-                        label: 'Canjear cupón',
-                        icon: Icons.qr_code_rounded,
-                        onPressed: () =>
-                            _mostrarQrCupon(_cuponesDisponibles.first),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
+          // Acciones: «Cómo llegar» va bajo la foto y «Canjear» en la barra fija.
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -1090,11 +1127,13 @@ class _ComercioDetalleMiniScreenState
                   Container(
                     width: 30,
                     height: 30,
+                    // Íconos de sección en un único tono neutro del tema
+                    // (mezclar colores por sección se ve genérico).
                     decoration: BoxDecoration(
-                      color: iconColor.withValues(alpha: 0.14),
+                      color: ec.secondaryTint,
                       borderRadius: BorderRadius.circular(9),
                     ),
-                    child: Icon(icon, size: 16, color: iconColor),
+                    child: Icon(icon, size: 16, color: ec.secondaryDeep),
                   ),
                   const SizedBox(width: 10),
                   Text(
@@ -1135,46 +1174,17 @@ class _ComercioDetalleMiniScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Name + badges
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    _placeName(p),
-                    style: EnjoyTheme.heading(
-                        size: 20, weight: FontWeight.w800, color: ec.text),
-                  ),
-                ),
-                if (p?.isFlash == true) ...[
-                  const SizedBox(width: 8),
-                  Pill('FLASH',
-                      variant: PillVariant.orange,
-                      icon: Icons.bolt_rounded,
-                      dense: true),
-                ],
-                if (p?.isTwoForOne == true) ...[
-                  const SizedBox(width: 6),
-                  Pill('2×1', variant: PillVariant.orange, dense: true),
-                ],
-              ],
-            ),
-
-            if (p != null &&
-                (p.title ?? '').isNotEmpty &&
-                p.title != p.placeName) ...[
-              const SizedBox(height: 4),
-              Text(
-                p.title!,
-                style: EnjoyTheme.body(size: 14, color: ec.textSoft),
-              ),
+            // Nombre y oferta ya están en la cabecera de la foto; esta tarjeta
+            // reúne lo práctico: valoración, distancia, horario y ubicación.
+            if (p?.isFlash == true) ...[
+              Pill('FLASH', variant: PillVariant.orange, icon: Icons.bolt_rounded, dense: true),
+              const SizedBox(height: 12),
             ],
 
-            const EnjoyDivider(height: 24),
-
-            // Rating
+            // Valoración: sin reseñas no se muestran estrellas vacías.
             Row(
               children: [
+                if (_data!.totalComentarios > 0) ...[
                 Row(
                   children: List.generate(
                     5,
@@ -1197,20 +1207,26 @@ class _ComercioDetalleMiniScreenState
                   '(${_data!.totalComentarios})',
                   style: EnjoyTheme.body(size: 13, color: ec.textMute),
                 ),
+                ],
                 if ((distanciaLabel(_userLat, _userLng, _data?.lat, _data?.lng) ??
                         p?.distanceLabel ??
                         '')
                     .isNotEmpty) ...[
-                  const SizedBox(width: 10),
-                  Container(
-                    width: 3,
-                    height: 3,
-                    decoration: BoxDecoration(
-                      color: ec.textMute.withValues(alpha: 0.5),
-                      shape: BoxShape.circle,
+                  if (_data!.totalComentarios > 0) ...[
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 3,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: ec.textMute.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
+                    const SizedBox(width: 10),
+                  ] else ...[
+                    Icon(Icons.near_me_outlined, size: 15, color: ec.textSoft),
+                    const SizedBox(width: 6),
+                  ],
                   Text(
                     distanciaLabel(_userLat, _userLng, _data?.lat, _data?.lng) ??
                         p!.distanceLabel!,
@@ -1345,10 +1361,10 @@ class _ComercioDetalleMiniScreenState
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.14),
+            color: ec.secondaryTint,
             borderRadius: BorderRadius.circular(9),
           ),
-          child: Icon(icon, size: 14, color: iconColor),
+          child: Icon(icon, size: 14, color: ec.secondaryDeep),
         ),
         const SizedBox(width: 10),
         Expanded(

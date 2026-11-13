@@ -9,6 +9,40 @@ class VersionesService {
   static String _kLocales(String versionId) => 'versiones:locales:$versionId';
 
   /// Lista versiones activas de cuponeras.
+  /// Cuponeras para el selector de compra: precio, provincias, ciudades,
+  /// nº de locales y distancia al local más cercano (si se envía ubicación).
+  /// Si el backend aún no tiene `/versiones/disponibles`, usa el listado
+  /// clásico (sin distancia) para no romper la compra.
+  static Future<List<Map<String, dynamic>>> disponibles({double? lat, double? lng}) async {
+    try {
+      final resp = await ApiClient.instance.get(
+        '/versiones/disponibles',
+        queryParameters: {
+          if (lat != null) 'lat': lat,
+          if (lng != null) 'lng': lng,
+        },
+      );
+      if (resp.data is List) return List<Map<String, dynamic>>.from(resp.data);
+    } catch (_) {}
+    try {
+      final base = await listarActivas();
+      return base
+          .map((v) => <String, dynamic>{
+                '_id': v['_id'],
+                'nombre': v['nombre'],
+                'precio': v['precio'],
+                'descripcion': v['descripcion'],
+                'provincias': v['provinciasDisponibles'] ?? const [],
+                'ciudades': v['ciudadesDisponibles'] ?? const [],
+                'totalLocales': null,
+                'distanciaKm': null,
+              })
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> listarActivas() async {
     try {
       final resp = await ApiClient.instance.get(

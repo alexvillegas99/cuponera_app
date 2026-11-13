@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:enjoy/models/provincia.dart';
 import 'package:enjoy/services/ciudades_service.dart';
-import 'package:enjoy/ui/palette.dart';
+import 'package:enjoy/ui/enjoy_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -15,7 +15,7 @@ Future<Set<String>?> showProvincePicker(
   return showModalBottomSheet<Set<String>>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Palette.kSurface,
+    backgroundColor: context.ec.surfaceTop,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
     ),
@@ -93,7 +93,7 @@ class _ProvincePickerState extends State<_ProvincePicker> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: context.ec.red,
         ));
       }
     } finally {
@@ -117,7 +117,7 @@ class _ProvincePickerState extends State<_ProvincePicker> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                  color: Palette.kBorder, borderRadius: BorderRadius.circular(2))),
+                  color: context.ec.stroke, borderRadius: BorderRadius.circular(2))),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
             child: Row(
@@ -127,14 +127,14 @@ class _ProvincePickerState extends State<_ProvincePicker> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('Elige tus provincias',
+                      Text('Elige tus provincias',
                           style: TextStyle(
-                              color: Palette.kTitle,
+                              color: context.ec.text,
                               fontSize: 16,
                               fontWeight: FontWeight.w800)),
                       Text('${_sel.length} provincia(s)',
-                          style: const TextStyle(
-                              color: Palette.kMuted, fontSize: 12)),
+                          style: TextStyle(
+                              color: context.ec.textMute, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -147,14 +147,14 @@ class _ProvincePickerState extends State<_ProvincePicker> {
                           child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.my_location_rounded, size: 16),
                   label: const Text('Cercana'),
-                  style: TextButton.styleFrom(foregroundColor: Palette.kAccent),
+                  style: TextButton.styleFrom(foregroundColor: context.ec.accentText),
                 ),
                 const SizedBox(width: 4),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(context, _sel),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Palette.kAccent,
-                    foregroundColor: Colors.white,
+                    backgroundColor: context.ec.orange,
+                    foregroundColor: context.ec.onAccent,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                     padding:
@@ -172,33 +172,34 @@ class _ProvincePickerState extends State<_ProvincePicker> {
               onChanged: (v) => setState(() => _q = v),
               decoration: InputDecoration(
                 hintText: 'Buscar provincia…',
-                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Palette.kMuted),
+                prefixIcon: Icon(Icons.search_rounded, size: 18, color: context.ec.textMute),
                 filled: true,
-                fillColor: Palette.kField,
+                fillColor: context.ec.glassStrong,
                 isDense: true,
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Palette.kBorder)),
+                    borderSide: BorderSide(color: context.ec.stroke)),
               ),
             ),
           ),
           Expanded(
             child: filtered.isEmpty
-                ? const Center(
-                    child: Text('Sin resultados', style: TextStyle(color: Palette.kMuted)))
+                ? Center(
+                    child: Text('Sin resultados', style: TextStyle(color: context.ec.textMute)))
                 : ListView.separated(
                     itemCount: filtered.length,
                     separatorBuilder: (_, __) =>
-                        const Divider(height: 1, color: Palette.kBorder),
+                        Divider(height: 1, color: context.ec.stroke),
                     itemBuilder: (_, i) {
                       final p = filtered[i];
                       final sel = _sel.contains(p.id);
                       return CheckboxListTile(
                         value: sel,
-                        activeColor: Palette.kAccent,
+                        activeColor: context.ec.orange,
+                        checkColor: context.ec.onAccent,
                         controlAffinity: ListTileControlAffinity.leading,
                         title: Text(p.nombre,
-                            style: const TextStyle(color: Palette.kTitle, fontSize: 14)),
+                            style: TextStyle(color: context.ec.text, fontSize: 14)),
                         onChanged: (v) => setState(
                             () => v == true ? _sel.add(p.id) : _sel.remove(p.id)),
                       );

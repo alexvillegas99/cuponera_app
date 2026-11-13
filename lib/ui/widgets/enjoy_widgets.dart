@@ -317,7 +317,6 @@ class EnjoyButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ec = context.ec;
-    final isOrange = variant == EnjoyButtonVariant.orange;
     final isGreen = variant == EnjoyButtonVariant.green;
 
     Color fg;
@@ -399,13 +398,7 @@ class EnjoyButton extends StatelessWidget {
       child: inner,
     );
 
-    // Brillo deslizante para el CTA naranja.
-    if (isOrange && !loading) {
-      body = ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: Stack(children: [body, const Positioned.fill(child: ShineSweep())]),
-      );
-    }
+    // Sin brillo deslizante: el CTA ya destaca por color (estilo Polar/Tormenta).
     if (isGreen) {
       // sin sombra extra
     }
@@ -531,14 +524,22 @@ class IconBox extends StatelessWidget {
     return Container(
       width: size,
       height: size,
+      // `accent` = tinte suave del acento (no bloque sólido): el color sólido
+      // queda reservado al CTA principal (regla 60/30/10).
+      // Polar: tinte rojo suave · Tormenta: negro mate con ícono naranja (como la web).
       decoration: BoxDecoration(
-        gradient: accent ? ec.accentGradient : ec.iconGlassGradient,
+        color: accent ? (ec.isDark ? ec.secondary : ec.toneAccent.bg) : null,
+        gradient: accent ? null : ec.iconGlassGradient,
         borderRadius: BorderRadius.circular(radius),
-        border: accent ? null : Border.all(color: ec.stroke),
+        border: Border.all(
+          color: accent
+              ? (ec.isDark ? Colors.white.withValues(alpha: .06) : ec.toneAccent.border)
+              : ec.stroke,
+        ),
       ),
       child: Icon(icon,
           size: iconSize,
-          color: accent ? ec.onAccent : (color ?? ec.secondaryDeep)),
+          color: accent ? (ec.isDark ? ec.orange : ec.accentText) : (color ?? ec.secondaryDeep)),
     );
   }
 }

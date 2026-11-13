@@ -25,6 +25,29 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
+# ── Modo simulador ────────────────────────────────────────────────────────────
+# MLKit (selfie con face_camera) solo trae binario para iPhone FÍSICO, así que
+# en el simulador de Apple Silicon no enlaza. Para probar en simulador:
+#
+#     ENJOY_SIM=1 pod install      # omite face_camera + MLKit (selfie desactivado)
+#     pod install                  # vuelve a la configuración normal (iPhone físico)
+#
+# En modo simulador, Runner/AppDelegate.swift registra plugins vacíos y
+# ios/SimStubs aporta sus cabeceras. Si se compila para iPhone con los pods de
+# simulador instalados, el build FALLA (no se puede publicar sin selfie por error).
+ENJOY_SIM = ENV['ENJOY_SIM'] == '1'
+ENJOY_SIM_EXCLUIDOS = %w[face_camera google_mlkit_face_detection google_mlkit_commons MLKitVision].freeze
+if ENJOY_SIM
+  Pod::UI.puts '[Enjoy] ENJOY_SIM=1 → selfie (face_camera/MLKit) excluido para simulador'
+  ::Pod::Podfile::DSL.class_eval do
+    alias_method :__enjoy_pod_original, :pod
+    def pod(name = nil, *requirements)
+      return if ENJOY_SIM_EXCLUIDOS.include?(name.to_s.split('/').first)
+      __enjoy_pod_original(name, *requirements)
+    end
+  end
+end
+
 target 'Runner' do
   use_frameworks!
   use_modular_headers!

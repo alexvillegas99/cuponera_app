@@ -61,13 +61,7 @@ class _AccountPickerScreenState extends State<AccountPickerScreen> {
                     decoration: BoxDecoration(
                       gradient: ec.accentGradient,
                       borderRadius: BorderRadius.circular(22),
-                      boxShadow: [
-                        BoxShadow(
-                          color: ec.orange.withValues(alpha: .5),
-                          blurRadius: 28,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
+                      boxShadow: ec.shadowAccent,
                     ),
                     padding: const EdgeInsets.all(14),
                     child:

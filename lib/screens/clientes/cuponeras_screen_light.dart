@@ -1,3 +1,4 @@
+import 'package:enjoy/screens/clientes/elegir_cuponera_sheet.dart';
 // lib/screens/clientes/cuponeras_screen_light.dart
 import 'dart:convert';
 
@@ -393,129 +394,46 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
   }
 
   void _showAdquirirSheet(BuildContext context) {
-    final ec = context.ec;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: ec.surfaceMid,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: ec.strokeStrong,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  IconBox(Icons.shopping_bag_rounded, accent: true, size: 42),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Adquirir Membresía',
-                          style: EnjoyTheme.heading(size: 18, weight: FontWeight.w800, color: ec.text),
-                        ),
-                        Text(
-                          'Elige cómo quieres adquirir tu membresía',
-                          style: EnjoyTheme.body(size: 13, color: ec.textMute),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: _AdquirirOptionCard(
-                      icon: Icons.chat_rounded,
-                      title: 'WhatsApp',
-                      subtitle: 'Escribir por chat',
-                      onTap: () {
-                        Navigator.pop(context);
-                        _openWhatsApp(
-                          _whatsappNumero,
-                          message: _whatsappMensaje,
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _AdquirirOptionCard(
-                      icon: Icons.credit_card_rounded,
-                      title: 'Compra directa',
-                      subtitle: 'Transferencia bancaria',
-                      onTap: () async {
-                        Navigator.pop(context);
-                        final me = await _auth.getUser();
-                        if (me == null || !mounted) return;
-                        final result = await Navigator.push<bool>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ComprarCuponeraScreen(
-                              clienteId: me['_id']?.toString() ?? '',
-                              nombreCliente:
-                                  '${me['nombres'] ?? ''} ${me['apellidos'] ?? ''}'
-                                      .trim(),
-                              emailCliente: me['email']?.toString() ?? '',
-                              telefonoCliente: me['telefono']?.toString(),
-                            ),
-                          ),
-                        );
-                        if (result == true && mounted) {
-                          _reloadFromServer();
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              GlassCard(
-                padding: EdgeInsets.zero,
-                child: TextButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    final me = await _auth.getUser();
-                    if (me == null || !mounted) return;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MisSolicitudesScreen(
-                          clienteId: me['_id']?.toString() ?? '',
-                        ),
-                      ),
-                    );
-                  },
-                  icon: Icon(
-                    Icons.receipt_long_rounded,
-                    size: 18,
-                    color: ec.orangeSoft,
-                  ),
-                  label: Text(
-                    'Ver mis solicitudes',
-                    style: EnjoyTheme.body(size: 14, weight: FontWeight.w600, color: ec.orangeSoft),
-                  ),
-                ),
-              ),
-            ],
+    showElegirCuponera(
+      context,
+      onComprar: (c) async {
+        final me = await _auth.getUser();
+        if (me == null || !mounted) return;
+        final result = await Navigator.push<bool>(
+          this.context,
+          MaterialPageRoute(
+            builder: (_) => ComprarCuponeraScreen(
+              clienteId: me['_id']?.toString() ?? '',
+              nombreCliente:
+                  '${me['nombres'] ?? ''} ${me['apellidos'] ?? ''}'.trim(),
+              emailCliente: me['email']?.toString() ?? '',
+              telefonoCliente: me['telefono']?.toString(),
+              versionIdInicial: c['_id']?.toString(),
+            ),
           ),
-        ),
-      ),
+        );
+        if (result == true && mounted) _reloadFromServer();
+      },
+      onWhatsApp: (c) {
+        final nombre = (c['nombre'] ?? '').toString();
+        final base = _whatsappMensaje.trim();
+        final msg = nombre.isEmpty
+            ? base
+            : '${base.isEmpty ? 'Hola' : base}\nMe interesa la $nombre.';
+        _openWhatsApp(_whatsappNumero, message: msg);
+      },
+      onVerSolicitudes: () async {
+        final me = await _auth.getUser();
+        if (me == null || !mounted) return;
+        Navigator.push(
+          this.context,
+          MaterialPageRoute(
+            builder: (_) => MisSolicitudesScreen(
+              clienteId: me['_id']?.toString() ?? '',
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -526,7 +444,8 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
       child: Align(
         alignment: Alignment.bottomRight,
         child: Padding(
-          padding: const EdgeInsets.only(right: 16, bottom: 16),
+          // Por encima del dock (66 px + margen) para no tapar el botón central.
+          padding: const EdgeInsets.only(right: 16, bottom: 96),
           child: GestureDetector(
             onTap: () => _showAdquirirSheet(context),
             child: Container(
@@ -547,13 +466,8 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
                     blurRadius: 0,
                     spreadRadius: 2,
                   ),
-                  // Sombra naranja suave
-                  BoxShadow(
-                    color: ec.orange.withValues(alpha: 0.45),
-                    blurRadius: 24,
-                    offset: const Offset(0, 10),
-                    spreadRadius: -4,
-                  ),
+                  // Sombra de acento discreta (Polar/Tormenta)
+                  ...ec.shadowAccent,
                 ],
               ),
               child: Row(
@@ -599,11 +513,21 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Adquiere una membresía para disfrutar descuentos en los mejores locales.',
+                    'Con una membresía accedes a los 2x1 y descuentos de los locales afiliados. '
+                    'Al elegirla verás el precio, las ciudades y los locales incluidos.',
                     style: EnjoyTheme.body(size: 13, height: 1.5, color: ec.textMute),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    child: EnjoyButton(
+                      label: 'Ver cuponeras disponibles',
+                      icon: Icons.local_activity_outlined,
+                      onPressed: () => _showAdquirirSheet(context),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: _reloadFromServer,
                     icon: const Icon(Icons.refresh_rounded, size: 18),
@@ -617,7 +541,6 @@ class _CuponerasScreenLightState extends State<CuponerasScreenLight> {
               ),
             ),
           ),
-          _buildBottomCta(context),
         ],
       );
     }
@@ -1294,3 +1217,5 @@ class _AdquirirOptionCard extends StatelessWidget {
     );
   }
 }
+
+

@@ -237,13 +237,7 @@ class _ScanFrameState extends State<ScanFrame>
                       ec.orange,
                       ec.orange.withValues(alpha: 0),
                     ]),
-                    boxShadow: [
-                      BoxShadow(
-                        color: ec.orange.withValues(alpha: .7),
-                        blurRadius: 16,
-                        spreadRadius: 2,
-                      ),
-                    ],
+                    boxShadow: ec.shadowAccent,
                   ),
                 ),
               );

@@ -91,8 +91,10 @@ class EnjoyColors extends ThemeExtension<EnjoyColors> {
   bool get isDark => brightness == Brightness.dark;
 
   /// Gradiente naranja principal (botones, FAB, pills activas).
+  /// Plano a propósito (Polar/Tormenta): los degradados de acento se ven
+  /// "generados". Se mantiene como gradiente por compatibilidad de API.
   LinearGradient get accentGradient => LinearGradient(
-        colors: [orangeSoft, orange],
+        colors: [orange, orange],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
@@ -143,7 +145,7 @@ class EnjoyColors extends ThemeExtension<EnjoyColors> {
         cardGradTop: Color(0x1AFF5F00),
         cardGradBottom: Color(0x00FFFFFF),
         orange: Color(0xFFFF5F00), // Naranja Seguridad
-        orangeSoft: Color(0xFFFF7A2B),
+        orangeSoft: Color(0xFFFFAA70), // acento como TEXTO/ícono legible sobre gris (≈4.5:1)
         yellow: Color(0xFFF2B33D),
         green: Color(0xFF3DD68C),
         red: Color(0xFFFF5A6A),
@@ -175,7 +177,7 @@ class EnjoyColors extends ThemeExtension<EnjoyColors> {
         cardGradTop: Color(0x0FE4002B),
         cardGradBottom: Color(0x00FFFFFF),
         orange: Color(0xFFE4002B), // Rojo Racing
-        orangeSoft: Color(0xFFFF2D52),
+        orangeSoft: Color(0xFFC80026), // acento como TEXTO/ícono legible sobre blanco (5.3:1)
         yellow: Color(0xFFD99A0B),
         green: Color(0xFF12A060),
         red: Color(0xFFB4233A), // error, distinto del acento
@@ -193,7 +195,7 @@ class EnjoyColors extends ThemeExtension<EnjoyColors> {
   // ===================================================================
 
   /// Acento usado como TEXTO (legible sobre la superficie del tema).
-  Color get accentText => isDark ? const Color(0xFFFFB27A) : const Color(0xFFE4002B);
+  Color get accentText => orangeSoft;
 
   /// Color secundario (el 30%): Azul Glaciar en Polar, Negro Mate en Tormenta.
   Color get secondary => isDark ? const Color(0xFF1D1E21) : const Color(0xFF9DBDD8);
@@ -219,8 +221,12 @@ class EnjoyColors extends ThemeExtension<EnjoyColors> {
         ];
 
   /// Sombra del CTA principal (acento), discreta.
+  /// Sombra del CTA: neutra (sin halo de color), solo para despegarlo.
   List<BoxShadow> get shadowAccent => [
-        BoxShadow(color: orange.withValues(alpha: .28), blurRadius: 12, offset: const Offset(0, 4)),
+        BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? .32 : .14),
+            blurRadius: 10,
+            offset: const Offset(0, 4)),
       ];
 
   /// Tonos de estado legibles (texto / fondo / borde).

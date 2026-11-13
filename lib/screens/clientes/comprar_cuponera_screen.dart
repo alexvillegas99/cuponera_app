@@ -40,12 +40,16 @@ class ComprarCuponeraScreen extends StatefulWidget {
   final String emailCliente;
   final String? telefonoCliente;
 
+  /// Cuponera ya elegida en el selector (se preselecciona si está en la lista).
+  final String? versionIdInicial;
+
   const ComprarCuponeraScreen({
     super.key,
     required this.clienteId,
     required this.nombreCliente,
     required this.emailCliente,
     this.telefonoCliente,
+    this.versionIdInicial,
   });
 
   @override
@@ -121,8 +125,12 @@ class _ComprarCuponeraScreenState extends State<ComprarCuponeraScreen> {
 
     instrucciones = configs['transferencia_instrucciones'] ?? '';
 
+    final preIdx = widget.versionIdInicial == null
+        ? -1
+        : versiones.indexWhere((v) => v['_id']?.toString() == widget.versionIdInicial);
     setState(() {
       _cuponeras = versiones;
+      if (preIdx >= 0) _selectedCuponera = preIdx;
       _cuentas = cuentas;
       _instrucciones = instrucciones;
       _payphoneActivo = metodos['payphone'] ?? false;

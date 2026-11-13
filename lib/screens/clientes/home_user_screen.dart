@@ -1,3 +1,4 @@
+import 'package:enjoy/ui/texto.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
@@ -509,16 +510,22 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
     final dist = _distanciaA(p);
     final distStr =
         dist.isFinite ? '${(dist / 1000).toStringAsFixed(1)} km' : null;
-    final cat = p.categories.isNotEmpty ? p.categories.first : p.city;
-    final subtitle = [distStr, cat]
-        .where((e) => e != null && e.isNotEmpty)
+    final cat = p.categories.isNotEmpty ? p.categories.first : '';
+    final title = nombreLegible(p.placeName.isNotEmpty ? p.placeName : p.title);
+    // Lo que el cliente necesita para decidir: QUÉ es la oferta y DÓNDE/CUÁNDO.
+    final oferta = p.title.trim().isNotEmpty && p.title.trim().toLowerCase() != p.placeName.trim().toLowerCase()
+        ? p.title.trim()
+        : '';
+    final subtitle = oferta.isNotEmpty ? oferta : cat;
+    final meta = [p.city, oferta.isNotEmpty ? cat : '', p.scheduleLabel, distStr ?? '']
+        .where((e) => e.trim().isNotEmpty)
         .join(' · ');
-    final title = p.placeName.isNotEmpty ? p.placeName : p.title;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: PromoCard(
         title: title,
-        subtitle: subtitle.isEmpty ? p.title : subtitle,
+        subtitle: subtitle.isEmpty ? null : subtitle,
+        meta: meta,
         imageUrl: p.coverUrl,
         discount: p.isTwoForOne ? '2x1' : null,
         tieneFlash: p.tieneFlash,
@@ -1244,7 +1251,11 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
           child: Row(
             children: [
-              if (hayHoy)
+              // Con una sola sección, un título claro en lugar de una pestaña suelta.
+              if (hayHoy != hayFlash)
+                Text(hayHoy ? 'Promos de hoy' : 'Promos flash',
+                    style: EnjoyTheme.heading(size: 17, color: ec.text)),
+              if (hayHoy && hayFlash)
                 _miniTab(
                   ec,
                   icon: Icons.today_rounded,
@@ -1253,7 +1264,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                   onTap: () => setState(() => _destacadoTab = 'hoy'),
                 ),
               if (hayHoy && hayFlash) const SizedBox(width: 6),
-              if (hayFlash)
+              if (hayHoy && hayFlash)
                 _miniTab(
                   ec,
                   icon: Icons.bolt_rounded,
@@ -1309,9 +1320,9 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
             ],
           ),
         ),
-        // Carrusel más compacto (alto 160 vs 210 anterior).
+        // Carrusel compacto: foto + nombre + oferta + ciudad/horario.
         SizedBox(
-          height: 160,
+          height: 178,
           child: tabActivo == 'hoy'
               ? _carruselHoy(ec)
               : _carruselFlash(ec),
@@ -1367,7 +1378,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
       itemBuilder: (_, i) {
         final p = _promosHoy[i];
         return SizedBox(
-          width: 140,
+          width: 210,
           child: _PromoHoyCard(
             promo: p,
             onTap: () {
@@ -1395,7 +1406,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
       itemBuilder: (_, i) {
         final p = locales[i];
         return SizedBox(
-          width: 140,
+          width: 210,
           child: _PromoHoyCard(
             promo: p,
             onTap: () {
@@ -1416,7 +1427,7 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
   /// Carrusel horizontal de categorías (chip "2x1" + categorías).
   Widget _buildCategorias(EnjoyColors ec) {
     return SizedBox(
-      height: 44,
+      height: 40,
       child: _catsLoading
           ? const Center(
               child: SizedBox(
@@ -1447,32 +1458,18 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Pill(
-                        '2x1',
-                        icon: Icons.local_offer_outlined,
-                        variant: _selectedCats.contains('2x1')
-                            ? PillVariant.orange
-                            : PillVariant.glass,
-                        onTap: () => _toggleCat('2x1'),
-                      ),
+                    _CategoriaTile(
+                      label: '2x1',
+                      icon: Icons.local_offer_outlined,
+                      selected: _selectedCats.contains('2x1'),
+                      onTap: () => _toggleCat('2x1'),
                     ),
-                    ..._categorias.map((c) {
-                      final icon = _iconFor(c.icono);
-                      final selected = _selectedCats.contains(c.nombre);
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Pill(
-                          c.nombre,
-                          icon: icon,
-                          variant: selected
-                              ? PillVariant.orange
-                              : PillVariant.glass,
+                    ..._categorias.map((c) => _CategoriaTile(
+                          label: c.nombre,
+                          icon: _iconFor(c.icono),
+                          selected: _selectedCats.contains(c.nombre),
                           onTap: () => _toggleCat(c.nombre),
-                        ),
-                      );
-                    }),
+                        )),
                   ],
                 ),
     );
@@ -2168,8 +2165,12 @@ class _PromoHoyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ec = context.ec;
-    final title = promo.placeName.isNotEmpty ? promo.placeName : promo.title;
-    final cat = promo.categories.isNotEmpty ? promo.categories.first : promo.city;
+    final title = nombreLegible(promo.placeName.isNotEmpty ? promo.placeName : promo.title);
+    final oferta = promo.title.trim().isNotEmpty &&
+            promo.title.trim().toLowerCase() != promo.placeName.trim().toLowerCase()
+        ? promo.title.trim()
+        : (promo.categories.isNotEmpty ? promo.categories.first : '');
+    final cat = [promo.city, promo.scheduleLabel].where((e) => e.trim().isNotEmpty).join(' · ');
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -2187,7 +2188,7 @@ class _PromoHoyCard extends StatelessWidget {
               child: Stack(
                 children: [
                   SizedBox(
-                    height: 88,
+                    height: 100,
                     width: double.infinity,
                     child: promo.coverUrl.isNotEmpty
                         ? EnjoyImage(promo.coverUrl, fit: BoxFit.cover)
@@ -2226,7 +2227,16 @@ class _PromoHoyCard extends StatelessWidget {
                     Positioned(
                       top: 8,
                       right: 8,
-                      child: Pill('2x1', variant: PillVariant.orange),
+                      // Sobre foto: etiqueta SÓLIDA (un tinte translúcido no se lee).
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xE61D1E21),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text('2x1',
+                            style: EnjoyTheme.heading(size: 11, weight: FontWeight.w800, color: Colors.white)),
+                      ),
                     ),
                 ],
               ),
@@ -2242,6 +2252,15 @@ class _PromoHoyCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: EnjoyTheme.heading(size: 12.5, color: ec.text),
                   ),
+                  if (oferta.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      oferta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: EnjoyTheme.body(size: 11, weight: FontWeight.w600, color: ec.textSoft),
+                    ),
+                  ],
                   const SizedBox(height: 2),
                   Text(
                     cat,
@@ -2350,12 +2369,22 @@ class _HeaderAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (fotoUrl == null || fotoUrl!.trim().isEmpty) {
-      return IconBox(
-        Icons.local_activity_rounded,
-        accent: true,
-        size: 40,
-        radius: 13,
-        iconSize: 20,
+      // Sin foto: iniciales del cliente (más personal que un ícono genérico).
+      final partes = nombre.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+      final ini = partes.isEmpty
+          ? '?'
+          : (partes.first[0] + (partes.length > 1 ? partes[1][0] : '')).toUpperCase();
+      return Container(
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: ec.secondaryTint,
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: ec.stroke),
+        ),
+        child: Text(ini,
+            style: EnjoyTheme.heading(size: 14, weight: FontWeight.w700, color: ec.secondaryDeep)),
       );
     }
     return Container(
@@ -2363,14 +2392,7 @@ class _HeaderAvatar extends StatelessWidget {
       height: 40,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: ec.orange.withValues(alpha: 0.55), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: ec.orange.withValues(alpha: 0.25),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: ec.stroke),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(11.5),
@@ -2422,3 +2444,59 @@ class _HeaderAvatar extends StatelessWidget {
     );
   }
 }
+
+
+/// Chip de categoría compacto: texto + ícono pequeño. Seleccionado en el
+/// tono secundario (azul glaciar / negro mate): el acento sólido queda para el CTA.
+class _CategoriaTile extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  const _CategoriaTile({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ec = context.ec;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? ec.secondaryTint : ec.glass,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: selected ? ec.secondaryDeep : ec.stroke,
+                width: selected ? 1.4 : 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: selected ? ec.secondaryDeep : ec.textMute),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: EnjoyTheme.body(
+                  size: 13,
+                  weight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? ec.text : ec.textSoft,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+

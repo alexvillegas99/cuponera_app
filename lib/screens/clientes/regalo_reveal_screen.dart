@@ -134,13 +134,7 @@ class _RegaloRevealScreenState extends State<RegaloRevealScreen>
             decoration: BoxDecoration(
               gradient: ec.accentGradient,
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: ec.orange.withValues(alpha: 0.5),
-                  blurRadius: 40,
-                  spreadRadius: -6,
-                ),
-              ],
+              boxShadow: ec.shadowAccent,
             ),
             child: Icon(Icons.check_rounded, color: ec.onAccent, size: 52),
           ),
@@ -226,14 +220,7 @@ class _GiftBox extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: ec.accentGradient,
         borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: ec.orange.withValues(alpha: 0.5),
-            blurRadius: 50,
-            offset: const Offset(0, 20),
-            spreadRadius: -10,
-          ),
-        ],
+        boxShadow: ec.shadowAccent,
       ),
       child: Stack(
         alignment: Alignment.center,
