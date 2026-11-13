@@ -172,7 +172,7 @@ class EnjoyTheme {
         trackColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
               ? ec.orange
-              : (ec.isDark ? const Color(0xFF2B2D31) : ec.strokeStrong),
+              : ec.strokeStrong,
         ),
         trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),

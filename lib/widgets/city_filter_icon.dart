@@ -53,7 +53,7 @@ class CityFilterIcon extends StatelessWidget {
                 child: Text(
                   '$count',
                   style: TextStyle(
-                    color: ec.isDark ? const Color(0xFF1D1E21) : Colors.white,
+                    color: ec.isDark ? ec.bgTop : Colors.white,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                   ),

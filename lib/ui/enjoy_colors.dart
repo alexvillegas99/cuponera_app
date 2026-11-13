@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Tokens de color del sistema visual **Enjoy — Azul de marca** (afiche oficial):
 ///  · Claro  → 60 Blanco · 30 Azul Marino #0A1F5C · 10 Azul Real #1565D8
-///  · Oscuro = **Edición Tormenta** → 60 Gris Tormenta · 30 Negro Mate · 10 Naranja Seguridad #FF5F00
+///  · Oscuro = **Grafito azul** → 60 Carbón azulado #121722 · 30 Grafito #1A2130 · 10 Azul #3D7FF0
 /// El rojo queda solo para errores (ya no compite con el acento).
 /// `orange`/`orangeSoft` se conservan como nombre del **acento** de cada tema.
 ///
@@ -132,31 +132,31 @@ class EnjoyColors extends ThemeExtension<EnjoyColors> {
   // ===================================================================
   factory EnjoyColors.dark() => const EnjoyColors(
         brightness: Brightness.dark,
-        bgTop: Color(0xFF41464E), // Gris Tormenta
-        bgBottom: Color(0xFF393E45),
+        bgTop: Color(0xFF121722), // Carbón azulado
+        bgBottom: Color(0xFF0F141E),
         glowOrange: Color(0x00000000), // sin halos
         glowBlue: Color(0x00000000),
-        surfaceTop: Color(0xFF4E545C),
-        surfaceMid: Color(0xFF474D55),
-        surfaceBottom: Color(0xFF41474F),
-        glass: Color(0xFF4B5159), // tarjetas
-        glassStrong: Color(0xFF555B64),
-        stroke: Color(0x38000000), // negro 22%
-        strokeStrong: Color(0x61000000), // negro 38%
-        cardGradTop: Color(0x1AFF5F00),
+        surfaceTop: Color(0xFF1A2130),
+        surfaceMid: Color(0xFF171E2C),
+        surfaceBottom: Color(0xFF151B28),
+        glass: Color(0xFF1A2130), // tarjetas (Grafito)
+        glassStrong: Color(0xFF20283A),
+        stroke: Color(0xFF2A3346),
+        strokeStrong: Color(0xFF364156),
+        cardGradTop: Color(0x1A3D7FF0),
         cardGradBottom: Color(0x00FFFFFF),
-        orange: Color(0xFFFF5F00), // Naranja Seguridad
-        orangeSoft: Color(0xFFFFAA70), // acento como TEXTO/ícono legible sobre gris (≈4.5:1)
+        orange: Color(0xFF3D7FF0), // Azul (acento; texto blanco encima)
+        orangeSoft: Color(0xFF8DB8FF), // acento como TEXTO/ícono legible sobre grafito
         yellow: Color(0xFFF2B33D),
         green: Color(0xFF3DD68C),
-        red: Color(0xFFFF5A6A),
-        blue: Color(0xFF8DB8E6),
-        text: Color(0xFFF5F6F8),
-        textSoft: Color(0xFFD7DBE0),
-        textMute: Color(0xFFC4CAD2),
-        onAccent: Color(0xFF140A00), // texto casi negro sobre naranja
-        iconGlassTop: Color(0xFF2B2D31), // Negro Mate
-        iconGlassBottom: Color(0xFF1D1E21),
+        red: Color(0xFFFF6B7A),
+        blue: Color(0xFF8FB8FF),
+        text: Color(0xFFEEF2F8),
+        textSoft: Color(0xFFC3CCDA),
+        textMute: Color(0xFF9AA6BC),
+        onAccent: Color(0xFFFFFFFF),
+        iconGlassTop: Color(0xFF1C2B47), // tinte azul profundo
+        iconGlassBottom: Color(0xFF18253D),
       );
 
   // ===================================================================
@@ -199,19 +199,19 @@ class EnjoyColors extends ThemeExtension<EnjoyColors> {
   Color get accentText => orangeSoft;
 
   /// Color secundario (el 30%): Azul Marino en claro, marino profundo en oscuro.
-  Color get secondary => isDark ? const Color(0xFF1D1E21) : const Color(0xFF0A1F5C);
+  Color get secondary => isDark ? const Color(0xFF0E1320) : const Color(0xFF0A1F5C);
 
   /// Tono profundo del secundario (íconos neutros, botones secundarios).
-  Color get secondaryDeep => isDark ? const Color(0xFFE6E8EB) : const Color(0xFF0A2A6E);
+  Color get secondaryDeep => isDark ? const Color(0xFFDCE4F2) : const Color(0xFF0A2A6E);
 
   /// Tinte del secundario (fondos de chips, cabeceras, activo de navegación).
-  Color get secondaryTint => isDark ? const Color(0x12FFFFFF) : const Color(0xFFE8F0FC);
+  Color get secondaryTint => isDark ? const Color(0x14FFFFFF) : const Color(0xFFE8F0FC);
 
   /// Superficie de navegación (dock, app bars, sheets).
-  Color get navSurface => isDark ? const Color(0xFF1D1E21) : const Color(0xFFFBFCFF);
+  Color get navSurface => isDark ? const Color(0xFF0E1320) : const Color(0xFFFBFCFF);
 
   /// Fondo del ítem activo de navegación.
-  Color get navActive => isDark ? const Color(0x12FFFFFF) : const Color(0xFFE8F0FC);
+  Color get navActive => isDark ? const Color(0x14FFFFFF) : const Color(0xFFE8F0FC);
 
   /// Sombra estándar de tarjeta.
   List<BoxShadow> get shadowSm => isDark
@@ -241,13 +241,13 @@ class EnjoyColors extends ThemeExtension<EnjoyColors> {
       ? const EnjoyTone(Color(0xFFFFB3BB), Color(0x29FF5A6A), Color(0x66FF5A6A))
       : const EnjoyTone(Color(0xFFA31D33), Color(0xFFFBE6EA), Color(0xFFF2C2CB));
   EnjoyTone get toneInfo => isDark
-      ? const EnjoyTone(Color(0xFFB5D4F2), Color(0x248DB8E6), Color(0x5C8DB8E6))
+      ? const EnjoyTone(Color(0xFFB9D2FF), Color(0x248FB8FF), Color(0x5C8FB8FF))
       : const EnjoyTone(Color(0xFF0B6E9E), Color(0xFFE1F4FD), Color(0xFFB3E3F8));
   EnjoyTone get toneAccent => isDark
-      ? const EnjoyTone(Color(0xFFFFB27A), Color(0x29FF5F00), Color(0x66FF5F00))
+      ? const EnjoyTone(Color(0xFF9CC3FF), Color(0x293D7FF0), Color(0x663D7FF0))
       : const EnjoyTone(Color(0xFF0F56C2), Color(0xFFE8F0FC), Color(0xFFC3D7F5));
   EnjoyTone get toneNeutral => isDark
-      ? const EnjoyTone(Color(0xFFD7DBE0), Color(0x2E000000), Color(0x4D000000))
+      ? const EnjoyTone(Color(0xFFC3CCDA), Color(0x1FFFFFFF), Color(0x38FFFFFF))
       : const EnjoyTone(Color(0xFF3D5277), Color(0xFFF4F7FC), Color(0xFFDCE6F4));
 
   @override
