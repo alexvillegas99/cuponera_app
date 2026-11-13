@@ -20,6 +20,7 @@ class PromoPrincipal {
   final bool? isFlash;
   final String? address;
   final bool? aplicaTodosLosDias;
+  final List<String> diasAplicables;
   final List<String> fechasExcluidas;
    final String? telefono;    
 
@@ -42,6 +43,7 @@ class PromoPrincipal {
     required this.isFlash,
     required this.address,
     required this.aplicaTodosLosDias, 
+    this.diasAplicables = const [],
     required this.fechasExcluidas,
         this.telefono, 
   });
@@ -66,6 +68,7 @@ class PromoPrincipal {
     address: j['address']?.toString(),
       telefono: j['telefono']?.toString(), 
     aplicaTodosLosDias: j['aplicaTodosLosDias'] as bool?,
+    diasAplicables: ((j['diasAplicables'] as List?) ?? const []).map((e) => e.toString()).toList(),
     fechasExcluidas: ((j['fechasExcluidas'] as List?) ?? const []).map((e) => e?.toString() ?? '').toList(),
   );
 }

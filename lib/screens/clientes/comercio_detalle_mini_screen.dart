@@ -654,7 +654,9 @@ class _ComercioDetalleMiniScreenState
       safeTop: false,
       showGlow: false,
       // Barra fija compacta (altura fija: la versión anterior se estiraba).
-      bottomBar: _cuponesDisponibles.length == 1 ? _barraAccion(ec) : null,
+      bottomBar: _cuponesDisponibles.length == 1 && _motivoNoAplicaHoy() == null
+          ? _barraAccion(ec)
+          : null,
       body: RefreshIndicator(
         color: ec.orange,
         backgroundColor: ec.surfaceMid,
@@ -708,6 +710,25 @@ class _ComercioDetalleMiniScreenState
 
   /// Línea discreta cuando el cliente NO puede canjear aquí (sin presión de venta).
   Widget? _avisoCuponera(EnjoyColors ec) {
+    // Tiene cupón pero la promo no aplica hoy: avisar en lugar de canjear.
+    final motivoHoy = _motivoNoAplicaHoy();
+    if (_cuponesDisponibles.isNotEmpty && motivoHoy != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(color: ec.secondaryTint, borderRadius: BorderRadius.circular(12)),
+          child: Row(children: [
+            Icon(Icons.event_busy_outlined, size: 18, color: ec.secondaryDeep),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(motivoHoy,
+                  style: EnjoyTheme.body(size: 13, height: 1.35, color: ec.textSoft)),
+            ),
+          ]),
+        ),
+      );
+    }
     if (_cuponesDisponibles.isNotEmpty || _tieneCuponera == null) return null;
     final ciudad = (_data?.ciudades.isNotEmpty ?? false) ? _data!.ciudades.first : '';
 
@@ -764,6 +785,29 @@ class _ComercioDetalleMiniScreenState
           ? fila
           : GestureDetector(onTap: () => _abrirCuponeras(ciudad), child: fila),
     );
+  }
+
+  /// Si la promoción del local NO aplica hoy, el motivo para mostrar.
+  String? _motivoNoAplicaHoy() {
+    final p = _data?.promoPrincipal;
+    if (p == null) return null;
+    final now = DateTime.now();
+    final hoy = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final excluida = p.fechasExcluidas.any((e) {
+      final d = DateTime.tryParse(e)?.toUtc();
+      return d != null && d.toIso8601String().substring(0, 10) == hoy;
+    });
+    if (excluida) return 'Hoy no aplica la promoción de este local. Tu cupón sigue disponible para otro día.';
+    if (p.aplicaTodosLosDias == false && p.diasAplicables.isNotEmpty) {
+      const dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+      final hoyNombre = dias[now.weekday - 1];
+      final norm = p.diasAplicables.map((d) => d.toLowerCase()
+          .replaceAll('é', 'e').replaceAll('á', 'a')).toList();
+      if (!norm.contains(hoyNombre)) {
+        return 'Esta promoción aplica ${norm.join(', ')}. Tu cupón sigue disponible para esos días.';
+      }
+    }
+    return null;
   }
 
   void _abrirCuponeras(String ciudad) {
@@ -1118,8 +1162,8 @@ class _ComercioDetalleMiniScreenState
             aviso,
           ],
 
-          // ── Cupón disponible ──
-          if (_cuponesDisponibles.isNotEmpty) ...[
+          // ── Cupón disponible (solo si la promo aplica hoy) ──
+          if (_cuponesDisponibles.isNotEmpty && _motivoNoAplicaHoy() == null) ...[
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
