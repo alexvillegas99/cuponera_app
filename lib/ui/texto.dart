@@ -32,3 +32,15 @@ Widget mapaOscuroTileBuilder(BuildContext context, Widget tile, dynamic _) {
     child: tile,
   );
 }
+
+
+/// El backend arma el horario con las fechas excluidas al final
+/// ("Todos los días 16:00 a 00:00 · excepto 12/11"). En las tarjetas, donde
+/// el texto se recorta, la excepción se muestra aparte y antes ("No aplica 12/11").
+({String horario, String noAplica}) partesHorario(String? label) {
+  final s = (label ?? '').trim();
+  const marca = ' · excepto ';
+  final i = s.indexOf(marca);
+  if (i < 0) return (horario: s, noAplica: '');
+  return (horario: s.substring(0, i), noAplica: 'No aplica ${s.substring(i + marca.length)}');
+}

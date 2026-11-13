@@ -1331,13 +1331,9 @@ class _ComercioDetalleMiniScreenState
             _data!.promedioCalificacion.isInfinite)
         ? 0.0
         : _data!.promedioCalificacion.clamp(0.0, 5.0);
-    final excepto = p == null ? const <String>[] : _proximasExcluidas(p);
-    final horarioBase = (p?.scheduleLabel ?? '').trim();
-    // El horario lo escribe el local; si hay fechas excluidas próximas se
-    // indican aquí mismo para que no contradiga el aviso de "hoy no aplica".
-    final scheduleLabel = horarioBase.isEmpty || excepto.isEmpty
-        ? horarioBase
-        : '$horarioBase · excepto ${excepto.join(', ')}';
+    // El backend arma este texto desde los días, horas y fechas excluidas
+    // reales de la promo (ver horario-visible.ts), así que siempre cuadra.
+    final scheduleLabel = (p?.scheduleLabel ?? '').trim();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),

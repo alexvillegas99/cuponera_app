@@ -266,12 +266,16 @@ class PromoCard extends StatelessWidget {
   final oferta = title.trim().isNotEmpty && title.trim().toLowerCase() != place.trim().toLowerCase()
       ? title.trim()
       : null;
+  // El backend añade "· excepto dd/MM" al horario. En la tarjeta esa parte
+  // va temprano ("No aplica dd/MM") para que no se pierda al recortar.
+  final (:horario, :noAplica) = partesHorario((p.scheduleLabel ?? '').toString());
   // Lo corto primero (el horario puede ser largo y se recorta al final).
   final meta = [
     (p.city ?? '').toString(),
+    noAplica,
     distancia ?? '',
     cats.isNotEmpty ? cats.first.toString() : '',
-    (p.scheduleLabel ?? '').toString(),
+    horario,
   ].where((e) => e.trim().isNotEmpty).join(' · ');
   return (oferta: oferta, meta: meta);
 }

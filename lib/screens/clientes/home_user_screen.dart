@@ -517,7 +517,8 @@ class _PromotionsHomeScreenState extends State<PromotionsHomeScreen>
         ? p.title.trim()
         : '';
     final subtitle = oferta.isNotEmpty ? oferta : cat;
-    final meta = [p.city, distStr ?? '', oferta.isNotEmpty ? cat : '', p.scheduleLabel]
+    final hz = partesHorario(p.scheduleLabel);
+    final meta = [p.city, hz.noAplica, distStr ?? '', oferta.isNotEmpty ? cat : '', hz.horario]
         .where((e) => e.trim().isNotEmpty)
         .join(' · ');
     return Padding(
@@ -2127,7 +2128,8 @@ class _PromoHoyCard extends StatelessWidget {
             promo.title.trim().toLowerCase() != promo.placeName.trim().toLowerCase()
         ? promo.title.trim()
         : (promo.categories.isNotEmpty ? promo.categories.first : '');
-    final cat = [promo.city, promo.scheduleLabel].where((e) => e.trim().isNotEmpty).join(' · ');
+    final hz = partesHorario(promo.scheduleLabel);
+    final cat = [promo.city, hz.noAplica, hz.horario].where((e) => e.trim().isNotEmpty).join(' · ');
     return GestureDetector(
       onTap: onTap,
       child: Container(
